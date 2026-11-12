@@ -1,6 +1,8 @@
 import { useMemo, useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
+import { shoreDistance } from './shoreline';
+import { garden } from './world';
 
 // Decorations never take pointer hits away from walking or selecting a chair.
 const ignorePointer = () => {};
@@ -8,11 +10,13 @@ const clouds = [
     { x: -13, z: 6, height: 5.4, scale: 0.8, speed: 0.11 },
     { x: -1, z: -7, height: 5.8, scale: 0.9, speed: 0.08 },
     { x: 13, z: 2, height: 5.2, scale: 0.7, speed: 0.095 },
+    { x: -22, z: -21, height: 6.5, scale: 1.2, speed: 0.08 },
+    { x: 9, z: -32, height: 7, scale: 1.1, speed: 0.1 },
 ];
 const puffs = [[-1.15, 0, 0, 1.1], [-0.3, 0.25, 0.1, 1.4], [0.8, 0.12, 0, 1.2], [1.55, -0.05, 0.05, 0.8]];
 const fireflies = Array.from({ length: 22 }, (_, i) => ({
-    x: -6 + Math.sin(i * 2.4) * (0.6 + (i % 4) * 0.5),
-    z: -6.1 + Math.cos(i * 2.4) * (0.6 + (i % 5) * 0.32),
+    x: garden.x + Math.sin(i * 2.4) * (0.6 + (i % 4) * 0.5),
+    z: garden.z + Math.cos(i * 2.4) * (0.6 + (i % 5) * 0.32),
     y: 0.5 + (i % 6) * 0.18,
     phase: i * 2.399,
 }));
@@ -42,7 +46,7 @@ export function IslandLife({ motion, darkness }: { motion: boolean; darkness: nu
         cloudGroup.current?.children.forEach((cloud, i) => {
             const config = clouds[i];
             // Wrap outside the island, where a cloud cannot pop across the scene.
-            cloud.position.set(((config.x + t * config.speed + 28) % 56) - 28, config.height, config.z + Math.sin(t * 0.035 + i) * 0.5);
+            cloud.position.set(((config.x + t * config.speed + 44) % 88) - 44, config.height, config.z + Math.sin(t * 0.035 + i) * 0.5);
             cloud.children.forEach(puff => {
                 const material = (puff as THREE.Mesh<THREE.SphereGeometry, THREE.MeshStandardMaterial>).material;
                 material.color.copy(cloudColor); material.opacity = 0.76 - night.current * 0.25;
@@ -50,8 +54,8 @@ export function IslandLife({ motion, darkness }: { motion: boolean; darkness: nu
             const shadow = shadowGroup.current?.children[i] as THREE.Mesh<THREE.PlaneGeometry, THREE.ShaderMaterial> | undefined;
             if (shadow) {
                 shadow.position.set(cloud.position.x, 0.205, cloud.position.z);
-                const edge = (cloud.position.x / 11.3) ** 2 + (cloud.position.z / 8.7) ** 2;
-                shadow.material.uniforms.strength.value = 0.12 * (1 - night.current * 0.8) * (1 - THREE.MathUtils.smoothstep(edge, 0.65, 1));
+                const edge = shoreDistance(cloud.position.x, cloud.position.z);
+                shadow.material.uniforms.strength.value = 0.12 * (1 - night.current * 0.8) * (1 - THREE.MathUtils.smoothstep(edge, -2, -0.2));
             }
         });
         flyGroup.current?.children.forEach((fly, i) => {

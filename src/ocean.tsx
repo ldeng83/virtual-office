@@ -3,6 +3,7 @@ import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 import type { IslandTime } from './atmosphere';
 import { periods } from './daylight';
+import { shorelineGLSL, ISLAND_CENTER_Z } from './shoreline';
 
 const palettes = {
     dawn: ['#769aaf', '#b2d9d1', '#eededc', '#ffe5d1'],
@@ -16,13 +17,15 @@ const vertexShader = `
     varying vec2 vOcean;
     varying vec3 vSurface;
     uniform float time;
+    ${shorelineGLSL}
     void main() {
         vec4 world = modelMatrix * vec4(position, 1.0);
         vOcean = world.xz;
-        float offshore = smoothstep(10.6, 13.0, length(vec2(world.x / 1.28, world.z)));
+        float offshore = smoothstep(0.2, 2.6, coastDistance(world.xz));
         float swell = sin(world.x * 0.55 + world.z * 0.32 - time * 0.85) * 0.08
                     + sin(world.x * -0.28 + world.z * 0.7 - time * 0.62) * 0.045;
-        world.y += swell * offshore;
+        float nearby = 1.0 - smoothstep(70.0, 110.0, length(vec2(world.x, world.z - ${ISLAND_CENTER_Z.toFixed(10)})));
+        world.y += swell * offshore * nearby;
         vSurface = world.xyz;
         gl_Position = projectionMatrix * viewMatrix * world;
     }
@@ -37,6 +40,7 @@ const fragmentShader = `
     uniform vec3 shallowColor;
     uniform vec3 foamColor;
     uniform vec3 glintColor;
+    ${shorelineGLSL}
     float hash(vec2 p) { return fract(sin(dot(p, vec2(127.1,311.7))) * 43758.5453); }
     float caustic(vec2 p) {
         vec2 q = p + vec2(sin(p.y * 1.5 + time * 0.32), cos(p.x * 1.3 - time * 0.27)) * 0.3;
@@ -47,8 +51,7 @@ const fragmentShader = `
     void main() {
         vec2 p = vOcean;
         vec2 coast = vec2(p.x / 1.28, p.y);
-        float radius = length(coast);
-        float shore = radius - 10.4;
+        float shore = coastDistance(p);
         float angle = atan(coast.y, coast.x);
         float wave = sin(p.x * 0.72 + p.y * 0.46 - time * 0.45)
                    + sin(p.x * -0.34 + p.y * 0.65 + time * 0.3);
@@ -104,8 +107,17 @@ const fragmentShader = `
 
 export function Ocean({ motion, time }: { motion: boolean; time: IslandTime }) {
     const material = useRef<THREE.ShaderMaterial>(null);
+    const farMaterial = useRef<THREE.ShaderMaterial>(null);
     const seabed = useRef<THREE.MeshBasicMaterial>(null);
     const elapsed = useRef(0);
+    const distantWater = useMemo(() => {
+        const outline = new THREE.Shape();
+        outline.moveTo(-500, -500).lineTo(500, -500).lineTo(500, 500).lineTo(-500, 500).closePath();
+        const hole = new THREE.Path();
+        hole.moveTo(-120, -120).lineTo(-120, 120).lineTo(120, 120).lineTo(120, -120).closePath();
+        outline.holes.push(hole);
+        return new THREE.ShapeGeometry(outline);
+    }, []);
     const target = useMemo(() => palettes[time.from].map((color, i) => new THREE.Color(color).lerp(new THREE.Color(palettes[time.to][i]), time.progress)), [time.from, time.to, time.progress]);
     const direction = useMemo(() => new THREE.Vector3(...periods[time.from].position).lerp(new THREE.Vector3(...periods[time.to].position), time.progress).normalize(), [time.from, time.to, time.progress]);
     const shallowLight = 1 - THREE.MathUtils.lerp(periods[time.from].darkness, periods[time.to].darkness, time.progress) * 0.75;
@@ -120,9 +132,12 @@ export function Ocean({ motion, time }: { motion: boolean; time: IslandTime }) {
         values.shallowLight.value = THREE.MathUtils.lerp(values.shallowLight.value, shallowLight, alpha);
         if (seabed.current) seabed.current.color.copy(values.deepColor.value).multiplyScalar(0.7);
         ['deepColor', 'shallowColor', 'foamColor', 'glintColor'].forEach((key, i) => values[key].value.lerp(target[i], alpha));
+        if (farMaterial.current) farMaterial.current.uniforms = values;
     });
-    return <><mesh name="ocean-floor" raycast={() => {}} rotation={[-Math.PI / 2, 0, 0]} position={[0, -3.5, 0]}><planeGeometry args={[240, 240]}/><meshBasicMaterial ref={seabed} color="#427c96"/></mesh><mesh name="ocean" renderOrder={-1} raycast={() => {}} rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.4, 0]}>
+    return <><mesh name="ocean-floor" raycast={() => {}} rotation={[-Math.PI / 2, 0, 0]} position={[0, -3.5, 0]}><planeGeometry args={[1000, 1000]}/><meshBasicMaterial ref={seabed} color="#427c96"/></mesh><mesh name="ocean" renderOrder={-1} raycast={() => {}} rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.4, 0]}>
         <planeGeometry args={[240, 240, 192, 192]}/>
         <shaderMaterial ref={material} vertexShader={vertexShader} fragmentShader={fragmentShader} uniforms={uniforms} transparent depthWrite={false}/>
+    </mesh><mesh name="ocean-far" renderOrder={-1} raycast={() => {}} rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.4, 0]} geometry={distantWater}>
+        <shaderMaterial ref={farMaterial} vertexShader={vertexShader} fragmentShader={fragmentShader} uniforms={uniforms} transparent depthWrite={false}/>
     </mesh></>;
 }

@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { shoreDistance, ISLAND_CENTER_Z } from '../src/shoreline.ts';
 import { animalRoute } from '../src/sea-life-motion.ts';
 
 test('sea animals stay offshore and beach crabs stay clear of the dock', () => {
@@ -8,11 +9,10 @@ test('sea animals stay offshore and beach crabs stay clear of the dock', () => {
             for (let index = 0; index < (kind === 'crab' || kind === 'school' ? 3 : 2); index++) {
                 const p = animalRoute(kind, index, t);
                 assert.ok(Object.values(p).every(Number.isFinite));
-                const radius = Math.hypot(p.x / 1.28, p.z);
                 if (kind === 'crab') {
-                    assert.ok(radius > 9.7 && radius < 10.4);
+                    assert.ok(shoreDistance(p.x, p.z) > -0.7 && shoreDistance(p.x, p.z) < -0.25);
                     assert.ok(Math.abs(p.x) > 1.5 || p.z < 7.8);
-                } else assert.ok(radius > 11, `${kind} entered the island`);
+                } else assert.ok(shoreDistance(p.x, p.z) > 0.9, `${kind} entered the island`);
             }
         }
     }
@@ -37,7 +37,7 @@ test('animals stay in local habitats instead of circling the island', () => {
         for (let i = 0; i < (kind === 'school' || kind === 'crab' ? 3 : 2); i++) {
             for (let t = 0; t < 600; t += 0.5) {
                 const p = animalRoute(kind, i, t);
-                const angle = Math.atan2(p.z, p.x / 1.28);
+                const angle = Math.atan2(p.z - ISLAND_CENTER_Z, p.x / 1.28);
                 assert.ok(angle >= min && angle <= max, `${kind} left its habitat`);
             }
         }

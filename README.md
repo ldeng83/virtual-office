@@ -15,13 +15,14 @@ Open the local URL printed by Vite. Production build: `npm run build`. Preview t
 
 ## Explore
 
-- Click the ground to walk around obstacles.
+- Click the ground to walk around obstacles. Explore five districts: the original office village, quiet forest with a pond and focus benches, social beach with gathering seats and a hammock, flower garden peninsula with a coastal lookout, and a rocky wild coast. The island has five times the land area of the previous expanded layout; the studio and southern dock keep their positions.
 - Use WASD or arrow keys to move relative to the camera.
-- Right-drag to orbit; use the on-screen + / − buttons to zoom.
+- The camera follows your avatar by default. Choose **Island overview** to see the full island, or **Follow me** to return. Right-drag to orbit; use the on-screen + / − buttons to zoom. Reset view restores the camera orientation and zoom for the selected mode.
 - Click a chair to sit; walk or select **Stand up** to leave.
-- Select a location in the sidebar to teleport there.
+- Select any of nine locations in the scrollable sidebar to travel there. The collapsible mini-map shows your position, trails, pond, and district markers; select a district marker to travel there. Travelling or starting to walk restores Follow me.
 - Check in or out, change availability, and edit your name and avatar color.
 - Open the people tab to view your local presence.
+- Main trails connect every district. Ponds, rocks, trees, and campfires block walking. Distant trees use simpler geometry; foreground forest canopies fade when they obscure the avatar.
 - Open the sliders button at the top right of the island for real-time lighting, manual day periods, gentle motion, and optional ocean audio.
 - Night adds warm studio lighting and campfire glow. Audio has a volume control and pauses when the tab is hidden. It starts muted on every visit.
 - Follow real time is on by default and uses your device timezone: Dawn (5–7 am), Morning (7–11 am), Midday (11 am–3 pm), Golden hour (3–6 pm), Dusk (6–8 pm), Night (8 pm–5 am). These are fixed local windows, independent of season or location. Lighting, water, shadows, lamps, and stars blend between period centers, including across midnight.
@@ -42,7 +43,11 @@ Check-in, name, color, status, and atmosphere preferences persist in browser loc
 - `src/island-life.tsx`: drifting clouds, soft cloud shadows, and evening fireflies.
 - `src/daylight.ts`: local time mapping, continuous day-cycle sampling, and saved-settings migration.
 - `src/atmosphere.tsx`: lighting presets, atmosphere controls, and synthesized ocean audio.
-- `src/world.ts`: locations, furniture, collision rules, and grid navigation.
+- `src/shoreline.ts`: shared coastal contour for terrain, collision, ocean effects, and animal routes.
+- `src/terrain.tsx`: shaped sand and grass terrain plus click-to-walk surface.
+- `src/world.ts`: districts, trails, furniture, collision rules, and A* navigation with cached grid checks.
+- `src/districts.tsx`: forest tree detail levels, pond, beach gathering area, flower beds, lookout, and rocky coast.
+- `src/island-map.tsx`: collapsible mini-map, position marker, and district travel.
 - `src/style.css`: responsive layout and visual styling.
 - `tests/navigation.test.mjs`: boundary, obstacle, destination, and seating accessibility checks.
 
@@ -55,7 +60,9 @@ npm run build
 
 The navigation tests use Node's built-in TypeScript support and need no installed dependencies. They verify collision boundaries, connections between every named location, access to every seat, and rejection of invalid destinations.
 
-Verification: all eleven day-cycle, navigation, and sea-life tests and the production build (including TypeScript checking) passed. Fixed oversized location labels caused by distance scaling with the orthographic camera. Atmosphere controls, all six day periods and real-time mode, audio play/mute, keyboard volume control, preference persistence, and mobile dialog layout were verified in the Orca browser. Palm/cloud/firefly animation, pause/resume, daytime firefly visibility, and decoration pointer passthrough were also checked in the browser. Ocean palettes, shader compilation, motion pause/resume, and pointer passthrough were verified in the browser. Sea animal visibility, motion pause/resume, and pointer passthrough were verified in the browser; route tests cover ten minutes of swimming and crab movement. The audio engine was exercised; subjective sound quality was not assessed.
+Verification: all fifteen shoreline, day-cycle, navigation, and sea-life tests and the production build (including TypeScript checking) passed. Tests cover exact fivefold area growth, fixed dock coastline, obstacle boundaries, every location and seat, clear district trails, map destinations, day-cycle continuity, and ten minutes of sea animal routes.
+
+Browser checks cover district travel through the mini-map, live position updates, camera following while walking, desktop/mobile overview framing, and tree detail reduction. The atmosphere presets, water shader, motion pause/resume, decoration pointer passthrough, settings persistence, and mobile layout have also been checked. The audio engine was exercised; subjective sound quality was not assessed.
 
 Google Fonts are optional; local sans-serif fallbacks work offline. The 3D scene requires WebGL. A rendering error displays a reload message.
 

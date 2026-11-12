@@ -37,14 +37,20 @@ export function AtmosphereScene({ settings, time }: { settings: Atmosphere; time
     const fire = useRef<THREE.PointLight>(null), lamps = useRef<THREE.Group>(null), stars = useRef<THREE.Group>(null);
     const ambient = useRef<THREE.AmbientLight>(null), sun = useRef<THREE.DirectionalLight>(null), studio = useRef<THREE.PointLight>(null);
     const current = useRef({ ...target, sky: target.sky.clone(), light: target.light.clone(), ambientColor: target.ambientColor.clone(), position: target.position.clone() });
-    useFrame(({ clock, scene }, dt) => {
+    useFrame(({ clock, scene, camera, controls }, dt) => {
         const c = current.current;
         const alpha = settings.motion ? 1 - Math.exp(-Math.min(dt, 0.1) * 2) : 1;
         for (const key of ['sky', 'light', 'ambientColor'] as const) c[key].lerp(target[key], alpha);
         for (const key of ['ambient', 'sun', 'lamps', 'darkness'] as const) c[key] = THREE.MathUtils.lerp(c[key], target[key], alpha);
         c.position.lerp(target.position, alpha);
         (scene.background as THREE.Color)?.copy(c.sky);
-        (scene.fog as THREE.Fog)?.color.copy(c.sky);
+        if (scene.fog) {
+            const fog = scene.fog as THREE.Fog;
+            fog.color.copy(c.sky);
+            const focus = (controls as unknown as { target?: THREE.Vector3 })?.target;
+            fog.near = Math.max(55, (focus ? camera.position.distanceTo(focus) : 44) + 35);
+            fog.far = fog.near + 100;
+        }
         if (ambient.current) { ambient.current.color.copy(c.ambientColor); ambient.current.intensity = c.ambient; }
         if (sun.current) { sun.current.color.copy(c.light); sun.current.intensity = c.sun; sun.current.position.copy(c.position); }
         if (fire.current) fire.current.intensity = (2 + c.darkness * 5) * (settings.motion ? 1 + Math.sin(clock.elapsedTime * 5) * 0.08 + Math.sin(clock.elapsedTime * 8.3) * 0.05 : 1);
@@ -56,7 +62,7 @@ export function AtmosphereScene({ settings, time }: { settings: Atmosphere; time
         <IslandLife motion={settings.motion} darkness={target.darkness}/>
         <color attach="background" args={[current.current.sky]}/><fog attach="fog" args={[current.current.sky, 55, 110]}/>
         <ambientLight ref={ambient}/>
-        <directionalLight ref={sun} castShadow shadow-mapSize={[2048, 2048]} shadow-camera-left={-20} shadow-camera-right={20} shadow-camera-top={20} shadow-camera-bottom={-20} shadow-normalBias={0.04}/>
+        <directionalLight ref={sun} castShadow shadow-mapSize={[2048, 2048]} shadow-camera-left={-60} shadow-camera-right={60} shadow-camera-top={60} shadow-camera-bottom={-60} shadow-normalBias={0.04}/>
         <Ocean motion={settings.motion} time={time}/><SeaLife motion={settings.motion}/>
         <pointLight ref={fire} position={[5, 1.1, 4]} color="#ffab59" distance={7} decay={2}/>
         <group ref={lamps}>{[-8, -6, -4, -2, 0].map(x => <mesh key={x} position={[x, 2.38, 2.3]}><sphereGeometry args={[0.07, 8, 6]}/><meshStandardMaterial color="#ffe0a0" emissive="#ffca79"/></mesh>)}</group>
