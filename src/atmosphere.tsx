@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { useFrame } from '@react-three/fiber';
 import { Moon, Sun, Sunrise, Sunset, CloudSun, Volume2, VolumeX, Waves } from 'lucide-react';
 import * as THREE from 'three';
+import { IslandLife } from './island-life';
 
 import { daylightAtHour, localHour, normalizeAtmosphere, periods, type Atmosphere } from './daylight';
 export type { Atmosphere } from './daylight';
@@ -57,6 +58,7 @@ export function AtmosphereScene({ settings, time }: { settings: Atmosphere; time
         stars.current?.children.forEach(star => { (star as THREE.Mesh<THREE.SphereGeometry, THREE.MeshBasicMaterial>).material.opacity = Math.max(0, (c.darkness - 0.6) / 0.4); });
     });
     return <>
+        <IslandLife motion={settings.motion} darkness={target.darkness}/>
         <color attach="background" args={[current.current.sky]}/><fog attach="fog" args={[current.current.sky, 55, 110]}/>
         <ambientLight ref={ambient}/>
         <directionalLight ref={sun} castShadow shadow-mapSize={[2048, 2048]} shadow-camera-left={-20} shadow-camera-right={20} shadow-camera-top={20} shadow-camera-bottom={-20} shadow-normalBias={0.04}/>
@@ -130,7 +132,7 @@ export function AtmosphereControls({ settings, update, sound, time }: { time: Is
         <p className="timezone-note">{time.timezone} · {settings.mode === 'auto' ? 'Light changes gradually throughout your day.' : 'Choose a period to stay a little longer.'}</p>
         <span className="form-label">{settings.mode === 'auto' ? 'Your day on the island' : 'Choose a period'}</span>
         <div className="mood-options" role="group" aria-label="Time of day">{Object.entries(periods).map(([key, mood]) => { const Icon = periodIcons[key as Atmosphere['mood']]; return <button key={key} className={`mood-option mood-${key}`} aria-pressed={time.period === key} onClick={() => update({ mode: 'manual', mood: key as Atmosphere['mood'] })}><Icon size={21}/><span><strong>{mood.name}</strong><small>{mood.detail}</small></span>{time.period === key && <CheckMark/>}</button>; })}</div>
-        <label className="atmosphere-toggle"><span><strong>Gentle motion</strong><small>Rolling ripples and a flickering campfire</small></span><input type="checkbox" role="switch" checked={settings.motion} onChange={e => update({ motion: e.target.checked })}/></label>
+        <label className="atmosphere-toggle"><span><strong>Gentle motion</strong><small>Breezy palms, drifting clouds, and evening fireflies</small></span><input type="checkbox" role="switch" checked={settings.motion} onChange={e => update({ motion: e.target.checked })}/></label>
         <div className="sound-card"><div className="sound-heading"><Waves size={22}/><span><strong>Ocean breeze</strong><small>A soft wash of waves, just for you</small></span><button className="sound-toggle" aria-label={sound.playing ? 'Mute island sounds' : 'Play island sounds'} aria-pressed={sound.playing} onClick={sound.toggle}>{sound.playing ? <Volume2 size={19}/> : <VolumeX size={19}/>}</button></div><label className="volume-label" htmlFor="ocean-volume">Volume <span>{settings.volume}%</span></label><input id="ocean-volume" aria-label="Ocean volume" type="range" min="0" max="100" value={settings.volume} onChange={e => update({ volume: Number(e.target.value) })}/><p className="sound-note">{sound.playing ? 'Playing · pauses while the island is in the background' : 'Sound is off. Press play whenever you’re ready.'}</p>{sound.error && <p role="status" className="sound-note">{sound.error}</p>}</div>
         <p className="settings-note">Your atmosphere is saved on this device. Sound starts only when you choose.</p>
     </>;
