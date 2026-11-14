@@ -1,33 +1,13 @@
-import { useRef } from 'react';
-import { useFrame } from '@react-three/fiber';
-import * as THREE from 'three';
 import { coastRocks, forestTrees, ponds, beach } from './world';
 
 function Trunk({ p, scale = 1 }: { p: [number, number, number]; scale?: number }) {
     return <mesh position={p} scale={scale}><cylinderGeometry args={[0.12, 0.22, 2.4, 7]}/><meshStandardMaterial color="#947f61"/></mesh>;
 }
 function ForestTree({ x, z, index }: { x: number; z: number; index: number }) {
-    const leaves = useRef<THREE.Group>(null), detailed = useRef<THREE.Group>(null), simple = useRef<THREE.Group>(null);
     const scale = 1 + (index % 4) * 0.13;
-    useFrame(({ camera, controls }, dt) => {
-        const focus = (controls as unknown as { target?: THREE.Vector3 })?.target;
-        const near = camera.zoom > 18 && !!focus && Math.hypot(x - focus.x, z - focus.z) < 23;
-        if (detailed.current) detailed.current.visible = near;
-        if (simple.current) simple.current.visible = !near;
-        if (focus && leaves.current) {
-            const dx = focus.x - camera.position.x, dy = 1.2 - camera.position.y, dz = focus.z - camera.position.z;
-            const along = ((x - camera.position.x) * dx + (2.8 * scale - camera.position.y) * dy + (z - camera.position.z) * dz) / (dx * dx + dy * dy + dz * dz);
-            const gap = Math.hypot(x - camera.position.x - dx * along, 2.8 * scale - camera.position.y - dy * along, z - camera.position.z - dz * along);
-            const opacity = near && along > 0.1 && along < 1 && gap < 2.1 * scale ? 0.22 : 1;
-            leaves.current.children.forEach(leaf => {
-                const material = (leaf as THREE.Mesh<THREE.IcosahedronGeometry, THREE.MeshStandardMaterial>).material;
-                material.opacity = THREE.MathUtils.damp(material.opacity, opacity, 8, Math.min(dt, 0.1));
-            });
-        }
-    });
     return <group name="forest-tree" position={[x, 0.08, z]} scale={scale}>
-        <group ref={detailed} name="scenery-detail"><Trunk p={[0, 1.2, 0]}/><group ref={leaves}>{[0, 1, 2].map(n => <mesh key={n} castShadow position={[Math.sin(n * 2.1) * 0.45, 2.6 + n * 0.35, Math.cos(n * 2.1) * 0.4]} scale={[1.05, 0.85, 1]}><icosahedronGeometry args={[1, 1]}/><meshStandardMaterial color={index % 2 ? '#6d8b65' : '#7d9974'} flatShading transparent depthWrite={false}/></mesh>)}</group></group>
-        <group ref={simple} name="scenery-simple"><Trunk p={[0, 1.2, 0]}/><mesh position={[0, 2.8, 0]} scale={[1.4, 1.3, 1.4]}><icosahedronGeometry args={[1, 0]}/><meshStandardMaterial color="#74916b" flatShading/></mesh></group>
+        <Trunk p={[0, 1.2, 0]}/>
+        {[0, 1, 2].map(n => <mesh key={n} castShadow position={[Math.sin(n * 2.1) * 0.45, 2.6 + n * 0.35, Math.cos(n * 2.1) * 0.4]} scale={[1.05, 0.85, 1]}><icosahedronGeometry args={[1, 1]}/><meshStandardMaterial color={index % 2 ? '#6d8b65' : '#7d9974'} flatShading/></mesh>)}
     </group>;
 }
 function Disc({ x, z, radius, color, y = 0.1 }: { x: number; z: number; radius: number; color: string; y?: number }) {

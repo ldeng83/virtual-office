@@ -22,15 +22,15 @@ Open the local URL printed by Vite. Production build: `npm run build`. Preview t
 - Select any of nine locations in the scrollable sidebar to travel there. The collapsible mini-map shows your position, trails, pond, and district markers; select a district marker to travel there. Travelling or starting to walk restores Follow me.
 - Check in or out, change availability, and edit your name and avatar color.
 - Open the people tab to view your local presence.
-- Main trails connect every district. Ponds, rocks, trees, and campfires block walking. Distant trees use simpler geometry; foreground forest canopies fade when they obscure the avatar.
+- Main trails connect every district. Ponds, rocks, trees, and campfires block walking. All trees use fixed geometry and opaque foliage: walking, camera movement, and zoom never switch their detail or visibility. Trees remain still even when Gentle motion is enabled.
 - Open the sliders button at the top right of the island for real-time lighting, manual day periods, gentle motion, and optional ocean audio.
 - Night adds warm studio lighting and campfire glow. Audio has a volume control and pauses when the tab is hidden. It starts muted on every visit.
 - Follow real time is on by default and uses your device timezone: Dawn (5–7 am), Morning (7–11 am), Midday (11 am–3 pm), Golden hour (3–6 pm), Dusk (6–8 pm), Night (8 pm–5 am). These are fixed local windows, independent of season or location. Lighting, water, shadows, lamps, and stars blend between period centers, including across midnight.
 - Select any period to hold it manually; turn Follow real time back on to resume. The island chip always shows the current local clock, with a Manual badge when overridden.
 - The ocean blends turquoise shallows into deeper blue water, with crossing surface swells, broken shoreline foam, moving light patterns in the shallows, and sparse glints. Broad highlights respond to the sun or moon direction; underwater light patterns soften at night. Water colors follow all six day periods, with warmer highlights at sunset and cooler glints at night.
 - Sea life includes two surfacing turtles, three schools of seven fish, two dolphins with staggered leaps, two gliding manta rays, and three beach crabs that scuttle, pause, and hide in the sand. Animals stay in localized habitats: turtles and fish near the dock, rays along the right-hand shallows, dolphins farther offshore to the left, and crabs on the front-right beach. Their small oval routes leave open stretches of ocean; crabs stay clear of the dock. Translucent water reveals underwater animals.
-- Palms sway with gentle gusts, clouds drift with soft ground shadows, and fireflies glow around the quiet garden from dusk into night. Cloud colors and firefly visibility follow the day cycle.
-- Motion defaults off when your device requests reduced motion; you can change it in island settings. Turning it off freezes sea animal movement, ocean swells, foam, light patterns, and glints, palm sway, clouds, and firefly movement and pulsing in place; static evening glows remain visible.
+- Palms and forest trees stay static, clouds drift with soft ground shadows, and fireflies glow around the quiet garden from dusk into night. Cloud colors and firefly visibility follow the day cycle.
+- Motion defaults off when your device requests reduced motion; you can change it in island settings. Turning it off freezes sea animal movement, ocean swells, foam, light patterns, and glints, clouds, and firefly movement and pulsing in place; static evening glows remain visible.
 
 Check-in, name, color, status, and atmosphere preferences persist in browser localStorage. This is a local prototype, with no authentication, shared presence, attendance backend, chat, microphone capture, or voice calls. The meeting areas are scenery for this milestone.
 
@@ -46,7 +46,7 @@ Check-in, name, color, status, and atmosphere preferences persist in browser loc
 - `src/shoreline.ts`: shared coastal contour for terrain, collision, ocean effects, and animal routes.
 - `src/terrain.tsx`: shaped sand and grass terrain plus click-to-walk surface.
 - `src/world.ts`: districts, trails, furniture, collision rules, and A* navigation with cached grid checks.
-- `src/districts.tsx`: forest tree detail levels, pond, beach gathering area, flower beds, lookout, and rocky coast.
+- `src/districts.tsx`: static forest trees, pond, beach gathering area, flower beds, lookout, and rocky coast.
 - `src/island-map.tsx`: collapsible mini-map, position marker, and district travel.
 - `src/style.css`: responsive layout and visual styling.
 - `tests/navigation.test.mjs`: boundary, obstacle, destination, and seating accessibility checks.
@@ -62,7 +62,7 @@ The navigation tests use Node's built-in TypeScript support and need no installe
 
 Verification: all fifteen shoreline, day-cycle, navigation, and sea-life tests and the production build (including TypeScript checking) passed. Tests cover exact fivefold area growth, fixed dock coastline, obstacle boundaries, every location and seat, clear district trails, map destinations, day-cycle continuity, and ten minutes of sea animal routes.
 
-Browser checks cover district travel through the mini-map, live position updates, camera following while walking, desktop/mobile overview framing, and tree detail reduction. The atmosphere presets, water shader, motion pause/resume, decoration pointer passthrough, settings persistence, and mobile layout have also been checked. The audio engine was exercised; subjective sound quality was not assessed.
+Browser checks cover district travel through the mini-map, live position updates, camera following while walking, desktop/mobile overview framing, and static tree rendering across camera modes. The atmosphere presets, water shader, motion pause/resume, decoration pointer passthrough, settings persistence, and mobile layout have also been checked. The audio engine was exercised; subjective sound quality was not assessed.
 
 Google Fonts are optional; local sans-serif fallbacks work offline. The 3D scene requires WebGL. A rendering error displays a reload message.
 

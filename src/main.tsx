@@ -50,31 +50,11 @@ function Cylinder({ p, r, h, c, r2, segments = 12 }: {
     r2?: number;
     segments?: number;
 }) { return <mesh position={p} castShadow receiveShadow><cylinderGeometry args={[r, r2 ?? r, h, segments]}/><meshStandardMaterial color={c} roughness={0.9}/></mesh>; }
-function Palm({ x, z, i, motion }: { x: number; z: number; i: number; motion: boolean }) {
-    const detailed = useRef<THREE.Group>(null), simple = useRef<THREE.Group>(null), stem = useRef<THREE.Group>(null), crown = useRef<THREE.Group>(null), elapsed = useRef(0);
-    useFrame(({ camera, controls }, dt) => {
-        const focus = (controls as unknown as { target?: THREE.Vector3 })?.target;
-        const near = camera.zoom > 18 && !!focus && Math.hypot(x - focus.x, z - focus.z) < 23;
-        if (detailed.current) detailed.current.visible = near;
-        if (simple.current) simple.current.visible = !near;
-        if (motion) elapsed.current += Math.min(dt, 0.05);
-        const t = elapsed.current, phase = x * 0.12 + z * 0.08;
-        const gust = 0.85 + Math.sin(t * 0.24 + phase) * 0.3;
-        if (stem.current && near) {
-            stem.current.rotation.x = Math.sin(t * 0.8 + phase) * 0.035 * gust;
-            stem.current.rotation.z = Math.sin(t * 0.7 + phase + 1) * 0.065 * gust;
-        }
-        if (crown.current && near) {
-            crown.current.rotation.x = Math.sin(t * 0.8 + phase) * 0.1 * gust;
-            crown.current.rotation.z = Math.sin(t * 0.7 + phase + 1) * 0.16 * gust;
-            crown.current.children.forEach((frond, n) => { frond.rotation.z = Math.sin(t * 1.35 + n * 0.8 + phase) * 0.14 * gust; });
-        }
-    });
+function Palm({ x, z, i }: { x: number; z: number; i: number }) {
     return <group name={`palm-${i}`} position={[x, 0, z]} rotation={[0, i * 1.7, 0]}>
-        <group ref={detailed} name="scenery-detail"><group ref={stem} name="palm-stem"><Cylinder p={[0, 1.25, 0]} r={0.13} r2={0.23} h={2.5} c="#b19972"/>
-        <group ref={crown} name="palm-crown" position={[0, 2.5, 0]}>{[0, 1, 2, 3, 4, 5].map(n => <group key={n} rotation={[0, n * Math.PI / 3, 0]}><mesh position={[0.65, 0, 0]} rotation={[0, 0, -0.2]} scale={[1, 0.09, 0.27]} castShadow><sphereGeometry args={[1, 6, 4]}/><meshStandardMaterial color={i % 2 ? '#638769' : '#719576'}/></mesh></group>)}</group>
-        </group><Cylinder p={[0, 0.05, 0]} r={0.55} h={0.1} c="#a5b68a"/></group>
-        <group ref={simple} name="scenery-simple"><mesh position={[0, 1.25, 0]}><cylinderGeometry args={[0.13, 0.23, 2.5, 6]}/><meshStandardMaterial color="#b19972"/></mesh><mesh position={[0, 2.5, 0]} scale={[1.55, 0.23, 1.55]}><sphereGeometry args={[1, 6, 3]}/><meshStandardMaterial color="#719576" flatShading/></mesh></group>
+        <Cylinder p={[0, 1.25, 0]} r={0.13} r2={0.23} h={2.5} c="#b19972"/>
+        <group name="palm-crown" position={[0, 2.5, 0]}>{[0, 1, 2, 3, 4, 5].map(n => <group key={n} rotation={[0, n * Math.PI / 3, 0]}><mesh position={[0.65, 0, 0]} rotation={[0, 0, -0.2]} scale={[1, 0.09, 0.27]} castShadow><sphereGeometry args={[1, 6, 4]}/><meshStandardMaterial color={i % 2 ? '#638769' : '#719576'}/></mesh></group>)}</group>
+        <Cylinder p={[0, 0.05, 0]} r={0.55} h={0.1} c="#a5b68a"/>
     </group>;
 }
 function Seat({ seat, onSelect }: {
@@ -213,7 +193,7 @@ function World({ profile, go, seat, setSeat, onPosition, zoom, reset, atmosphere
  {meetingTables.map(([x, z], i) => <group key={i} position={[x, 0, z]}><Cylinder p={[0, 0.08, 0]} r={1.8} h={0.15} c="#d7c5a2"/><Cylinder p={[0, 0.75, 0]} r={0.75} h={0.12} c="#e7d4b3"/><Cylinder p={[0, 0.37, 0]} r={0.12} h={0.7} c="#7f8b75"/>{[0, 1, 2].map(n => <Cylinder key={n} p={[Math.cos(n * 2.1) * 1.15, 0.35, Math.sin(n * 2.1) * 1.15]} r={0.3} h={0.6} c="#a0ac8a"/>)}<Cylinder p={[0, 2.8, 0]} r={0.05} r2={2} h={1.1} c={i ? '#cf9b77' : '#8eaa91'}/><Cylinder p={[0, 1.8, 0]} r={0.045} h={2.4} c="#e7d4b3"/></group>)}
  <Cylinder p={[5, 0.13, 4]} r={1} h={0.2} c="#b9ad93"/>{[0, 1, 2].map(i => <Box key={i} p={[5, 0.3 + i * 0.1, 4]} s={[0.7, 0.15, 0.15]} c="#886d56" rotation={i * 1.1}/>)}<mesh position={[5, 0.65, 4]}><coneGeometry args={[0.25, 0.7, 6]}/><meshStandardMaterial color="#eda968" emissive="#e88b47" emissiveIntensity={0.3}/></mesh>
  <Cylinder p={[garden.x, 0.12, garden.z]} r={2.4} h={0.13} c="#b6c79d"/>{[0, 1, 2, 3, 4].map(i => <mesh key={i} position={[garden.x - 1.6 + i * 0.8, 0.2, garden.z + 0.7]} scale={[0.35, 0.2, 0.3]}><dodecahedronGeometry /><meshStandardMaterial color="#a5aaa0"/></mesh>)}
- {trees.map(([x, z], i) => <Palm key={i} x={x} z={z} i={i} motion={atmosphere.motion}/>)}
+ {trees.map(([x, z], i) => <Palm key={i} x={x} z={z} i={i}/>)}
  <Box p={[0, -0.03, 9.3]} s={[2, 0.2, 3]} c="#b39a78"/>{Array.from({ length: 9 }, (_, i) => <Box key={i} p={[0, 0.08, 8 + i * 0.3]} s={[2.05, 0.04, 0.22]} c="#d5ba92"/>)}
  {[[-2, 5], [3, 7], [-9, 4], [10, 2], [2, -6]].map(([x, z], i) => <group key={i} position={[x, 0, z]}><Cylinder p={[0, 0.13, 0]} r={0.3} h={0.25} c="#8b9e79"/>{[0, 1, 2].map(j => <mesh key={j} position={[Math.cos(j * 2) * 0.22, 0.4, Math.sin(j * 2) * 0.22]}><sphereGeometry args={[0.12, 6, 5]}/><meshStandardMaterial color={i % 2 ? '#d9b07d' : '#e3d9b1'}/></mesh>)}</group>)}
  {viewMode === 'follow' && <><ZoneLabel position={[-4.4, 3.3, -3.2]} title="THE STUDIO"/><ZoneLabel position={[9, 3.8, -5]} title="MEETING GROVE"/><ZoneLabel position={[5, 1.2, 6.3]} title="CAMPFIRE"/><ZoneLabel position={[garden.x, 1.3, garden.z - 2.2]} title="QUIET GARDEN"/></>}
