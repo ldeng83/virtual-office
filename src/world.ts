@@ -81,6 +81,35 @@ export function walkable(x: number, z: number) {
     if (Math.hypot(x - beach.x, z - beach.z) < 0.95) return false;
     return true;
 }
+const STEPS = [[1, 0], [-1, 0], [0, 1], [0, -1], [1, 1], [1, -1], [-1, 1], [-1, -1]];
+const octile = (a: Point, b: Point) => { const dx = Math.abs(a[0] - b[0]), dz = Math.abs(a[1] - b[1]); return Math.max(dx, dz) + (Math.SQRT2 - 1) * Math.min(dx, dz); };
+// A straight segment is clear when the centre line and a little either side stay walkable.
+export function clearLine(a: Point, b: Point, margin = 0.15) {
+    const dx = b[0] - a[0], dz = b[1] - a[1], length = Math.hypot(dx, dz);
+    if (!length)
+        return true;
+    const nx = -dz / length * margin, nz = dx / length * margin;
+    for (let i = 1, steps = Math.ceil(length / 0.1); i <= steps; i++) {
+        const x = a[0] + dx * i / steps, z = a[1] + dz * i / steps;
+        if (!walkable(x, z) || (i < steps && (!walkable(x + nx, z + nz) || !walkable(x - nx, z - nz))))
+            return false;
+    }
+    return true;
+}
+// String pulling: from each corner, jump to the furthest waypoint still in a clear straight line.
+export function smoothPath(start: Point, route: Point[]): Point[] {
+    const out: Point[] = [];
+    let from = start, i = 0;
+    while (i < route.length) {
+        let j = route.length - 1;
+        while (j > i && !clearLine(from, route[j]))
+            j--;
+        out.push(route[j]);
+        from = route[j];
+        i = j + 1;
+    }
+    return out;
+}
 // A* visits the useful part of the larger map; static cell checks are shared across routes.
 const gridCache = new Map<string, boolean>();
 function gridWalkable(x: number, z: number) {
@@ -88,7 +117,12 @@ function gridWalkable(x: number, z: number) {
     if (!gridCache.has(key)) gridCache.set(key, walkable(x / 2, z / 2));
     return gridCache.get(key)!;
 }
+// Grid A* (8 directions, no corner cutting), then straightened so routes run in clean lines.
 export function findPath(start: Point, end: Point): Point[] {
+    const route = gridPath(start, end);
+    return route.length ? smoothPath(start, route) : route;
+}
+function gridPath(start: Point, end: Point): Point[] {
     if (!walkable(...end)) return [];
     const s = start.map(v => Math.round(v * 2)) as Point, e = end.map(v => Math.round(v * 2)) as Point;
     const key = (p: Point) => p.join(',');
@@ -101,9 +135,11 @@ export function findPath(start: Point, end: Point): Point[] {
         const { point: p, cost } = pop();
         if (cost !== costs.get(key(p))) continue;
         if (key(p) === key(e)) { const route: Point[] = [end]; let current: Point | null = p; while (current && key(current) !== key(s)) { route.unshift([current[0] / 2, current[1] / 2]); current = prev.get(key(current)) ?? null; } return route; }
-        for (const [dx, dz] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
-            const n: Point = [p[0] + dx, p[1] + dz], nextCost = cost + 1;
-            if (gridWalkable(...n) && nextCost < (costs.get(key(n)) ?? Infinity)) { costs.set(key(n), nextCost); prev.set(key(n), p); push({ point: n, cost: nextCost, score: nextCost + Math.abs(n[0] - e[0]) + Math.abs(n[1] - e[1]) }); }
+        for (const [dx, dz] of STEPS) {
+            // Diagonals only when both side cells are open, so routes never clip an obstacle's corner.
+            if (dx && dz && !(gridWalkable(p[0] + dx, p[1]) && gridWalkable(p[0], p[1] + dz))) continue;
+            const n: Point = [p[0] + dx, p[1] + dz], nextCost = cost + (dx && dz ? Math.SQRT2 : 1);
+            if (gridWalkable(...n) && nextCost < (costs.get(key(n)) ?? Infinity)) { costs.set(key(n), nextCost); prev.set(key(n), p); push({ point: n, cost: nextCost, score: nextCost + octile(n, e) }); }
         }
     }
     return [];

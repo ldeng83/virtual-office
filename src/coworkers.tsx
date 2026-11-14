@@ -4,6 +4,7 @@ import { Html } from '@react-three/drei';
 import * as THREE from 'three';
 import { findPath, type Point } from './world';
 import { ARRIVAL_DOCK, peopleView, type DemoCoworker, type Target } from './people';
+import { stepAlongPath, turnToward, wrapAngle } from './steering';
 
 // Shared avatar body so the player and coworkers always look like the same kind of person.
 // The head and torso are separate groups so coworkers can look around and breathe.
@@ -44,12 +45,11 @@ export function AvatarBody({ color, hair = '#5b5147', head, torso, xray = 0 }: {
 }
 
 const SPEED = 2.4, NOTICE = 4, WAVE = 2.6;
-const wrap = (a: number) => Math.atan2(Math.sin(a), Math.cos(a));
 
 export function Coworker({ person, target, greeting, player, motion, task, shipped }: { person: DemoCoworker; target: Target | null; greeting: string | null; player: RefObject<THREE.Vector3>; motion: boolean; task: { title: string; icon: string; progress: number } | null; shipped: string | null }) {
     const group = useRef<THREE.Group>(null), head = useRef<THREE.Group>(null), torso = useRef<THREE.Group>(null);
     const pos = useRef(new THREE.Vector3(...(target ? [target.point[0], 0, target.point[1]] : [ARRIVAL_DOCK[0], 0, ARRIVAL_DOCK[1]]) as [number, number, number]));
-    const path = useRef<Point[]>([]), present = useRef(!!target), leaving = useRef(false), walk = useRef(0), first = useRef(true);
+    const mover = useRef({ speed: 0 }), path = useRef<Point[]>([]), present = useRef(!!target), leaving = useRef(false), walk = useRef(0), first = useRef(true);
     const clock = useRef(Math.random() * 10), near = useRef(false), hop = useRef(0);
     const [waving, setWaving] = useState(false), [close, setClose] = useState(false);
     useEffect(() => { if (shipped)
@@ -58,6 +58,8 @@ export function Coworker({ person, target, greeting, player, motion, task, shipp
         if (first.current) {
             // On page load coworkers are already where their routine says, not walking in.
             first.current = false;
+            if (group.current && target)
+                group.current.rotation.y = target.angle;
             return;
         }
         if (target) {
@@ -90,16 +92,12 @@ export function Coworker({ person, target, greeting, player, motion, task, shipp
         const t = clock.current;
         let moving = false;
         if (path.current.length) {
-            const [tx, tz] = path.current[0], dx = tx - pos.current.x, dz = tz - pos.current.z, d = Math.hypot(dx, dz);
-            const step = SPEED * dt;
-            if (d <= step) {
-                pos.current.set(tx, 0, tz);
-                path.current.shift();
-            }
-            else {
-                pos.current.x += dx / d * step;
-                pos.current.z += dz / d * step;
-                g.rotation.y = Math.atan2(dx, dz);
+            const step = stepAlongPath(pos.current, path.current, mover.current, dt, SPEED);
+            if (step) {
+                pos.current.x += step.dx;
+                pos.current.z += step.dz;
+                if (Math.hypot(step.dx, step.dz) > 1e-5)
+                    g.rotation.y = turnToward(g.rotation.y, Math.atan2(step.dx, step.dz), dt, 10);
             }
             moving = true;
             walk.current += dt * 12;
@@ -109,7 +107,8 @@ export function Coworker({ person, target, greeting, player, motion, task, shipp
             }
         }
         else if (target)
-            g.rotation.y = target.angle;
+            // Settle into the seat / spot's facing smoothly after arriving.
+            g.rotation.y = turnToward(g.rotation.y, target.angle, dt, 6);
         // Notice the player: look at them when close, wave once as they arrive (if not busy).
         const me = player.current, toPlayer = me ? Math.hypot(me.x - pos.current.x, me.z - pos.current.z) : Infinity;
         const isNear = present.current && toPlayer < NOTICE;
@@ -124,7 +123,7 @@ export function Coworker({ person, target, greeting, player, motion, task, shipp
         if (head.current) {
             let yaw = 0, pitch = 0;
             if (isNear && me)
-                yaw = THREE.MathUtils.clamp(wrap(Math.atan2(me.x - pos.current.x, me.z - pos.current.z) - g.rotation.y), -1.1, 1.1);
+                yaw = THREE.MathUtils.clamp(wrapAngle(Math.atan2(me.x - pos.current.x, me.z - pos.current.z) - g.rotation.y), -1.1, 1.1);
             else if (!moving && motion)
                 yaw = pose === 'look' ? Math.sin(t * 0.35) * 0.6 : Math.sin(t * 0.23) * Math.max(0, Math.sin(t * 0.11)) * 0.5;
             if (!moving && motion && !isNear)

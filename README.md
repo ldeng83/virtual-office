@@ -46,11 +46,12 @@ Check-in, name, color, status, and atmosphere preferences persist in browser loc
 - `src/atmosphere.tsx`: lighting presets, atmosphere controls, and synthesized ocean audio.
 - `src/shoreline.ts`: shared coastal contour for terrain, collision, ocean effects, and animal routes.
 - `src/terrain.tsx`: shaped sand and grass terrain plus click-to-walk surface.
-- `src/world.ts`: districts, trails, furniture, collision rules, and A* navigation with cached grid checks.
+- `src/world.ts`: districts, trails, furniture, collision rules, and A* navigation (8 directions, no corner cutting) with cached grid checks, straightened into clean lines by line-of-sight smoothing.
 - `src/districts.tsx`: static forest trees, pond, beach gathering area, flower beds, lookout, and rocky coast.
 - `src/people.ts`: shared person model, demo coworker routines, the home/errand activity planner, and seat/target resolution.
 - `src/work-props.tsx`: live desk monitor screens and the meeting whiteboard.
 - `src/coworkers.tsx`: shared avatar body and the demo coworker's walking, idle animation, and reactions to you.
+- `src/steering.ts`: smooth path following (corner rounding, ease in/out, gradual turning) shared by you and coworkers.
 - `src/island-map.tsx`: collapsible mini-map, position marker, and district travel.
 - `src/style.css`: responsive layout and visual styling.
 - `tests/navigation.test.mjs`: boundary, obstacle, destination, and seating accessibility checks.

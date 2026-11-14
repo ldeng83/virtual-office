@@ -14,6 +14,7 @@ import { cameraView, clampFocus, type ViewMode } from './camera-view';
 import { advanceWork, currentTask, demoCoworkers, nextActivity, peopleView, resolveTarget, WHITEBOARD, WHITEBOARD_FACING, WHITEBOARD_SPOT, type DemoCoworker, type Target, type WorkState } from './people';
 import { DeskScreen, Whiteboard } from './work-props';
 import { AvatarBody, Coworker } from './coworkers';
+import { stepAlongPath, turnToward } from './steering';
 import './style.css';
 type Profile = {
     name: string;
@@ -148,6 +149,7 @@ function World({ profile, go, seat, setSeat, onPosition, zoom, reset, atmosphere
     const findMe = useRef<THREE.Mesh>(null), findMeMaterial = useRef<THREE.MeshBasicMaterial>(null), hidden = useRef(false), occlusionCheck = useRef(0);
     const avatar = useRef<THREE.Group>(null), controls = useRef<React.ComponentRef<typeof OrbitControls>>(null);
     const cameraDelta = useRef(new THREE.Vector3()), desiredFocus = useRef(new THREE.Vector3()), lookPending = useRef(false);
+    const mover = useRef({ speed: 0 });
     const pos = useRef(new THREE.Vector3(0, 0, 7)), path = useRef<Point[]>([]), keys = useRef(new Set<string>()), walk = useRef(0), last = useRef(0);
     const [marker, setMarker] = useState<Point | null>(null);
     useEffect(() => { if (go) {
@@ -200,25 +202,26 @@ function World({ profile, go, seat, setSeat, onPosition, zoom, reset, atmosphere
             dz = -horizontal * Math.sin(az) + vertical * Math.cos(az);
         }
         else if (path.current.length) {
-            const target = path.current[0];
-            dx = target[0] - pos.current.x;
-            dz = target[1] - pos.current.z;
-            if (Math.hypot(dx, dz) < 0.12) {
-                path.current.shift();
-                if (!path.current.length)
-                    setMarker(null);
+            const step = stepAlongPath(pos.current, path.current, mover.current, dt, 3);
+            if (step) {
+                dx = step.dx;
+                dz = step.dz;
             }
+            if (!path.current.length)
+                setMarker(null);
         }
-        const moving = Math.hypot(dx, dz) > 0.03;
-        if (moving) {
+        if (k.size) {
             const length = Math.hypot(dx, dz);
-            dx = dx / length * dt * 3;
-            dz = dz / length * dt * 3;
+            dx = length > 0.03 ? dx / length * dt * 3 : 0;
+            dz = length > 0.03 ? dz / length * dt * 3 : 0;
+        }
+        const moving = Math.hypot(dx, dz) > 1e-5;
+        if (moving) {
             if (walkable(pos.current.x + dx, pos.current.z))
                 pos.current.x += dx;
             if (walkable(pos.current.x, pos.current.z + dz))
                 pos.current.z += dz;
-            avatar.current.rotation.y = Math.atan2(dx, dz);
+            avatar.current.rotation.y = turnToward(avatar.current.rotation.y, Math.atan2(dx, dz), dt, 12);
             walk.current += dt * 12;
         }
         if (controls.current) {
