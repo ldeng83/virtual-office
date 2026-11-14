@@ -3,7 +3,7 @@ import { createRoot } from 'react-dom/client';
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import { ContactShadows, Html, OrbitControls } from '@react-three/drei';
 import * as THREE from 'three';
-import { ArrowUpRight, Check, ChevronDown, Compass, DoorOpen, HelpCircle, MapPin, Maximize2, Minus, Plus, Settings2, Sun, Users, Waves, X, Armchair, Navigation, Leaf, Flame, Coffee, BriefcaseBusiness, LocateFixed, Hand } from 'lucide-react';
+import { ArrowUpRight, Check, ChevronDown, Compass, DoorOpen, HelpCircle, MapPin, Maximize2, Minus, Plus, Settings2, Sun, Users, Waves, X, Armchair, Navigation, Leaf, Flame, Coffee, BriefcaseBusiness, LocateFixed, Hand, ListChecks } from 'lucide-react';
 import { desks, findPath, locations, seats, trees, walkable, garden, gardenPaths, meetingTables, districts, districtTrails, type Point } from './world';
 import { AtmosphereControls, AtmosphereScene, readAtmosphere, useOcean, useIslandTime, type IslandTime, type Atmosphere } from './atmosphere';
 import { IslandTerrain } from './terrain';
@@ -11,7 +11,8 @@ import { DistrictScenery } from './districts';
 import { IslandMap } from './island-map';
 import { OVERVIEW_CENTER } from './shoreline';
 import { cameraView, clampFocus, type ViewMode } from './camera-view';
-import { demoCoworkers, peopleView, resolveTarget, type DemoCoworker, type Target } from './people';
+import { advanceWork, currentTask, demoCoworkers, nextActivity, peopleView, resolveTarget, WHITEBOARD, WHITEBOARD_FACING, WHITEBOARD_SPOT, type DemoCoworker, type Target, type WorkState } from './people';
+import { DeskScreen, Whiteboard } from './work-props';
 import { AvatarBody, Coworker } from './coworkers';
 import './style.css';
 type Profile = {
@@ -75,8 +76,10 @@ function ZoneLabel({ position, title }: {
 // Zoom multiplier range (30 = default framing). Low values reveal more open sea around the island.
 const MIN_ZOOM = 10, MAX_ZOOM = 65;
 const viewCorners = [[-1, -1], [1, -1], [1, 1], [-1, 1]], viewNdc = new THREE.Vector2(), viewRay = new THREE.Raycaster(), viewHit = new THREE.Vector3(), groundPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
-function World({ profile, go, seat, setSeat, onPosition, zoom, reset, atmosphere, time, viewMode, onExplore, onFreeLook, coworkers, greeting, onPickSeat }: {
+function World({ profile, go, seat, setSeat, onPosition, zoom, reset, atmosphere, time, viewMode, onExplore, onFreeLook, coworkers, greeting, onPickSeat, work, shipped }: {
     coworkers: { person: DemoCoworker; target: Target | null }[];
+    work: Record<string, WorkState>;
+    shipped: Record<string, string>;
     greeting: { id: string; text: string } | null;
     onPickSeat: (id: string) => void;
     viewMode: ViewMode;
@@ -256,7 +259,9 @@ function World({ profile, go, seat, setSeat, onPosition, zoom, reset, atmosphere
  {[-9.1, 0.6].flatMap(x => [-4, 2.3].map(z => <Cylinder key={`${x}${z}`} p={[x, 1.2, z]} r={0.09} h={2.4} c="#e9dfc5"/>))}<Box p={[-4.25, 2.45, -4]} s={[10, 0.17, 0.18]} c="#e9dfc5"/><Box p={[-4.25, 2.45, 2.3]} s={[10, 0.17, 0.18]} c="#e9dfc5"/>{[-8, -6, -4, -2, 0].map(x => <Box key={x} p={[x, 2.5, -0.85]} s={[0.12, 0.12, 6.5]} c="#e9dfc5"/>)}
  {desks.map((d, i) => <group key={d.id} position={[d.x, 0, d.z]}><Box p={[0, 0.85, 0]} s={[1.35, 0.12, 0.8]} c="#e6cda8"/>{[-0.5, 0.5].map(x => <Box key={x} p={[x, 0.43, 0]} s={[0.07, 0.8, 0.6]} c="#7d8271"/>)}<Box p={[0, 1.17, -0.1]} s={[0.55, 0.35, 0.05]} c="#485f5b"/><Box p={[0, 0.96, 0]} s={[0.08, 0.15, 0.08]} c="#485f5b"/><Box p={[0, 0.93, 0.18]} s={[0.4, 0.025, 0.15]} c="#ece9da"/><Cylinder p={[0.46, 0.99, 0]} r={0.09} h={0.18} c={i % 2 ? '#c17c5e' : '#8b9d7b'}/></group>)}
  {seats.map(s => <Seat key={s.id} seat={s} onSelect={onPickSeat}/>)}
- {coworkers.map(({ person, target }) => <Coworker key={person.id} person={person} target={target} greeting={greeting?.id === person.id ? greeting.text : null}/>)}
+ {coworkers.map(({ person, target }) => <Coworker key={person.id} person={person} target={target} greeting={greeting?.id === person.id ? greeting.text : null} player={pos} motion={atmosphere.motion} task={target?.activity.work ? { ...currentTask(person, work[person.id]), progress: work[person.id].progress } : null} shipped={shipped[person.id] ?? null}/>)}
+ {coworkers.map(({ person, target }) => { const desk = target?.activity.work ? desks.find(d => d.id === target.seatId) : undefined; return desk && target && <DeskScreen key={`screen-${person.id}`} desk={desk} seat={target.point} work={{ personId: person.id, craft: person.craft, progress: work[person.id].progress, celebrating: !!shipped[person.id] }}/>; })}
+ <Whiteboard position={WHITEBOARD} face={WHITEBOARD_FACING} spot={WHITEBOARD_SPOT} active={coworkers.some(c => c.target?.activity.place === 'Meeting grove')}/>
  {meetingTables.map(([x, z], i) => <group key={i} position={[x, 0, z]}><Cylinder p={[0, 0.08, 0]} r={1.8} h={0.15} c="#d7c5a2"/><Cylinder p={[0, 0.75, 0]} r={0.75} h={0.12} c="#e7d4b3"/><Cylinder p={[0, 0.37, 0]} r={0.12} h={0.7} c="#7f8b75"/>{[0, 1, 2].map(n => <Cylinder key={n} p={[Math.cos(n * 2.1) * 1.15, 0.35, Math.sin(n * 2.1) * 1.15]} r={0.3} h={0.6} c="#a0ac8a"/>)}<Cylinder p={[0, 2.8, 0]} r={0.05} r2={2} h={1.1} c={i ? '#cf9b77' : '#8eaa91'}/><Cylinder p={[0, 1.8, 0]} r={0.045} h={2.4} c="#e7d4b3"/></group>)}
  <Cylinder p={[5, 0.13, 4]} r={1} h={0.2} c="#b9ad93"/>{[0, 1, 2].map(i => <Box key={i} p={[5, 0.3 + i * 0.1, 4]} s={[0.7, 0.15, 0.15]} c="#886d56" rotation={i * 1.1}/>)}<mesh position={[5, 0.65, 4]}><coneGeometry args={[0.25, 0.7, 6]}/><meshStandardMaterial color="#eda968" emissive="#e88b47" emissiveIntensity={0.3}/></mesh>
  <Cylinder p={[garden.x, 0.12, garden.z]} r={2.4} h={0.13} c="#b6c79d"/>{[0, 1, 2, 3, 4].map(i => <mesh key={i} position={[garden.x - 1.6 + i * 0.8, 0.2, garden.z + 0.7]} scale={[0.35, 0.2, 0.3]}><dodecahedronGeometry /><meshStandardMaterial color="#a5aaa0"/></mesh>)}
@@ -301,9 +306,110 @@ function App() {
         localStorage.setItem('atoll-demo-people', showDemo ? 'on' : 'off');
     }
     catch { /* Storage may be disabled. */ } }, [showDemo]);
-    // Demo coworkers follow the island's time of day. Targets are fixed when the period changes,
-    // so they don't shuffle seats when you stand up.
-    const coworkers = React.useMemo(() => showDemo ? demoCoworkers.map(person => ({ person, target: resolveTarget(person.schedule[mood.period], seat) })) : [], [mood.period, showDemo]);
+    // Demo coworkers: each part of the day has a home activity plus short errands. A small planner
+    // picks what's next when the current activity's time is up; the scene just walks them there.
+    const seatRef = useRef(seat);
+    seatRef.current = seat;
+    const planHome = (period: typeof mood.period) => { const taken = new Set(seatRef.current ? [seatRef.current] : []), plans: Record<string, Target | null> = {};
+        for (const person of demoCoworkers) {
+            const target = resolveTarget(person.schedule[period]?.home ?? null, taken);
+            if (target?.seatId)
+                taken.add(target.seatId);
+            plans[person.id] = target;
+        }
+        return plans; };
+    // On page load they're already partway through their current activity, so the first move comes soon.
+    const [plans, setPlans] = useState(() => { const initial = planHome(mood.period);
+        for (const target of Object.values(initial))
+            if (target)
+                target.dwell *= 0.1 + Math.random() * 0.25;
+        return initial; });
+    const planPeriod = useRef(mood.period);
+    const deadlines = useRef(new WeakMap<Target, number>());
+    useEffect(() => { if (planPeriod.current !== mood.period) {
+        planPeriod.current = mood.period;
+        setPlans(planHome(mood.period));
+    } }, [mood.period]);
+    useEffect(() => {
+        const timers = demoCoworkers.map(person => {
+            const current = plans[person.id], block = person.schedule[planPeriod.current];
+            if (!current || !block || !block.errands.length)
+                return 0;
+            // Time up = walking there (estimated from where they are when it starts) + dwelling.
+            // Deadlines are fixed per activity so one coworker's change doesn't reset the other's clock.
+            if (!deadlines.current.has(current)) {
+                const at = peopleView[person.id], walkSeconds = at ? Math.hypot(at.x - current.point[0], at.z - current.point[1]) * 1.4 / 2.4 : 0;
+                deadlines.current.set(current, Date.now() + (walkSeconds + current.dwell) * 1000);
+            }
+            return window.setTimeout(() => setPlans(all => {
+                if (all[person.id] !== current)
+                    return all;
+                const taken = new Set([...(seatRef.current ? [seatRef.current] : []), ...Object.entries(all).flatMap(([id, t]) => id !== person.id && t?.seatId ? [t.seatId] : [])]);
+                return { ...all, [person.id]: resolveTarget(nextActivity(block, current.activity), taken) };
+            }), Math.max(0, deadlines.current.get(current)! - Date.now()));
+        });
+        return () => timers.forEach(clearTimeout);
+    }, [plans]);
+    const coworkers = React.useMemo(() => showDemo ? demoCoworkers.map(person => ({ person, target: plans[person.id] ?? null })) : [], [plans, showDemo]);
+    // Work: time spent at a work spot moves their current task forward; finishing posts to the feed.
+    const plansRef = useRef(plans);
+    plansRef.current = plans;
+    const [work, setWork] = useState<Record<string, WorkState>>(() => Object.fromEntries(demoCoworkers.map(p => [p.id, { task: Math.floor(Math.random() * p.tasks.length), progress: 0.3 + Math.random() * 0.4 }])));
+    const workRef = useRef(work);
+    const [shipped, setShipped] = useState<Record<string, string>>({});
+    type FeedItem = { id: number; at: Date; personId: string; who: string; icon: string; text: string };
+    const feedId = useRef(0);
+    const [feed, setFeed] = useState<FeedItem[]>(() => demoCoworkers.flatMap(person => { const target = plans[person.id], task = currentTask(person, work[person.id]);
+        return target ? [{ id: ++feedId.current, at: new Date(), personId: person.id, who: person.name, icon: target.activity.work ? task.icon : target.activity.icon, text: target.activity.work ? `is working on ${task.title}` : `is ${target.activity.activity.toLowerCase()}` }] : []; }));
+    const post = (person: DemoCoworker, icon: string, text: string) => setFeed(items => [{ id: ++feedId.current, at: new Date(), personId: person.id, who: person.name, icon, text }, ...items].slice(0, 40));
+    useEffect(() => { if (!showDemo)
+        return; const clock = window.setInterval(() => {
+        const next = { ...workRef.current };
+        let changed = false;
+        for (const person of demoCoworkers) {
+            const target = plansRef.current[person.id], at = peopleView[person.id];
+            if (!target?.activity.work || !at?.present || Math.hypot(at.x - target.point[0], at.z - target.point[1]) > 0.3)
+                continue;
+            const result = advanceWork(person, next[person.id], 1);
+            next[person.id] = result.state;
+            changed = true;
+            if (result.finished) {
+                const title = result.finished.title, upcoming = currentTask(person, result.state);
+                post(person, '✅', `shipped ${title}`);
+                post(person, upcoming.icon, `started ${upcoming.title}`);
+                setShipped(all => ({ ...all, [person.id]: title }));
+                window.setTimeout(() => setShipped(all => { const rest = { ...all }; delete rest[person.id]; return rest; }), 4000);
+            }
+        }
+        if (changed) {
+            workRef.current = next;
+            setWork(next);
+        }
+    }, 1000); return () => clearInterval(clock); }, [showDemo]);
+    const previousPlans = useRef(plans);
+    useEffect(() => { const before = previousPlans.current;
+        previousPlans.current = plans;
+        if (before === plans || !showDemo)
+            return;
+        for (const person of demoCoworkers) {
+            const a = before[person.id], b = plans[person.id];
+            if (a === b)
+                continue;
+            if (!a && b)
+                post(person, '🚤', 'arrived on the island');
+            else if (a && !b)
+                post(person, '🌙', 'headed home for the day');
+            else if (b?.activity.place === 'Meeting grove' && a?.activity.place !== 'Meeting grove')
+                post(person, '💬', `joined the ${b.activity.activity.toLowerCase()}`);
+            else if (b?.activity.icon === '☕')
+                post(person, '☕', 'took a coffee break');
+            else if (b?.activity.work && !a?.activity.work) {
+                const task = currentTask(person, workRef.current[person.id]);
+                post(person, task.icon, `is back on ${task.title}`);
+            }
+        } }, [plans]);
+    const [seenFeed, setSeenFeed] = useState(0);
+    const unseen = showDemo ? feed.filter(item => item.id > seenFeed).length : 0;
     const occupied = new Map(coworkers.flatMap(c => c.target?.seatId ? [[c.target.seatId, c.person.name] as const] : []));
     const pickSeat = (id: string) => { const owner = occupied.get(id); if (owner)
         setToast(`${owner} is sitting there. Try another seat.`);
@@ -315,7 +421,7 @@ function App() {
         return () => clearTimeout(t);
     } }, [greeting]);
     const nearby = coworkers.find(c => { const p = peopleView[c.person.id]; return !!c.target && !!p?.present && Math.hypot(p.x - position[0], p.z - position[1]) < 2.5; });
-    const greet = ({ person, target }: typeof coworkers[number]) => setGreeting({ id: person.id, text: target?.slot.status === 'Focused' ? person.focusReply : person.greetings[Math.floor(Math.random() * person.greetings.length)] });
+    const greet = ({ person, target }: typeof coworkers[number]) => setGreeting({ id: person.id, text: target?.activity.status === 'Focused' ? person.focusReply : person.greetings[Math.floor(Math.random() * person.greetings.length)] });
     const findPerson = (id: string) => { const p = peopleView[id]; if (p?.present) {
         cameraView.look = [p.x, p.z];
         freeLook();
@@ -329,6 +435,8 @@ function App() {
         localStorage.setItem('atoll-profile', JSON.stringify(profile));
     }
     catch { /* Storage may be disabled. */ } }, [profile]);
+    useEffect(() => { if (tab === 'activity' && feed[0])
+        setSeenFeed(feed[0].id); }, [tab, feed]);
     useEffect(() => { if (!modal)
         return; const handle = (e: KeyboardEvent) => { if (e.key === 'Escape')
         setModal(null); if (e.key === 'Tab') {
@@ -351,18 +459,18 @@ function App() {
     const icons = [Navigation, BriefcaseBusiness, Coffee, Flame, Leaf];
     return <div className="app"><header className="header"><a className="brand" href="/" aria-label="Atoll home"><span className="brand-icon"><Waves size={23}/></span>atoll<span className="brand-divider"/><span className="workspace-name">Our island office<ChevronDown size={13}/></span></a><div className="header-right"><span className="prototype">LOCAL PROTOTYPE</span><span className="weather"><mood.Icon size={17}/> {mood.name}</span><button className="icon-button" aria-label="Help" onClick={() => setModal('help')}><HelpCircle size={19}/></button><button className="profile-button" aria-label="Edit profile" style={{ background: profile.color }} onClick={() => setModal('settings')}>{profile.name.slice(0, 1).toUpperCase()}</button></div></header>
  <main><aside className="sidebar"><div className="intro"><span className="eyebrow">A LITTLE SPACE TOGETHER</span><h1>Welcome to<br />your workday<span>.</span></h1><p>Your desk, your people.<br />A little closer, wherever you are.</p></div><div className="checkin-card"><div className="checkin-title"><span className={profile.checked ? 'online-dot' : 'offline-dot'}/><strong>{profile.checked ? 'You’re checked in' : 'Make yourself at home'}</strong></div><p>{profile.checked ? 'Enjoy your time on the island.' : 'Ready when you are. Settle in.'}</p><button className={profile.checked ? 'checked-button' : 'primary-button'} onClick={() => { update({ checked: !profile.checked }); setToast(profile.checked ? 'Checked out. See you soon!' : 'Checked in. Welcome to the island!'); }}>{profile.checked ? <Check size={16}/> : <DoorOpen size={16}/>} {profile.checked ? 'Check out' : 'Check in to the island'}{!profile.checked && <ArrowUpRight size={16}/>}</button></div>
- <div className="tabs"><button className={tab === 'places' ? 'active' : ''} onClick={() => setTab('places')}><Compass size={16}/> Places</button><button className={tab === 'people' ? 'active' : ''} onClick={() => setTab('people')}><Users size={16}/> People <span>{(profile.checked ? 1 : 0) + coworkers.filter(c => c.target).length}</span></button></div>
- {tab === 'places' ? <nav className="places" aria-label="Island locations">{locations.map((l, i) => { const Icon = icons[i] ?? Compass; return <button key={l.id} className={nearest.id === l.id ? 'place selected' : 'place'} onClick={() => travel(l.point)}><span className={`place-icon place-${i}`}><Icon size={19}/></span><span><strong>{l.name}</strong><small>{l.detail}</small></span><ArrowUpRight className="place-arrow" size={16}/></button>; })}</nav> : <div className="people"><div className="person"><span className="person-avatar" style={{ background: profile.color }}>{profile.name.slice(0, 1)}</span><div><strong>{profile.name} <small>(you)</small></strong><p>{profile.checked ? profile.status : 'Not checked in'}</p></div><span className={profile.checked ? 'online-dot' : 'offline-dot'}/></div>{coworkers.map(({ person, target }) => <div key={person.id} className="person"><span className="person-avatar" style={{ background: person.color }}>{person.name.slice(0, 1)}</span><div><strong>{person.name} <small className="demo-tag">demo</small></strong><p>{target ? `${target.slot.status} · ${target.slot.place}` : 'Off the island'}</p></div>{target && <button className="icon-button find-person" aria-label={`Find ${person.name}`} title={`Find ${person.name}`} onClick={() => findPerson(person.id)}><LocateFixed size={15}/></button>}<span className={!target ? 'offline-dot' : target.slot.status === 'Available' ? 'online-dot' : 'busy-dot'}/></div>)}<div className="empty-people"><Users size={25}/><strong>A space for the whole team</strong><p>{showDemo ? 'Maya and Theo are demo coworkers on a daily routine. Real teammates arrive with shared presence.' : 'This first prototype runs locally. Shared employee presence is the next milestone.'}</p></div></div>}
+ <div className="tabs"><button className={tab === 'places' ? 'active' : ''} onClick={() => setTab('places')}><Compass size={16}/> Places</button><button className={tab === 'people' ? 'active' : ''} onClick={() => setTab('people')}><Users size={16}/> People <span>{(profile.checked ? 1 : 0) + coworkers.filter(c => c.target).length}</span></button><button className={tab === 'activity' ? 'active' : ''} onClick={() => setTab('activity')}><ListChecks size={16}/> Activity {unseen > 0 && <span className="unseen">{unseen}</span>}</button></div>
+ {tab === 'activity' ? <div className="feed" aria-live="polite">{showDemo && feed.length ? feed.map(item => <button key={item.id} className="feed-item" onClick={() => findPerson(item.personId)}><span className="feed-icon">{item.icon}</span><span><strong>{item.who}</strong> {item.text}<small>{item.at.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}</small></span></button>) : <p className="feed-empty">Team updates will appear here as people work.</p>}</div> : tab === 'places' ? <nav className="places" aria-label="Island locations">{locations.map((l, i) => { const Icon = icons[i] ?? Compass; return <button key={l.id} className={nearest.id === l.id ? 'place selected' : 'place'} onClick={() => travel(l.point)}><span className={`place-icon place-${i}`}><Icon size={19}/></span><span><strong>{l.name}</strong><small>{l.detail}</small></span><ArrowUpRight className="place-arrow" size={16}/></button>; })}</nav> : <div className="people"><div className="person"><span className="person-avatar" style={{ background: profile.color }}>{profile.name.slice(0, 1)}</span><div><strong>{profile.name} <small>(you)</small></strong><p>{profile.checked ? profile.status : 'Not checked in'}</p></div><span className={profile.checked ? 'online-dot' : 'offline-dot'}/></div>{coworkers.map(({ person, target }) => <div key={person.id} className="person"><span className="person-avatar" style={{ background: person.color }}>{person.name.slice(0, 1)}</span><div><strong>{person.name} <small className="demo-tag">demo</small></strong><p>{target ? `${target.activity.status} · ${target.activity.activity}` : 'Off the island'}</p>{target && (() => { const task = currentTask(person, work[person.id]); return <p className="person-task" title={`${Math.round(work[person.id].progress * 100)}% done`}>{task.icon} {task.title}<span className="mini-bar"><span style={{ width: `${work[person.id].progress * 100}%` }}/></span></p>; })()}</div>{target && <button className="icon-button find-person" aria-label={`Find ${person.name}`} title={`Find ${person.name}`} onClick={() => findPerson(person.id)}><LocateFixed size={15}/></button>}<span className={!target ? 'offline-dot' : target.activity.status === 'Available' ? 'online-dot' : 'busy-dot'}/></div>)}<div className="empty-people"><Users size={25}/><strong>A space for the whole team</strong><p>{showDemo ? 'Maya and Theo are demo coworkers on a daily routine. Real teammates arrive with shared presence.' : 'This first prototype runs locally. Shared employee presence is the next milestone.'}</p></div></div>}
  <div className="sidebar-footer"><div><span className="tiny-island">✦</span><strong>A little island. A better workday.</strong></div><p>Built for a team of 10.</p></div></aside>
  <section ref={panel} data-view-mode={viewMode} data-mood={mood.period} className="island-panel" aria-label="Interactive 3D island"><div className="scene-top"><div className="location-chip"><span className="online-dot"/>{mood.name}<span className="chip-divider"/><time dateTime={mood.now.toISOString()} title={`${mood.timezone}${atmosphere.mode === 'manual' ? ' · Manual atmosphere' : ' · Following real time'}`}>{mood.time}</time>{atmosphere.mode === 'manual' && <span className="manual-chip">Manual</span>}</div><button className="scene-settings" aria-label="Island atmosphere" onClick={() => setModal('atmosphere')}><Settings2 size={18}/></button></div>
- <SceneBoundary><Suspense fallback={<div className="loading">Finding your little corner of the world…</div>}><Canvas shadows orthographic camera={{ position: [21, 25, 36], zoom: 30, near: 0.1, far: 1000 }} dpr={[1, 1.7]} onCreated={() => setLoaded(true)}><World profile={profile} go={go} seat={seat} setSeat={setSeat} onPosition={setPosition} zoom={zoom} reset={reset} atmosphere={atmosphere} time={mood} viewMode={viewMode} onExplore={() => setViewMode('follow')} onFreeLook={freeLook} coworkers={coworkers} greeting={greeting} onPickSeat={pickSeat}/></Canvas></Suspense></SceneBoundary>
+ <SceneBoundary><Suspense fallback={<div className="loading">Finding your little corner of the world…</div>}><Canvas shadows orthographic camera={{ position: [21, 25, 36], zoom: 30, near: 0.1, far: 1000 }} dpr={[1, 1.7]} onCreated={() => setLoaded(true)}><World profile={profile} go={go} seat={seat} setSeat={setSeat} onPosition={setPosition} zoom={zoom} reset={reset} atmosphere={atmosphere} time={mood} viewMode={viewMode} onExplore={() => setViewMode('follow')} onFreeLook={freeLook} coworkers={coworkers} greeting={greeting} onPickSeat={pickSeat} work={work} shipped={shipped}/></Canvas></Suspense></SceneBoundary>
  <IslandMap position={position} travel={travel} onLook={freeLook} people={coworkers.map(c => ({ id: c.person.id, name: c.person.name, color: c.person.color }))}/>
  <div className="view-modes" role="group" aria-label="Camera mode"><button aria-pressed={viewMode === 'follow'} onClick={() => setViewMode('follow')}><Navigation size={14}/> {viewMode === 'free' ? 'Back to me' : 'Follow me'}</button><button aria-pressed={viewMode === 'overview'} onClick={() => setViewMode('overview')}><Compass size={14}/> Island overview</button></div>
  {loaded && viewMode === 'overview' && <div className="island-caption"><span>YOUR EVERYDAY GETAWAY</span><h2>Good work happens here.</h2><p>Find your spot. Make a connection.</p></div>}
  <div className="map-controls"><button aria-label="Zoom in" onClick={() => setZoom(v => Math.min(MAX_ZOOM, v + 5))}><Plus size={18}/></button><button aria-label="Zoom out" onClick={() => setZoom(v => Math.max(MIN_ZOOM, v - 5))}><Minus size={18}/></button><div /><button aria-label="Reset view" onClick={() => { setReset(v => v + 1); setZoom(30); setViewMode(v => v === 'free' ? 'follow' : v); }}><Maximize2 size={17}/></button></div>
  <div className="scene-bottom"><span className="current-location"><MapPin size={15}/>{nearest.name}</span><span className="movement-hint"><span>W A S D</span> to move <i /> Click to walk <i /> Drag to pan <i /> Right-drag to orbit <i /> Scroll to zoom</span></div>
  {seat && <div className="seat-message"><Armchair size={17}/><span>Settled into {seats.find(s => s.id === seat)?.name}</span><button onClick={() => setSeat(null)}>Stand up</button></div>}
- {nearby && !greeting && <div className="nearby-prompt"><span className="person-avatar" style={{ background: nearby.person.color }}>{nearby.person.name.slice(0, 1)}</span><span><strong>{nearby.person.name}</strong> is nearby · {nearby.target?.slot.activity}</span><button onClick={() => greet(nearby)}><Hand size={14}/> Say hi</button></div>}
+ {nearby && !greeting && <div className="nearby-prompt"><span className="person-avatar" style={{ background: nearby.person.color }}>{nearby.person.name.slice(0, 1)}</span><span><strong>{nearby.person.name}</strong> is nearby · {nearby.target?.activity.activity}</span><button onClick={() => greet(nearby)}><Hand size={14}/> Say hi</button></div>}
  {toast && <div className="toast" role="status"><Check size={17}/>{toast}</div>}
  </section></main>
  <footer className="bottom-bar"><div className="self"><span className="self-avatar" style={{ background: profile.color }}>{profile.name.slice(0, 1)}</span><div><strong>{profile.name}</strong><span>{profile.checked ? 'Checked in' : 'Exploring the island'}</span></div><span className="bottom-divider"/><label className="status-select"><span className={profile.status === 'Available' ? 'online-dot' : 'busy-dot'}/><select aria-label="Your availability" value={profile.status} onChange={e => update({ status: e.target.value })}><option>Available</option><option>Focused</option><option>In a meeting</option><option>Away</option></select></label></div><div className="footer-note"><Leaf size={15}/> A little room to focus. A little room to connect.</div><button className="help-button" onClick={() => setModal('help')}><HelpCircle size={16}/> How to explore</button></footer>
