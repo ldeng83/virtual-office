@@ -75,6 +75,8 @@ function ZoneLabel({ position, title }: {
 }) { return <Html position={position} center zIndexRange={[10, 0]} style={{ pointerEvents: 'none' }}><span className="zone-label">{title}</span></Html>; }
 // Zoom multiplier range (30 = default framing). Low values reveal more open sea around the island.
 const MIN_ZOOM = 10, MAX_ZOOM = 65;
+const occlusionRay = new THREE.Raycaster(), lookDir = new THREE.Vector3(), lookPoint = new THREE.Vector3();
+const isInside = (object: THREE.Object3D, parent: THREE.Object3D) => { for (let o: THREE.Object3D | null = object; o; o = o.parent) if (o === parent) return true; return false; };
 const viewCorners = [[-1, -1], [1, -1], [1, 1], [-1, 1]], viewNdc = new THREE.Vector2(), viewRay = new THREE.Raycaster(), viewHit = new THREE.Vector3(), groundPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
 function World({ profile, go, seat, setSeat, onPosition, zoom, reset, atmosphere, time, viewMode, onExplore, onFreeLook, coworkers, greeting, onPickSeat, work, shipped }: {
     coworkers: { person: DemoCoworker; target: Target | null }[];
@@ -143,6 +145,7 @@ function World({ profile, go, seat, setSeat, onPosition, zoom, reset, atmosphere
         window.addEventListener('pointercancel', up);
         return () => { el.removeEventListener('pointerdown', down); window.removeEventListener('pointermove', move); window.removeEventListener('pointerup', up); window.removeEventListener('pointercancel', up); };
     }, [gl, camera, onFreeLook]);
+    const findMe = useRef<THREE.Mesh>(null), findMeMaterial = useRef<THREE.MeshBasicMaterial>(null), hidden = useRef(false), occlusionCheck = useRef(0);
     const avatar = useRef<THREE.Group>(null), controls = useRef<React.ComponentRef<typeof OrbitControls>>(null);
     const cameraDelta = useRef(new THREE.Vector3()), desiredFocus = useRef(new THREE.Vector3()), lookPending = useRef(false);
     const pos = useRef(new THREE.Vector3(0, 0, 7)), path = useRef<Point[]>([]), keys = useRef(new Set<string>()), walk = useRef(0), last = useRef(0);
@@ -245,6 +248,25 @@ function World({ profile, go, seat, setSeat, onPosition, zoom, reset, atmosphere
         }
         avatar.current.position.copy(pos.current);
         avatar.current.position.y = seat ? -0.2 : moving ? Math.sin(walk.current) * 0.045 : 0;
+        // A few times a second, check whether anything sits between the camera and you.
+        occlusionCheck.current -= dt;
+        if (occlusionCheck.current <= 0) {
+            occlusionCheck.current = 0.2;
+            state.camera.getWorldDirection(lookDir);
+            hidden.current = [0.6, 1.2].some(height => {
+                lookPoint.set(pos.current.x, avatar.current!.position.y + height, pos.current.z);
+                occlusionRay.set(lookPoint.clone().addScaledVector(lookDir, -60), lookDir);
+                occlusionRay.far = 59.7;
+                return occlusionRay.intersectObjects(state.scene.children, true).some(hit => hit.object.visible && !isInside(hit.object, avatar.current!));
+            });
+        }
+        if (findMe.current && findMeMaterial.current) {
+            const want = hidden.current || (controls.current?.object.zoom ?? 30) < 14 ? 0.85 : 0;
+            findMeMaterial.current.opacity = THREE.MathUtils.damp(findMeMaterial.current.opacity, want, 8, dt);
+            findMe.current.visible = findMeMaterial.current.opacity > 0.02;
+            findMe.current.position.set(pos.current.x, 0.14, pos.current.z);
+            findMe.current.scale.setScalar(1 + Math.sin(state.clock.elapsedTime * 3) * 0.06);
+        }
         if (state.clock.elapsedTime - last.current > 0.4) {
             onPosition([pos.current.x, pos.current.z]);
             last.current = state.clock.elapsedTime;
@@ -271,7 +293,9 @@ function World({ profile, go, seat, setSeat, onPosition, zoom, reset, atmosphere
  {fitMode === 'follow' && <><ZoneLabel position={[-4.4, 3.3, -3.2]} title="THE STUDIO"/><ZoneLabel position={[9, 3.8, -5]} title="MEETING GROVE"/><ZoneLabel position={[5, 1.2, 6.3]} title="CAMPFIRE"/><ZoneLabel position={[garden.x, 1.3, garden.z - 2.2]} title="QUIET GARDEN"/></>}
  {districts.filter(d => fitMode === 'overview' || d.id !== 'village').map(d => <ZoneLabel key={d.id} position={[d.point[0], 2.4, d.point[1] - 2]} title={d.name.toUpperCase()}/>)}
  {marker && <mesh position={[marker[0], 0.22, marker[1]]} rotation={[-Math.PI / 2, 0, 0]}><ringGeometry args={[0.18, 0.24, 24]}/><meshBasicMaterial color="#fffce8"/></mesh>}
- <group ref={avatar} name="player-avatar"><AvatarBody color={profile.color}/><Html position={[0, 1.85, 0]} center zIndexRange={[20, 0]}><div className="avatar-label"><i />{profile.name} <span>you</span></div></Html></group>
+ {/* Always-visible ring under you, shown while you're hidden behind something or zoomed far out. */}
+ <mesh ref={findMe} rotation={[-Math.PI / 2, 0, 0]} renderOrder={30} raycast={() => null}><ringGeometry args={[0.36, 0.5, 48]}/><meshBasicMaterial ref={findMeMaterial} color={profile.color} transparent opacity={0} depthTest={false} depthWrite={false} toneMapped={false} fog={false}/></mesh>
+ <group ref={avatar} name="player-avatar"><AvatarBody color={profile.color} xray={0.55}/><Html position={[0, 1.85, 0]} center zIndexRange={[20, 0]}><div className="avatar-label"><i />{profile.name} <span>you</span></div></Html></group>
  <ContactShadows position={[0, 0.02, 0]} opacity={0.18} scale={35} blur={2} far={8}/><OrbitControls ref={controls} makeDefault target={[0, 0, 7]} minZoom={2} maxZoom={75} minPolarAngle={0.3} maxPolarAngle={Math.PI / 2.7} enablePan={false} enableZoom={false} mouseButtons={{ LEFT: undefined, MIDDLE: THREE.MOUSE.ROTATE, RIGHT: THREE.MOUSE.ROTATE }}/>
  </>;
 }
@@ -463,7 +487,7 @@ function App() {
  {tab === 'activity' ? <div className="feed" aria-live="polite">{showDemo && feed.length ? feed.map(item => <button key={item.id} className="feed-item" onClick={() => findPerson(item.personId)}><span className="feed-icon">{item.icon}</span><span><strong>{item.who}</strong> {item.text}<small>{item.at.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}</small></span></button>) : <p className="feed-empty">Team updates will appear here as people work.</p>}</div> : tab === 'places' ? <nav className="places" aria-label="Island locations">{locations.map((l, i) => { const Icon = icons[i] ?? Compass; return <button key={l.id} className={nearest.id === l.id ? 'place selected' : 'place'} onClick={() => travel(l.point)}><span className={`place-icon place-${i}`}><Icon size={19}/></span><span><strong>{l.name}</strong><small>{l.detail}</small></span><ArrowUpRight className="place-arrow" size={16}/></button>; })}</nav> : <div className="people"><div className="person"><span className="person-avatar" style={{ background: profile.color }}>{profile.name.slice(0, 1)}</span><div><strong>{profile.name} <small>(you)</small></strong><p>{profile.checked ? profile.status : 'Not checked in'}</p></div><span className={profile.checked ? 'online-dot' : 'offline-dot'}/></div>{coworkers.map(({ person, target }) => <div key={person.id} className="person"><span className="person-avatar" style={{ background: person.color }}>{person.name.slice(0, 1)}</span><div><strong>{person.name} <small className="demo-tag">demo</small></strong><p>{target ? `${target.activity.status} · ${target.activity.activity}` : 'Off the island'}</p>{target && (() => { const task = currentTask(person, work[person.id]); return <p className="person-task" title={`${Math.round(work[person.id].progress * 100)}% done`}>{task.icon} {task.title}<span className="mini-bar"><span style={{ width: `${work[person.id].progress * 100}%` }}/></span></p>; })()}</div>{target && <button className="icon-button find-person" aria-label={`Find ${person.name}`} title={`Find ${person.name}`} onClick={() => findPerson(person.id)}><LocateFixed size={15}/></button>}<span className={!target ? 'offline-dot' : target.activity.status === 'Available' ? 'online-dot' : 'busy-dot'}/></div>)}<div className="empty-people"><Users size={25}/><strong>A space for the whole team</strong><p>{showDemo ? 'Maya and Theo are demo coworkers on a daily routine. Real teammates arrive with shared presence.' : 'This first prototype runs locally. Shared employee presence is the next milestone.'}</p></div></div>}
  <div className="sidebar-footer"><div><span className="tiny-island">✦</span><strong>A little island. A better workday.</strong></div><p>Built for a team of 10.</p></div></aside>
  <section ref={panel} data-view-mode={viewMode} data-mood={mood.period} className="island-panel" aria-label="Interactive 3D island"><div className="scene-top"><div className="location-chip"><span className="online-dot"/>{mood.name}<span className="chip-divider"/><time dateTime={mood.now.toISOString()} title={`${mood.timezone}${atmosphere.mode === 'manual' ? ' · Manual atmosphere' : ' · Following real time'}`}>{mood.time}</time>{atmosphere.mode === 'manual' && <span className="manual-chip">Manual</span>}</div><button className="scene-settings" aria-label="Island atmosphere" onClick={() => setModal('atmosphere')}><Settings2 size={18}/></button></div>
- <SceneBoundary><Suspense fallback={<div className="loading">Finding your little corner of the world…</div>}><Canvas shadows orthographic camera={{ position: [21, 25, 36], zoom: 30, near: 0.1, far: 1000 }} dpr={[1, 1.7]} onCreated={() => setLoaded(true)}><World profile={profile} go={go} seat={seat} setSeat={setSeat} onPosition={setPosition} zoom={zoom} reset={reset} atmosphere={atmosphere} time={mood} viewMode={viewMode} onExplore={() => setViewMode('follow')} onFreeLook={freeLook} coworkers={coworkers} greeting={greeting} onPickSeat={pickSeat} work={work} shipped={shipped}/></Canvas></Suspense></SceneBoundary>
+ <SceneBoundary><Suspense fallback={<div className="loading">Finding your little corner of the world…</div>}><Canvas shadows orthographic gl={{ stencil: true }} camera={{ position: [21, 25, 36], zoom: 30, near: 0.1, far: 1000 }} dpr={[1, 1.7]} onCreated={() => setLoaded(true)}><World profile={profile} go={go} seat={seat} setSeat={setSeat} onPosition={setPosition} zoom={zoom} reset={reset} atmosphere={atmosphere} time={mood} viewMode={viewMode} onExplore={() => setViewMode('follow')} onFreeLook={freeLook} coworkers={coworkers} greeting={greeting} onPickSeat={pickSeat} work={work} shipped={shipped}/></Canvas></Suspense></SceneBoundary>
  <IslandMap position={position} travel={travel} onLook={freeLook} people={coworkers.map(c => ({ id: c.person.id, name: c.person.name, color: c.person.color }))}/>
  <div className="view-modes" role="group" aria-label="Camera mode"><button aria-pressed={viewMode === 'follow'} onClick={() => setViewMode('follow')}><Navigation size={14}/> {viewMode === 'free' ? 'Back to me' : 'Follow me'}</button><button aria-pressed={viewMode === 'overview'} onClick={() => setViewMode('overview')}><Compass size={14}/> Island overview</button></div>
  {loaded && viewMode === 'overview' && <div className="island-caption"><span>YOUR EVERYDAY GETAWAY</span><h2>Good work happens here.</h2><p>Find your spot. Make a connection.</p></div>}

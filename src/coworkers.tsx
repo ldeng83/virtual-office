@@ -7,14 +7,39 @@ import { ARRIVAL_DOCK, peopleView, type DemoCoworker, type Target } from './peop
 
 // Shared avatar body so the player and coworkers always look like the same kind of person.
 // The head and torso are separate groups so coworkers can look around and breathe.
-export function AvatarBody({ color, hair = '#5b5147', head, torso }: { color: string; hair?: string; head?: RefObject<THREE.Group | null>; torso?: RefObject<THREE.Group | null> }) {
+//
+// X-ray: every visible avatar pixel marks the stencil buffer; a second, flat tinted copy is then
+// drawn only where the avatar is behind something (depth test "greater") and not where the avatar
+// itself is visible, so you can always see people through trees, roofs, and canopies.
+const parts = {
+    torso: new THREE.CylinderGeometry(0.22, 0.26, 0.6, 12),
+    face: new THREE.SphereGeometry(0.22, 16, 12),
+    hair: new THREE.SphereGeometry(0.22, 12, 8),
+    leg: new THREE.BoxGeometry(0.17, 0.4, 0.19),
+};
+const stencilMark = { stencilWrite: true, stencilRef: 1, stencilFunc: THREE.AlwaysStencilFunc, stencilZPass: THREE.ReplaceStencilOp } as const;
+const xrayMaterials = new Map<string, THREE.MeshBasicMaterial>();
+function xrayMaterial(color: string, opacity: number) {
+    const key = `${color}/${opacity}`;
+    if (!xrayMaterials.has(key))
+        xrayMaterials.set(key, new THREE.MeshBasicMaterial({ color, transparent: true, opacity, depthWrite: false, depthFunc: THREE.GreaterDepth, toneMapped: false, fog: false, stencilWrite: true, stencilRef: 1, stencilFunc: THREE.NotEqualStencilFunc }));
+    return xrayMaterials.get(key)!;
+}
+function Part({ geometry, color, position, xray, shadow = true, roughness }: { geometry: THREE.BufferGeometry; color: string; position?: [number, number, number]; xray: THREE.Material | null; shadow?: boolean; roughness?: number }) {
     return <>
-        <group ref={torso} position={[0, 0.35, 0]}><mesh position={[0, 0.3, 0]} castShadow receiveShadow><cylinderGeometry args={[0.22, 0.26, 0.6, 12]}/><meshStandardMaterial color={color} roughness={0.9}/></mesh></group>
+        <mesh geometry={geometry} position={position} castShadow={shadow} receiveShadow={shadow}><meshStandardMaterial color={color} roughness={roughness} {...stencilMark}/></mesh>
+        {xray && <mesh geometry={geometry} position={position} material={xray} renderOrder={20} raycast={() => null}/>}
+    </>;
+}
+export function AvatarBody({ color, hair = '#5b5147', head, torso, xray = 0 }: { color: string; hair?: string; head?: RefObject<THREE.Group | null>; torso?: RefObject<THREE.Group | null>; xray?: number }) {
+    const ghost = xray > 0 ? xrayMaterial(color, xray) : null;
+    return <>
+        <group ref={torso} position={[0, 0.35, 0]}><Part geometry={parts.torso} position={[0, 0.3, 0]} color={color} roughness={0.9} xray={ghost}/></group>
         <group ref={head} position={[0, 1.17, 0]}>
-            <mesh castShadow><sphereGeometry args={[0.22, 16, 12]}/><meshStandardMaterial color="#e8bc98"/></mesh>
-            <mesh position={[0, 0.12, -0.03]}><sphereGeometry args={[0.22, 12, 8]}/><meshStandardMaterial color={hair}/></mesh>
+            <Part geometry={parts.face} color="#e8bc98" xray={ghost}/>
+            <Part geometry={parts.hair} position={[0, 0.12, -0.03]} color={hair} shadow={false} xray={ghost}/>
         </group>
-        {[-0.13, 0.13].map(x => <mesh key={x} position={[x, 0.22, 0]} castShadow receiveShadow><boxGeometry args={[0.17, 0.4, 0.19]}/><meshStandardMaterial color="#495b60" roughness={0.85}/></mesh>)}
+        {[-0.13, 0.13].map(x => <Part key={x} geometry={parts.leg} position={[x, 0.22, 0]} color="#495b60" roughness={0.85} xray={ghost}/>)}
     </>;
 }
 
@@ -117,7 +142,7 @@ export function Coworker({ person, target, greeting, player, motion, task, shipp
     });
     const status = target?.activity.status;
     return <group ref={group} name={`coworker-${person.id}`}>
-        <AvatarBody color={person.color} hair={person.hair} head={head} torso={torso}/>
+        <AvatarBody color={person.color} hair={person.hair} head={head} torso={torso} xray={0.3}/>
         {/* At a desk the tag floats higher so it doesn't cover their glowing monitor from the default camera. */}
         <Html position={[0, target?.activity.pose === 'desk' && target.seatId ? 2.55 : 1.85, 0]} center zIndexRange={[20, 0]}>
             <div className="avatar-label coworker-label">
