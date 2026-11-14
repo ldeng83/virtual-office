@@ -70,6 +70,8 @@ function ZoneLabel({ position, title }: {
     ];
     title: string;
 }) { return <Html position={position} center zIndexRange={[10, 0]} style={{ pointerEvents: 'none' }}><span className="zone-label">{title}</span></Html>; }
+// Zoom multiplier range (30 = default framing). Low values reveal more open sea around the island.
+const MIN_ZOOM = 10, MAX_ZOOM = 65;
 const viewCorners = [[-1, -1], [1, -1], [1, 1], [-1, 1]], viewNdc = new THREE.Vector2(), viewRay = new THREE.Raycaster(), viewHit = new THREE.Vector3(), groundPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
 function World({ profile, go, seat, setSeat, onPosition, zoom, reset, atmosphere, time, viewMode, onExplore, onFreeLook }: {
     viewMode: ViewMode;
@@ -224,8 +226,9 @@ function World({ profile, go, seat, setSeat, onPosition, zoom, reset, atmosphere
             cameraDelta.current.copy(desiredFocus.current).sub(target).multiplyScalar(1 - Math.exp(-dt * (dragging.current ? 30 : 5)));
             target.add(cameraDelta.current);
             controls.current.object.position.add(cameraDelta.current);
-            // Orthographic overview rays must start above all visible ground, including tall portrait views.
-            const distance = viewMode !== 'follow' ? Math.max(100, size.height / controls.current.object.zoom * 1.5) : 44;
+            // Orthographic rays must start above all visible ground, including tall portrait views and zoomed-out follow views.
+            const reach = size.height / controls.current.object.zoom * 1.5;
+            const distance = viewMode !== 'follow' ? Math.max(100, reach) : Math.max(44, reach);
             cameraDelta.current.copy(controls.current.object.position).sub(target).setLength(distance);
             controls.current.object.position.copy(target).add(cameraDelta.current);
             controls.current.update();
@@ -286,7 +289,7 @@ function App() {
     // Mouse wheel / trackpad scroll zooms the island; the mini-map keeps its own scroll.
     useEffect(() => { const el = panel.current; if (!el)
         return; const wheel = (e: WheelEvent) => { if ((e.target as HTMLElement).closest('.island-map'))
-        return; e.preventDefault(); const delta = e.deltaY * (e.deltaMode === 1 ? 16 : e.deltaMode === 2 ? 400 : 1); setZoom(v => Math.min(65, Math.max(22, v * Math.exp(-delta * 0.0015)))); }; el.addEventListener('wheel', wheel, { passive: false }); return () => el.removeEventListener('wheel', wheel); }, []);
+        return; e.preventDefault(); const delta = e.deltaY * (e.deltaMode === 1 ? 16 : e.deltaMode === 2 ? 400 : 1); setZoom(v => Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, v * Math.exp(-delta * 0.0015)))); }; el.addEventListener('wheel', wheel, { passive: false }); return () => el.removeEventListener('wheel', wheel); }, []);
     useEffect(() => { try {
         localStorage.setItem('atoll-profile', JSON.stringify(profile));
     }
@@ -321,7 +324,7 @@ function App() {
  <IslandMap position={position} travel={travel} onLook={freeLook}/>
  <div className="view-modes" role="group" aria-label="Camera mode"><button aria-pressed={viewMode === 'follow'} onClick={() => setViewMode('follow')}><Navigation size={14}/> {viewMode === 'free' ? 'Back to me' : 'Follow me'}</button><button aria-pressed={viewMode === 'overview'} onClick={() => setViewMode('overview')}><Compass size={14}/> Island overview</button></div>
  {loaded && viewMode === 'overview' && <div className="island-caption"><span>YOUR EVERYDAY GETAWAY</span><h2>Good work happens here.</h2><p>Find your spot. Make a connection.</p></div>}
- <div className="map-controls"><button aria-label="Zoom in" onClick={() => setZoom(v => Math.min(65, v + 5))}><Plus size={18}/></button><button aria-label="Zoom out" onClick={() => setZoom(v => Math.max(22, v - 5))}><Minus size={18}/></button><div /><button aria-label="Reset view" onClick={() => { setReset(v => v + 1); setZoom(30); setViewMode(v => v === 'free' ? 'follow' : v); }}><Maximize2 size={17}/></button></div>
+ <div className="map-controls"><button aria-label="Zoom in" onClick={() => setZoom(v => Math.min(MAX_ZOOM, v + 5))}><Plus size={18}/></button><button aria-label="Zoom out" onClick={() => setZoom(v => Math.max(MIN_ZOOM, v - 5))}><Minus size={18}/></button><div /><button aria-label="Reset view" onClick={() => { setReset(v => v + 1); setZoom(30); setViewMode(v => v === 'free' ? 'follow' : v); }}><Maximize2 size={17}/></button></div>
  <div className="scene-bottom"><span className="current-location"><MapPin size={15}/>{nearest.name}</span><span className="movement-hint"><span>W A S D</span> to move <i /> Click to walk <i /> Drag to pan <i /> Right-drag to orbit <i /> Scroll to zoom</span></div>
  {seat && <div className="seat-message"><Armchair size={17}/><span>Settled into {seats.find(s => s.id === seat)?.name}</span><button onClick={() => setSeat(null)}>Stand up</button></div>}
  {toast && <div className="toast" role="status"><Check size={17}/>{toast}</div>}
