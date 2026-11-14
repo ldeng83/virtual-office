@@ -21,7 +21,7 @@ Open the local URL printed by Vite. Production build: `npm run build`. Preview t
 - Click a chair to sit; walk or select **Stand up** to leave.
 - Select any of nine locations in the scrollable sidebar to travel there. The collapsible mini-map shows your position, trails, pond, and district markers; select a district marker to travel there. Travelling or starting to walk restores Follow me.
 - Check in or out, change availability, and edit your name and avatar color.
-- Open the people tab to view your local presence.
+- Open the people tab to view your local presence and the two demo coworkers, Maya and Theo. They follow a daily routine tied to the island's time of day (desk, meetings, focus spots, campfire, beach), walk between places, sit in seats you then can't take, and appear on the mini-map. Walk near one to say hi, or use the locate button in the people tab to look at them. Turn them off in profile settings. They use the same person model that real coworkers will use once shared presence arrives.
 - Main trails connect every district. Ponds, rocks, trees, and campfires block walking. All trees use fixed geometry and opaque foliage: walking, camera movement, and zoom never switch their detail or visibility. Trees remain still even when Gentle motion is enabled.
 - Open the sliders button at the top right of the island for real-time lighting, manual day periods, gentle motion, and optional ocean audio.
 - Night adds warm studio lighting and campfire glow. Audio has a volume control and pauses when the tab is hidden. It starts muted on every visit.
@@ -47,6 +47,8 @@ Check-in, name, color, status, and atmosphere preferences persist in browser loc
 - `src/terrain.tsx`: shaped sand and grass terrain plus click-to-walk surface.
 - `src/world.ts`: districts, trails, furniture, collision rules, and A* navigation with cached grid checks.
 - `src/districts.tsx`: static forest trees, pond, beach gathering area, flower beds, lookout, and rocky coast.
+- `src/people.ts`: shared person model, demo coworker routines, and seat/target resolution.
+- `src/coworkers.tsx`: shared avatar body and the walking, seated demo coworker.
 - `src/island-map.tsx`: collapsible mini-map, position marker, and district travel.
 - `src/style.css`: responsive layout and visual styling.
 - `tests/navigation.test.mjs`: boundary, obstacle, destination, and seating accessibility checks.
