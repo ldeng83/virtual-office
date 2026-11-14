@@ -20,13 +20,13 @@ function terrainGeometry(top: number, bottom: number, insetTop: number, insetBot
     geometry.computeVertexNormals();
     return geometry;
 }
-export function IslandTerrain({ onWalk }: { onWalk: (point: Point) => void }) {
+export function IslandTerrain({ onWalk }: { onWalk: (point: Point, dragDistance: number) => void }) {
     const sand = useMemo(() => terrainGeometry(-0.12, -0.42, 0.3, 0), []);
     const grass = useMemo(() => terrainGeometry(0.08, -0.22, 1.1, 0.7), []);
     const ground = useMemo(() => terrainGeometry(0.095, 0.095, 1.1, 1.1, false), []);
     return <group name="expanded-island">
         <mesh geometry={sand} receiveShadow><meshStandardMaterial color="#dfcc9e" roughness={0.9}/></mesh>
         <mesh geometry={grass} receiveShadow><meshStandardMaterial color="#a9bd8e" roughness={0.9}/></mesh>
-        <mesh name="walkable-ground" geometry={ground} onClick={event => { event.stopPropagation(); onWalk([event.point.x, event.point.z]); }}><meshBasicMaterial transparent opacity={0} depthWrite={false}/></mesh>
+        <mesh name="walkable-ground" geometry={ground} onClick={event => { event.stopPropagation(); onWalk([event.point.x, event.point.z], event.delta); }}><meshBasicMaterial transparent opacity={0} depthWrite={false}/></mesh>
     </group>;
 }
