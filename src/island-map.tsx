@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react';
 import { Compass, ChevronDown } from 'lucide-react';
-import { districts, districtTrails, gardenPaths, ponds, type Point } from './world';
+import { amphitheater, boardwalk, districts, pads, plaza, ponds, walkways, type Point } from './world';
 import { shorePoint } from './shoreline';
 import { cameraView } from './camera-view';
 import { peopleView } from './people';
@@ -48,7 +48,11 @@ export function IslandMap({ position, travel, onLook, people = [] }: { position:
                 pointer.current = null; }}
             onPointerCancel={() => { pointer.current = null; }}>
             <path d={outline} fill="#b5c69e" stroke="#e8d6b1" strokeWidth="2"/>
-            {[...gardenPaths, ...districtTrails].map((points, i) => <polyline key={i} points={points.map(p => p.join(',')).join(' ')} fill="none" stroke="#f0e7cc" strokeWidth="0.7"/>)}
+            {walkways.map((points, i) => <polyline key={i} points={points.map(p => p.join(',')).join(' ')} fill="none" stroke="#f0e7cc" strokeWidth="0.9" strokeLinecap="round"/>)}
+            <path d={`M ${boardwalk.from.join(' ')} Q ${boardwalk.bend.join(' ')} ${boardwalk.to.join(' ')}`} fill="none" stroke="#c39f73" strokeWidth="1.1"/>
+            <circle cx={plaza.x} cy={plaza.z} r={plaza.radius} fill="#e6dcc3"/>
+            <path d={`M ${amphitheater.x + Math.cos(amphitheater.from) * 5.8} ${amphitheater.z + Math.sin(amphitheater.from) * 5.8} A 5.8 5.8 0 0 1 ${amphitheater.x + Math.cos(amphitheater.to) * 5.8} ${amphitheater.z + Math.sin(amphitheater.to) * 5.8}`} fill="none" stroke="#d6caa9" strokeWidth="2.2"/>
+            {pads.map(pad => <rect key={pad.id} x={pad.x - pad.w / 2} y={pad.z - pad.d / 2} width={pad.w} height={pad.d} rx="0.5" fill={pad.style === 'plot' ? 'none' : pad.style === 'glass' ? '#d6ebe9' : '#ebe6d8'} stroke={pad.style === 'plot' ? '#6d8a73' : '#b9b19a'} strokeWidth="0.35" strokeDasharray={pad.style === 'plot' ? '1 0.7' : undefined}><title>{pad.name}</title></rect>)}
             {ponds.map((p, i) => <ellipse key={i} cx={p.x} cy={p.z} rx={p.rx} ry={p.rz} fill="#83b6ab"/>)}
             {viewport && <polygon className="map-viewport" points={viewport} pointerEvents="none"/>}
             {districts.map(d => <g key={d.id} role="button" tabIndex={0} aria-label={`Travel to ${d.name}`} onClick={() => travel(d.point)} onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); travel(d.point); } }} className="map-district"><title>{`Travel to ${d.name}`}</title><circle cx={d.point[0]} cy={d.point[1]} r="3.8" fill="transparent"/><circle cx={d.point[0]} cy={d.point[1]} r="1.65" fill={d.color} stroke="#fff9e4" strokeWidth="0.6"/></g>)}

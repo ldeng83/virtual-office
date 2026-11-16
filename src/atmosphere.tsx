@@ -64,9 +64,9 @@ export function AtmosphereScene({ settings, time }: { settings: Atmosphere; time
         <ambientLight ref={ambient}/>
         <directionalLight ref={sun} castShadow shadow-mapSize={[2048, 2048]} shadow-camera-left={-60} shadow-camera-right={60} shadow-camera-top={60} shadow-camera-bottom={-60} shadow-normalBias={0.04}/>
         <Ocean motion={settings.motion} time={time}/><SeaLife motion={settings.motion}/>
-        <pointLight ref={fire} position={[5, 1.1, 4]} color="#ffab59" distance={7} decay={2}/>
-        <group ref={lamps}>{[-8, -6, -4, -2, 0].map(x => <mesh key={x} position={[x, 2.38, 2.3]}><sphereGeometry args={[0.07, 8, 6]}/><meshStandardMaterial color="#ffe0a0" emissive="#ffca79"/></mesh>)}</group>
-        <pointLight ref={studio} position={[-4, 2.2, 0]} color="#ffd19a" distance={11} decay={2}/>
+        <pointLight ref={fire} position={[11, 1.7, 3.4]} color="#ffab59" distance={8} decay={2}/>
+        <group ref={lamps}>{Array.from({ length: 8 }, (_, i) => i * Math.PI / 4 + Math.PI / 8).map(a => <mesh key={a} position={[Math.cos(a) * 6.6, 2.05, -9 + Math.sin(a) * 6.6]}><sphereGeometry args={[0.07, 8, 6]}/><meshStandardMaterial color="#ffe0a0" emissive="#ffca79"/></mesh>)}</group>
+        <pointLight ref={studio} position={[0, 2.6, -25]} color="#ffd19a" distance={14} decay={2}/>
         <group ref={stars}>{Array.from({ length: 65 }, (_, i) => <mesh key={i} position={[Math.sin(i * 127.1) * 48, 15 + (Math.sin(i * 43.7) + 1) * 16, Math.cos(i * 93.3) * 48]}><sphereGeometry args={[0.035 + (i % 3) * 0.015, 4, 4]}/><meshBasicMaterial color="#dae5ee" transparent depthWrite={false}/></mesh>)}</group>
     </>;
 }

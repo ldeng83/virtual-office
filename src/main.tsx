@@ -3,15 +3,15 @@ import { createRoot } from 'react-dom/client';
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import { ContactShadows, Html, OrbitControls } from '@react-three/drei';
 import * as THREE from 'three';
-import { ArrowUpRight, Check, ChevronDown, Compass, DoorOpen, HelpCircle, MapPin, Maximize2, Minus, Plus, Settings2, Sun, Users, Waves, X, Armchair, Navigation, Leaf, Flame, Coffee, BriefcaseBusiness, LocateFixed, Hand, ListChecks } from 'lucide-react';
-import { desks, findPath, locations, seats, trees, walkable, garden, gardenPaths, meetingTables, districts, districtTrails, type Point } from './world';
+import { ArrowUpRight, Check, ChevronDown, Compass, DoorOpen, HelpCircle, MapPin, Maximize2, Minus, Plus, Settings2, Sun, Users, Waves, X, Armchair, Navigation, Leaf, Flame, Coffee, BriefcaseBusiness, LocateFixed, Hand, ListChecks, BookOpen, Presentation } from 'lucide-react';
+import { desks, findPath, locations, seats, trees, walkable, districts, WHITEBOARD, WHITEBOARD_FACING, WHITEBOARD_SPOT, type Point } from './world';
 import { AtmosphereControls, AtmosphereScene, readAtmosphere, useOcean, useIslandTime, type IslandTime, type Atmosphere } from './atmosphere';
 import { IslandTerrain } from './terrain';
-import { DistrictScenery } from './districts';
+import { Campus } from './campus';
 import { IslandMap } from './island-map';
 import { OVERVIEW_CENTER } from './shoreline';
 import { cameraView, clampFocus, type ViewMode } from './camera-view';
-import { advanceWork, currentTask, demoCoworkers, nextActivity, peopleView, resolveTarget, WHITEBOARD, WHITEBOARD_FACING, WHITEBOARD_SPOT, type DemoCoworker, type Target, type WorkState } from './people';
+import { advanceWork, currentTask, demoCoworkers, nextActivity, peopleView, resolveTarget, type DemoCoworker, type Target, type WorkState } from './people';
 import { DeskScreen, Whiteboard } from './work-props';
 import { AvatarBody, Coworker } from './coworkers';
 import { stepAlongPath, turnToward } from './steering';
@@ -65,7 +65,19 @@ function Palm({ x, z, i }: { x: number; z: number; i: number }) {
 function Seat({ seat, onSelect }: {
     seat: typeof seats[number];
     onSelect: (id: string) => void;
-}) { return <group position={[seat.point[0], 0, seat.point[1]]} rotation={[0, seat.angle, 0]} onClick={e => { e.stopPropagation(); if (e.delta < 6) onSelect(seat.id); }} onPointerOver={e => { e.stopPropagation(); document.body.style.cursor = 'pointer'; }} onPointerOut={() => document.body.style.cursor = 'auto'}><Box p={[0, 0.48, 0]} s={[0.65, 0.13, 0.65]} c="#d9b389"/><Box p={[0, 0.86, -0.28]} s={[0.65, 0.65, 0.1]} c="#d9b389"/>{[-0.23, 0.23].flatMap(x => [-0.23, 0.23].map(z => <Box key={`${x}${z}`} p={[x, 0.22, z]} s={[0.08, 0.45, 0.08]} c="#716c5b"/>))}</group>; }
+}) { return <group position={[seat.point[0], 0, seat.point[1]]} rotation={[0, seat.angle, 0]} onClick={e => { e.stopPropagation(); if (e.delta < 6) onSelect(seat.id); }} onPointerOver={e => { e.stopPropagation(); document.body.style.cursor = 'pointer'; }} onPointerOut={() => document.body.style.cursor = 'auto'}>{seatModel(seat.kind)}</group>; }
+// Seat furniture by kind; the avatar sits at the group's origin facing +z.
+function seatModel(kind: typeof seats[number]['kind']) {
+    if (kind === 'bench')
+        return <><Box p={[0, 0.42, 0]} s={[0.85, 0.1, 0.45]} c="#c7a57c"/>{[-0.33, 0.33].map(x => <Box key={x} p={[x, 0.2, 0]} s={[0.08, 0.38, 0.38]} c="#8d8473"/>)}</>;
+    if (kind === 'stool')
+        return <><Cylinder p={[0, 0.62, 0]} r={0.2} h={0.08} c="#c7a57c"/><Cylinder p={[0, 0.3, 0]} r={0.04} h={0.6} c="#6f7d6c"/><Cylinder p={[0, 0.02, 0]} r={0.16} h={0.04} c="#6f7d6c"/></>;
+    if (kind === 'lounger')
+        return <><Box p={[0, 0.3, 0.2]} s={[0.6, 0.08, 1.2]} c="#f3efe3"/><Box p={[0, 0.55, -0.45]} s={[0.6, 0.08, 0.6]} c="#f3efe3" rotation={0}/>{[-0.25, 0.25].map(x => <Box key={x} p={[x, 0.14, 0.2]} s={[0.05, 0.28, 1.1]} c="#c39f73"/>)}</>;
+    if (kind === 'armchair')
+        return <><Box p={[0, 0.4, 0]} s={[0.8, 0.22, 0.7]} c="#9fb5a8"/><Box p={[0, 0.75, -0.3]} s={[0.8, 0.55, 0.14]} c="#9fb5a8"/>{[-0.36, 0.36].map(x => <Box key={x} p={[x, 0.58, 0]} s={[0.1, 0.25, 0.65]} c="#8ea596"/>)}</>;
+    return <><Box p={[0, 0.48, 0]} s={[0.65, 0.13, 0.65]} c="#d9b389"/><Box p={[0, 0.86, -0.28]} s={[0.65, 0.65, 0.1]} c="#d9b389"/>{[-0.23, 0.23].flatMap(x => [-0.23, 0.23].map(z => <Box key={`${x}${z}`} p={[x, 0.22, z]} s={[0.08, 0.45, 0.08]} c="#716c5b"/>))}</>;
+}
 function ZoneLabel({ position, title }: {
     position: [
         number,
@@ -277,24 +289,15 @@ function World({ profile, go, seat, setSeat, onPosition, zoom, reset, atmosphere
     });
     return <><AtmosphereScene settings={atmosphere} time={time}/>
  <IslandTerrain onWalk={(target, delta) => { if (delta >= 6) return; onExplore(); const route = findPath([pos.current.x, pos.current.z], target); if (route.length) { setSeat(null); path.current = route; setMarker(target); } }}/>
- {[...gardenPaths, ...districtTrails].flatMap((points, pathIndex) => points.slice(1).map((point, i) => { const start = points[i], dx = point[0] - start[0], dz = point[1] - start[1]; return <Box key={`${pathIndex}-${i}`} p={[(start[0] + point[0]) / 2, 0.115, (start[1] + point[1]) / 2]} s={[1.35, 0.04, Math.hypot(dx, dz) + 0.3]} c="#dfd5b4" rotation={Math.atan2(dx, dz)}/>; }))}
- <DistrictScenery/>
- <Box p={[0, 0.1, 3.5]} s={[1.8, 0.08, 8]} c="#dfd5b4"/><Box p={[-2.5, 0.11, -0.4]} s={[6.5, 0.08, 1.5]} c="#dfd5b4"/><Box p={[3.5, 0.11, -1.2]} s={[7, 0.08, 1.5]} c="#dfd5b4" rotation={0.35}/><Box p={[2.5, 0.1, 4]} s={[5, 0.08, 1.2]} c="#dfd5b4"/>
- <Box p={[-4.2, 0.08, -0.8]} s={[10.5, 0.16, 7]} c="#bdac87"/>{Array.from({ length: 26 }, (_, i) => <Box key={i} p={[-9.2 + i * 0.4, 0.17, -0.8]} s={[0.025, 0.015, 7]} c="#a99a7c"/>)}
- {[-9.1, 0.6].flatMap(x => [-4, 2.3].map(z => <Cylinder key={`${x}${z}`} p={[x, 1.2, z]} r={0.09} h={2.4} c="#e9dfc5"/>))}<Box p={[-4.25, 2.45, -4]} s={[10, 0.17, 0.18]} c="#e9dfc5"/><Box p={[-4.25, 2.45, 2.3]} s={[10, 0.17, 0.18]} c="#e9dfc5"/>{[-8, -6, -4, -2, 0].map(x => <Box key={x} p={[x, 2.5, -0.85]} s={[0.12, 0.12, 6.5]} c="#e9dfc5"/>)}
+ <Campus/>
  {desks.map((d, i) => <group key={d.id} position={[d.x, 0, d.z]}><Box p={[0, 0.85, 0]} s={[1.35, 0.12, 0.8]} c="#e6cda8"/>{[-0.5, 0.5].map(x => <Box key={x} p={[x, 0.43, 0]} s={[0.07, 0.8, 0.6]} c="#7d8271"/>)}<Box p={[0, 1.17, -0.1]} s={[0.55, 0.35, 0.05]} c="#485f5b"/><Box p={[0, 0.96, 0]} s={[0.08, 0.15, 0.08]} c="#485f5b"/><Box p={[0, 0.93, 0.18]} s={[0.4, 0.025, 0.15]} c="#ece9da"/><Cylinder p={[0.46, 0.99, 0]} r={0.09} h={0.18} c={i % 2 ? '#c17c5e' : '#8b9d7b'}/></group>)}
  {seats.map(s => <Seat key={s.id} seat={s} onSelect={onPickSeat}/>)}
  {coworkers.map(({ person, target }) => <Coworker key={person.id} person={person} target={target} greeting={greeting?.id === person.id ? greeting.text : null} player={pos} motion={atmosphere.motion} task={target?.activity.work ? { ...currentTask(person, work[person.id]), progress: work[person.id].progress } : null} shipped={shipped[person.id] ?? null}/>)}
  {coworkers.map(({ person, target }) => { const desk = target?.activity.work ? desks.find(d => d.id === target.seatId) : undefined; return desk && target && <DeskScreen key={`screen-${person.id}`} desk={desk} seat={target.point} work={{ personId: person.id, craft: person.craft, progress: work[person.id].progress, celebrating: !!shipped[person.id] }}/>; })}
- <Whiteboard position={WHITEBOARD} face={WHITEBOARD_FACING} spot={WHITEBOARD_SPOT} active={coworkers.some(c => c.target?.activity.place === 'Meeting grove')}/>
- {meetingTables.map(([x, z], i) => <group key={i} position={[x, 0, z]}><Cylinder p={[0, 0.08, 0]} r={1.8} h={0.15} c="#d7c5a2"/><Cylinder p={[0, 0.75, 0]} r={0.75} h={0.12} c="#e7d4b3"/><Cylinder p={[0, 0.37, 0]} r={0.12} h={0.7} c="#7f8b75"/>{[0, 1, 2].map(n => <Cylinder key={n} p={[Math.cos(n * 2.1) * 1.15, 0.35, Math.sin(n * 2.1) * 1.15]} r={0.3} h={0.6} c="#a0ac8a"/>)}<Cylinder p={[0, 2.8, 0]} r={0.05} r2={2} h={1.1} c={i ? '#cf9b77' : '#8eaa91'}/><Cylinder p={[0, 1.8, 0]} r={0.045} h={2.4} c="#e7d4b3"/></group>)}
- <Cylinder p={[5, 0.13, 4]} r={1} h={0.2} c="#b9ad93"/>{[0, 1, 2].map(i => <Box key={i} p={[5, 0.3 + i * 0.1, 4]} s={[0.7, 0.15, 0.15]} c="#886d56" rotation={i * 1.1}/>)}<mesh position={[5, 0.65, 4]}><coneGeometry args={[0.25, 0.7, 6]}/><meshStandardMaterial color="#eda968" emissive="#e88b47" emissiveIntensity={0.3}/></mesh>
- <Cylinder p={[garden.x, 0.12, garden.z]} r={2.4} h={0.13} c="#b6c79d"/>{[0, 1, 2, 3, 4].map(i => <mesh key={i} position={[garden.x - 1.6 + i * 0.8, 0.2, garden.z + 0.7]} scale={[0.35, 0.2, 0.3]}><dodecahedronGeometry /><meshStandardMaterial color="#a5aaa0"/></mesh>)}
+ <Whiteboard position={WHITEBOARD} face={WHITEBOARD_FACING} spot={WHITEBOARD_SPOT} active={coworkers.some(c => c.target?.activity.place === 'Pavilion M')}/>
  {trees.map(([x, z], i) => <Palm key={i} x={x} z={z} i={i}/>)}
  <Box p={[0, -0.03, 9.3]} s={[2, 0.2, 3]} c="#b39a78"/>{Array.from({ length: 9 }, (_, i) => <Box key={i} p={[0, 0.08, 8 + i * 0.3]} s={[2.05, 0.04, 0.22]} c="#d5ba92"/>)}
- {[[-2, 5], [3, 7], [-9, 4], [10, 2], [2, -6]].map(([x, z], i) => <group key={i} position={[x, 0, z]}><Cylinder p={[0, 0.13, 0]} r={0.3} h={0.25} c="#8b9e79"/>{[0, 1, 2].map(j => <mesh key={j} position={[Math.cos(j * 2) * 0.22, 0.4, Math.sin(j * 2) * 0.22]}><sphereGeometry args={[0.12, 6, 5]}/><meshStandardMaterial color={i % 2 ? '#d9b07d' : '#e3d9b1'}/></mesh>)}</group>)}
- {fitMode === 'follow' && <><ZoneLabel position={[-4.4, 3.3, -3.2]} title="THE STUDIO"/><ZoneLabel position={[9, 3.8, -5]} title="MEETING GROVE"/><ZoneLabel position={[5, 1.2, 6.3]} title="CAMPFIRE"/><ZoneLabel position={[garden.x, 1.3, garden.z - 2.2]} title="QUIET GARDEN"/></>}
- {districts.filter(d => fitMode === 'overview' || d.id !== 'village').map(d => <ZoneLabel key={d.id} position={[d.point[0], 2.4, d.point[1] - 2]} title={d.name.toUpperCase()}/>)}
+ {districts.filter(d => d.id !== 'arrival').map(d => <ZoneLabel key={d.id} position={[d.point[0], fitMode === 'overview' ? 3 : 2.6, d.point[1] - 1.6]} title={d.name.toUpperCase()}/>)}
  {marker && <mesh position={[marker[0], 0.22, marker[1]]} rotation={[-Math.PI / 2, 0, 0]}><ringGeometry args={[0.18, 0.24, 24]}/><meshBasicMaterial color="#fffce8"/></mesh>}
  {/* Always-visible ring under you, shown while you're hidden behind something or zoomed far out. */}
  <mesh ref={findMe} rotation={[-Math.PI / 2, 0, 0]} renderOrder={30} raycast={() => null}><ringGeometry args={[0.36, 0.5, 48]}/><meshBasicMaterial ref={findMeMaterial} color={profile.color} transparent opacity={0} depthTest={false} depthWrite={false} toneMapped={false} fog={false}/></mesh>
@@ -426,7 +429,7 @@ function App() {
                 post(person, '🚤', 'arrived on the island');
             else if (a && !b)
                 post(person, '🌙', 'headed home for the day');
-            else if (b?.activity.place === 'Meeting grove' && a?.activity.place !== 'Meeting grove')
+            else if (b?.activity.place === 'Pavilion M' && a?.activity.place !== 'Pavilion M')
                 post(person, '💬', `joined the ${b.activity.activity.toLowerCase()}`);
             else if (b?.activity.icon === '☕')
                 post(person, '☕', 'took a coffee break');
@@ -483,7 +486,7 @@ function App() {
         return () => clearTimeout(t);
     } }, [toast]);
     const travel = (point: Point) => { setViewMode('follow'); setGo({ point, seq: Date.now() }); }, update = (p: Partial<Profile>) => setProfile(v => ({ ...v, ...p })), nearest = locations.reduce((a, b) => Math.hypot(position[0] - a.point[0], position[1] - a.point[1]) < Math.hypot(position[0] - b.point[0], position[1] - b.point[1]) ? a : b);
-    const icons = [Navigation, BriefcaseBusiness, Coffee, Flame, Leaf];
+    const icons = [Navigation, Compass, BriefcaseBusiness, Users, Coffee, BookOpen, Presentation, Leaf, Waves];
     return <div className="app"><header className="header"><a className="brand" href="/" aria-label="Atoll home"><span className="brand-icon"><Waves size={23}/></span>atoll<span className="brand-divider"/><span className="workspace-name">Our island office<ChevronDown size={13}/></span></a><div className="header-right"><span className="prototype">LOCAL PROTOTYPE</span><span className="weather"><mood.Icon size={17}/> {mood.name}</span><button className="icon-button" aria-label="Help" onClick={() => setModal('help')}><HelpCircle size={19}/></button><button className="profile-button" aria-label="Edit profile" style={{ background: profile.color }} onClick={() => setModal('settings')}>{profile.name.slice(0, 1).toUpperCase()}</button></div></header>
  <main><aside className="sidebar"><div className="intro"><span className="eyebrow">A LITTLE SPACE TOGETHER</span><h1>Welcome to<br />your workday<span>.</span></h1><p>Your desk, your people.<br />A little closer, wherever you are.</p></div><div className="checkin-card"><div className="checkin-title"><span className={profile.checked ? 'online-dot' : 'offline-dot'}/><strong>{profile.checked ? 'You’re checked in' : 'Make yourself at home'}</strong></div><p>{profile.checked ? 'Enjoy your time on the island.' : 'Ready when you are. Settle in.'}</p><button className={profile.checked ? 'checked-button' : 'primary-button'} onClick={() => { update({ checked: !profile.checked }); setToast(profile.checked ? 'Checked out. See you soon!' : 'Checked in. Welcome to the island!'); }}>{profile.checked ? <Check size={16}/> : <DoorOpen size={16}/>} {profile.checked ? 'Check out' : 'Check in to the island'}{!profile.checked && <ArrowUpRight size={16}/>}</button></div>
  <div className="tabs"><button className={tab === 'places' ? 'active' : ''} onClick={() => setTab('places')}><Compass size={16}/> Places</button><button className={tab === 'people' ? 'active' : ''} onClick={() => setTab('people')}><Users size={16}/> People <span>{(profile.checked ? 1 : 0) + coworkers.filter(c => c.target).length}</span></button><button className={tab === 'activity' ? 'active' : ''} onClick={() => setTab('activity')}><ListChecks size={16}/> Activity {unseen > 0 && <span className="unseen">{unseen}</span>}</button></div>

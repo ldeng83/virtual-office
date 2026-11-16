@@ -19,8 +19,8 @@ test('island has five times the previous land area while keeping the dock coast 
     assert.ok(Math.abs(area / previousArea - 5) < 1e-9);
     assert.ok(Math.abs(shorePoint(Math.PI / 2)[1] - 10.4) < 1e-10);
 });
-test('new garden and grove ground is walkable and connected to arrival', () => {
-    for (const point of [[0, -11], [13, -3], [-6, -9], [-4, -10]]) {
+test('open lawn across the campus is walkable and connected to arrival', () => {
+    for (const point of [[-6, -17], [14, -3], [-6, -9], [22, -20]]) {
         assert.ok(walkable(...point));
         assert.ok(findPath([0, 7], point).length);
     }
