@@ -73,6 +73,14 @@ a {
   letter-spacing: -1.6px;
   font-weight: 800;
 }
+.brand-name {
+  letter-spacing: -0.8px;
+}
+/* B for Boston Identity, set apart so "Island" reads as a word. */
+.brand-name b {
+  color: #7c9a67;
+  margin-right: 1.5px;
+}
 .brand-icon {
   width: 37px;
   height: 37px;

@@ -131,7 +131,7 @@ function NewsScreen({ news }: { news: News }) {
     ctx.fillRect(0, 0, 640, 320);
     ctx.fillStyle = '#9fd3c0';
     ctx.font = '700 30px Manrope, "DM Sans", system-ui, sans-serif';
-    ctx.fillText('ATOLL · TEAM NEWS', 32, 52);
+    ctx.fillText('BISLAND · TEAM NEWS', 32, 52);
     ctx.textAlign = 'right';
     ctx.fillStyle = '#f2efe4';
     ctx.fillText(news.time, 608, 52);

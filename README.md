@@ -1,4 +1,4 @@
-# Atoll — Island office
+# BIsland — Boston Identity Island
 
 A desktop-first, single-player prototype of a browser-based 3D office for a team of ten. Built with React, TypeScript, React Three Fiber, Drei, Three.js, and Vite. All scenery is generated from geometry; no external 3D models are needed.
 

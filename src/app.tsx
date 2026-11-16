@@ -176,11 +176,13 @@ export function App() {
   return (
     <div className="app">
       <header className="header">
-        <a className="brand" href="/" aria-label="Atoll home">
+        <a className="brand" href="/" aria-label="BIsland home" title="Boston Identity Island">
           <span className="brand-icon">
             <Waves size={23} />
           </span>
-          atoll
+          <span className="brand-name">
+            <b>B</b>Island
+          </span>
           <span className="brand-divider" />
           <span className="workspace-name">
             Our island office
