@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type RefObject } from 'react';
 import { useFrame } from '@react-three/fiber';
-import { Html } from '@react-three/drei';
+import { Label } from './label';
 import * as THREE from 'three';
 import { findPath, type Point } from './world';
 import { ARRIVAL_DOCK, peopleView, type DemoCoworker, type Target } from './people';
@@ -250,11 +250,7 @@ export function Coworker({
     <group ref={group} name={`coworker-${person.id}`}>
       <AvatarBody color={person.color} hair={person.hair} head={head} torso={torso} xray={0.3} />
       {/* At a desk the tag floats higher so it doesn't cover their glowing monitor from the default camera. */}
-      <Html
-        position={[0, target?.activity.pose === 'desk' && target.seatId ? 2.55 : 1.85, 0]}
-        center
-        zIndexRange={[20, 0]}
-      >
+      <Label position={[0, target?.activity.pose === 'desk' && target.seatId ? 2.55 : 1.85, 0]} zIndex={20}>
         <div className="avatar-label coworker-label">
           {greeting ? (
             <div className="speech-bubble">{greeting}</div>
@@ -282,7 +278,7 @@ export function Coworker({
             </span>
           )}
         </div>
-      </Html>
+      </Label>
     </group>
   );
 }

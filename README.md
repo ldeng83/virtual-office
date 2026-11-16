@@ -37,7 +37,14 @@ Check-in, name, color, status, and atmosphere preferences persist in browser loc
 
 ## Project structure
 
-- `src/main.tsx`: application interface, scene, avatar controller, and interactions.
+- `src/main.tsx`: entry point.
+- `src/app.tsx`: app shell: header, island panel overlays, bottom bar, and app-wide state.
+- `src/sidebar.tsx`, `src/dialogs.tsx`: sidebar (check-in, places, people, activity feed) and the help, profile and atmosphere dialogs.
+- `src/scene.tsx`: the 3D world: camera modes, avatar movement, seating, visibility ring, and scene composition.
+- `src/scene-parts.tsx`: shared scene pieces (boxes, cylinders, palms, seats by kind, place labels).
+- `src/label.tsx`: DOM labels pinned to 3D positions (name tags, place labels).
+- `src/use-coworkers.ts`: demo coworker state: routines, work progress, team feed, greetings, and seat ownership.
+- `src/profile.ts`: your stored name, color, status, and check-in.
 - `src/sea-life.tsx`: geometry-based sea animals and species-specific animation.
 - `src/sea-life-motion.ts`: offshore routes, dolphin leaps, and crab behavior.
 - `src/ocean.tsx`: procedural water gradient, displaced swells, caustics, shoreline foam, and sun/moon highlights in a single shader surface.
@@ -61,6 +68,7 @@ Check-in, name, color, status, and atmosphere preferences persist in browser loc
 
 ```sh
 npm test
+npm run format:check
 npm run build
 ```
 
