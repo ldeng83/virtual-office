@@ -13,13 +13,29 @@ import {
   ListChecks,
   BookOpen,
   Presentation,
+  Gamepad2,
+  Fish,
+  Flame,
 } from 'lucide-react';
 import { locations, type Point } from './world';
 import { currentTask, type WorkState } from './people';
 import type { Profile } from './profile';
 import type { CoworkerView, FeedItem } from './use-coworkers';
 
-const icons = [Navigation, Compass, BriefcaseBusiness, Users, Coffee, BookOpen, Presentation, Leaf, Waves];
+const icons = [
+  Navigation,
+  Compass,
+  BriefcaseBusiness,
+  Users,
+  Coffee,
+  BookOpen,
+  Presentation,
+  Leaf,
+  Waves,
+  Gamepad2,
+  Flame,
+  Fish,
+];
 export type SidebarTab = 'places' | 'people' | 'activity';
 export function Sidebar({
   profile,

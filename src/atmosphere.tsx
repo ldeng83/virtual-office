@@ -45,7 +45,17 @@ export function readAtmosphere(): Atmosphere {
   }
 }
 
-export function AtmosphereScene({ settings, time }: { settings: Atmosphere; time: IslandTime }) {
+export function AtmosphereScene({
+  settings,
+  time,
+  rain = false,
+}: {
+  settings: Atmosphere;
+  time: IslandTime;
+  rain?: boolean;
+}) {
+  const wet = useRef(0);
+  const grey = useMemo(() => new THREE.Color('#8e9ea6'), []);
   const target = useMemo(() => {
     const a = periods[time.from],
       b = periods[time.to],
@@ -82,6 +92,9 @@ export function AtmosphereScene({ settings, time }: { settings: Atmosphere; time
     for (const key of ['ambient', 'sun', 'lamps', 'darkness'] as const)
       c[key] = THREE.MathUtils.lerp(c[key], target[key], alpha);
     c.position.lerp(target.position, alpha);
+    // A passing shower greys the sky and softens the light.
+    wet.current = THREE.MathUtils.damp(wet.current, rain ? 1 : 0, 0.8, Math.min(dt, 0.1));
+    if (wet.current > 0.001) c.sky.lerp(grey, wet.current * 0.45 * alpha);
     (scene.background as THREE.Color)?.copy(c.sky);
     if (scene.fog) {
       const fog = scene.fog as THREE.Fog;
@@ -92,11 +105,11 @@ export function AtmosphereScene({ settings, time }: { settings: Atmosphere; time
     }
     if (ambient.current) {
       ambient.current.color.copy(c.ambientColor);
-      ambient.current.intensity = c.ambient;
+      ambient.current.intensity = c.ambient * (1 - wet.current * 0.3);
     }
     if (sun.current) {
       sun.current.color.copy(c.light);
-      sun.current.intensity = c.sun;
+      sun.current.intensity = c.sun * (1 - wet.current * 0.55);
       sun.current.position.copy(c.position);
     }
     if (fire.current)

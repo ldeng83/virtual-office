@@ -47,14 +47,18 @@ test('planner alternates home and weighted errands', () => {
   const block = demoCoworkers[0].schedule.morning;
   assert.equal(nextActivity(block, null), block.home);
   assert.equal(nextActivity(block, block.errands[0]), block.home);
-  // weights: coffee 3, stretch 1 → low rolls pick coffee, high rolls pick the stretch
+  // weights: coffee 3, stretch 1, piano 1 (total 5) → rolls pick by cumulative weight
   assert.equal(
     nextActivity(block, block.home, () => 0.1),
     block.errands[0],
   );
   assert.equal(
-    nextActivity(block, block.home, () => 0.9),
+    nextActivity(block, block.home, () => 0.7),
     block.errands[1],
+  );
+  assert.equal(
+    nextActivity(block, block.home, () => 0.95),
+    block.errands[2],
   );
 });
 

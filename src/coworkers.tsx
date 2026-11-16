@@ -1,3 +1,4 @@
+import { seatPose, UPRIGHT } from './poses';
 import { useEffect, useRef, useState, type RefObject } from 'react';
 import { useFrame } from '@react-three/fiber';
 import { Label } from './label';
@@ -132,7 +133,9 @@ export function Coworker({
       ]),
     ),
   );
-  const lastTarget = useRef<Target | null>(null);
+  const lastTarget = useRef<Target | null>(null),
+    climbing = useRef(false),
+    poseGroup = useRef<THREE.Group>(null);
   const mover = useRef({ speed: 0 }),
     path = useRef<Point[]>([]),
     present = useRef(!!target),
@@ -169,7 +172,10 @@ export function Coworker({
       }
       leaving.current = false;
       const route = findPath(present.current && !seated ? [pos.current.x, pos.current.z] : start, target.approach);
-      path.current = route.length ? [...from(route), ...(target.seatId ? [target.point] : [])] : [];
+      path.current = route.length
+        ? [...from(route), ...(target.seatId && !target.elevation ? [target.point] : [])]
+        : [];
+      climbing.current = !!target.elevation;
       if (!route.length) pos.current.set(target.point[0], 0, target.point[1]);
     } else if (present.current) {
       leaving.current = true;
@@ -208,6 +214,11 @@ export function Coworker({
       if (!path.current.length && leaving.current) {
         present.current = false;
         leaving.current = false;
+      }
+      if (!path.current.length && climbing.current && target) {
+        // At the foot of the stair: up to the rooftop seat.
+        climbing.current = false;
+        pos.current.set(target.point[0], 0, target.point[1]);
       }
     } else if (target)
       // Settle into the seat / spot's facing smoothly after arriving.
@@ -250,15 +261,25 @@ export function Coworker({
     hop.current = Math.max(0, hop.current - dt * 2.5);
     g.visible = present.current;
     g.position.copy(pos.current);
-    g.position.y = moving
-      ? Math.sin(walk.current) * 0.045
-      : (target?.seatId ? -0.2 : 0) + Math.sin(hop.current * Math.PI) * 0.18;
+    const seated =
+      !moving && !!target?.seatId && Math.hypot(pos.current.x - target.point[0], pos.current.z - target.point[1]) < 0.3;
+    const sitting = seated
+      ? seatPose(target!.seatKind, target!.elevation, motion ? performance.now() / 1000 : 0)
+      : UPRIGHT;
+    g.position.y = moving ? Math.sin(walk.current) * 0.045 : sitting.y + Math.sin(hop.current * Math.PI) * 0.18;
+    if (poseGroup.current) {
+      poseGroup.current.rotation.x = sitting.pitch;
+      poseGroup.current.position.z = sitting.z;
+      poseGroup.current.rotation.y = sitting.roll;
+    }
     peopleView[person.id] = { x: pos.current.x, z: pos.current.z, present: present.current };
   });
   const status = target?.activity.status;
   return (
     <group ref={group} name={`coworker-${person.id}`}>
-      <AvatarBody color={person.color} hair={person.hair} head={head} torso={torso} xray={0.3} />
+      <group ref={poseGroup}>
+        <AvatarBody color={person.color} hair={person.hair} head={head} torso={torso} xray={0.3} />
+      </group>
       {/* At a desk the tag floats higher so it doesn't cover their glowing monitor from the default camera. */}
       <Label position={[0, target?.activity.pose === 'desk' && target.seatId ? 2.55 : 1.85, 0]} zIndex={20}>
         <div className="avatar-label coworker-label">

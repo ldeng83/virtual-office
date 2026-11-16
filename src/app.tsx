@@ -1,3 +1,4 @@
+import { seatMessage, useFun } from './use-fun';
 import React, { Suspense, useEffect, useRef, useState } from 'react';
 import { Canvas } from '@react-three/fiber';
 import {
@@ -13,10 +14,9 @@ import {
   Waves,
   Armchair,
   Navigation,
-  Leaf,
   Hand,
 } from 'lucide-react';
-import { locations, seats, type Point } from './world';
+import { locations, type Point } from './world';
 import { readAtmosphere, useOcean, useIslandTime, type Atmosphere } from './atmosphere';
 import { type News } from './campus';
 import { IslandMap } from './island-map';
@@ -68,7 +68,7 @@ export function App() {
       /* Storage may be disabled. */
     }
   }, [showDemo]);
-  const { coworkers, work, shipped, feed, greeting, greet, nearby, pickSeat, findPerson } = useCoworkers({
+  const { coworkers, work, shipped, feed, greeting, greet, say, nearby, pickSeat, findPerson } = useCoworkers({
     period: mood.period,
     seat,
     setSeat,
@@ -76,6 +76,18 @@ export function App() {
     position,
     showDemo,
     onLook: freeLook,
+  });
+  const fun = useFun({
+    seat,
+    setSeat,
+    position,
+    notify: setToast,
+    period: mood.period,
+    motion: atmosphere.motion,
+    nearby,
+    say,
+    travel: point => travel(point),
+    openTelescope: () => setModal('telescope'),
   });
   const news: News = {
     time: mood.time,
@@ -262,6 +274,15 @@ export function App() {
                   work={work}
                   shipped={shipped}
                   news={news}
+                  radioOn={fun.radioOn}
+                  onRadio={fun.toggleRadio}
+                  onTelescope={fun.lookThroughTelescope}
+                  shells={fun.shells}
+                  onShell={fun.collectShell}
+                  onPetCat={fun.petCat}
+                  emote={fun.emote}
+                  raining={fun.raining}
+                  rainbow={fun.rainbow}
                 />
               </Canvas>
             </Suspense>
@@ -319,11 +340,20 @@ export function App() {
           {seat && (
             <div className="seat-message">
               <Armchair size={17} />
-              <span>Settled into {seats.find(s => s.id === seat)?.name}</span>
-              <button onClick={() => setSeat(null)}>Stand up</button>
+              <span>{seatMessage(seat).text}</span>
+              <button onClick={() => setSeat(null)}>{seatMessage(seat).action}</button>
             </div>
           )}
-          {nearby && !greeting && (
+          {fun.nudge && (
+            <div className="nearby-prompt nudge">
+              <span>🌴 You’ve been at your desk a while. The hammocks are free.</span>
+              <button onClick={fun.takeBreak}>Take a break</button>
+              <button className="quiet" onClick={fun.snooze}>
+                Not now
+              </button>
+            </div>
+          )}
+          {nearby && !greeting && !fun.nudge && (
             <div className="nearby-prompt">
               <span className="person-avatar" style={{ background: nearby.person.color }}>
                 {nearby.person.name.slice(0, 1)}
@@ -368,8 +398,21 @@ export function App() {
             </select>
           </label>
         </div>
-        <div className="footer-note">
-          <Leaf size={15} /> A little room to focus. A little room to connect.
+        <div className="emotes" role="group" aria-label="Emotes">
+          {(['wave', 'dance', 'highfive', 'cheer'] as const).map(kind => (
+            <button
+              key={kind}
+              onClick={() => fun.doEmote(kind)}
+              aria-label={kind === 'highfive' ? 'High five' : kind[0].toUpperCase() + kind.slice(1)}
+              title={kind === 'highfive' ? 'High five' : kind[0].toUpperCase() + kind.slice(1)}
+            >
+              {fun.emoteIcons[kind]}
+            </button>
+          ))}
+        </div>
+        <div className="fun-stats" title="Today’s seashells, total shells, and fish caught">
+          <span>🐚 {5 - fun.shells.length}/5 today</span>
+          <span>🐟 {fun.stats.fish}</span>
         </div>
         <button className="help-button" onClick={() => setModal('help')}>
           <HelpCircle size={16} /> How to explore
@@ -387,6 +430,8 @@ export function App() {
           mood={mood}
           showDemo={showDemo}
           setShowDemo={setShowDemo}
+          onRain={fun.startRain}
+          raining={fun.raining}
         />
       )}
     </div>

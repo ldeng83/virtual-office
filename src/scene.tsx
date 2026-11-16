@@ -1,3 +1,8 @@
+import { Cat, Rain, Rainbow, Shells, type Shell } from './island-extras';
+import { FunSpots } from './fun';
+import { EMOTE_ICONS, kayakRide, playerState, type Emote } from './fun-state';
+import { seatPose, UPRIGHT } from './poses';
+import { ISLAND_CENTER_Z, ISLAND_X_SCALE, shorePoint } from './shoreline';
 import React, { useEffect, useRef, useState } from 'react';
 import { useFrame, useThree } from '@react-three/fiber';
 import { ContactShadows, OrbitControls } from '@react-three/drei';
@@ -74,8 +79,26 @@ export function World({
   work,
   shipped,
   news,
+  radioOn,
+  onRadio,
+  onTelescope,
+  shells,
+  onShell,
+  onPetCat,
+  emote,
+  raining,
+  rainbow,
 }: {
   news: News;
+  radioOn: boolean;
+  onRadio: () => void;
+  onTelescope: () => void;
+  shells: Shell[];
+  onShell: (id: string) => void;
+  onPetCat: () => void;
+  emote: { kind: Emote; seq: number } | null;
+  raining: boolean;
+  rainbow: boolean;
   coworkers: { person: DemoCoworker; target: Target | null }[];
   work: Record<string, WorkState>;
   shipped: Record<string, string>;
@@ -183,16 +206,41 @@ export function World({
   }, [go]);
   // Seats are solid. Sitting places you in the seat; standing up steps you out to its free side.
   const sittingIn = useRef<(typeof seats)[number] | null>(null);
+  const motionOn = atmosphere.motion;
+  const poseRef = useRef<THREE.Group>(null);
+  const emoteState = useRef<{ kind: Emote; start: number }>({ kind: 'wave', start: -10 });
+  const [bubble, setBubble] = useState<string | null>(null);
+  useEffect(() => {
+    if (!emote) return;
+    emoteState.current = { kind: emote.kind, start: performance.now() / 1000 };
+    setBubble(EMOTE_ICONS[emote.kind]);
+    const t = window.setTimeout(() => setBubble(null), 2400);
+    return () => window.clearTimeout(t);
+  }, [emote]);
+  const ride = useRef({ angle: 0, travelled: 0, from: [0, 0] as Point });
   const standUp = () => {
     const s = sittingIn.current;
     sittingIn.current = null;
-    if (s && Math.hypot(pos.current.x - s.point[0], pos.current.z - s.point[1]) < 0.3)
+    playerState.elevated = false;
+    kayakRide.index = -1;
+    // Kayaks (out on the water) and rooftop seats always return you to their step-in spot.
+    if (s && (s.kind === 'kayak' || s.y || Math.hypot(pos.current.x - s.point[0], pos.current.z - s.point[1]) < 0.3))
       pos.current.set(s.approach[0], 0, s.approach[1]);
   };
   useEffect(() => {
     if (seat) {
       const s = seats.find(s => s.id === seat)!;
       sittingIn.current = s;
+      playerState.elevated = !!s.y;
+      if (s.kind === 'kayak') {
+        // Paddle a loop around the island, starting from the jetty.
+        ride.current = {
+          angle: Math.atan2(s.point[1] - ISLAND_CENTER_Z, s.point[0] / ISLAND_X_SCALE),
+          travelled: 0,
+          from: s.point,
+        };
+        kayakRide.index = Number(s.id.split('-')[1]);
+      }
       path.current = [];
       setMarker(null);
       pos.current.set(s.point[0], 0, s.point[1]);
@@ -239,6 +287,20 @@ export function World({
     const k = keys.current;
     let dx = 0,
       dz = 0;
+    const sat = seat ? sittingIn.current : null;
+    if (sat?.kind === 'kayak' && !k.size) {
+      const r = ride.current;
+      r.travelled += dt;
+      r.angle += dt * 0.07;
+      const [lx, lz] = shorePoint(r.angle, 5.5),
+        [ax, az] = shorePoint(r.angle + 0.02, 5.5),
+        ease = Math.min(1, r.travelled / 3);
+      pos.current.set(r.from[0] + (lx - r.from[0]) * ease, 0, r.from[1] + (lz - r.from[1]) * ease);
+      const heading = Math.atan2(ax - lx, az - lz);
+      avatar.current.rotation.y = turnToward(avatar.current.rotation.y, heading, dt, 4);
+      Object.assign(kayakRide, { x: pos.current.x, z: pos.current.z, heading: avatar.current.rotation.y });
+      if (r.travelled * 0.07 >= Math.PI * 2) setSeat(null);
+    }
     if (k.size) {
       if (viewMode !== 'follow') onExplore();
       if (seat) {
@@ -306,7 +368,28 @@ export function World({
       });
     }
     avatar.current.position.copy(pos.current);
-    avatar.current.position.y = seat ? -0.2 : moving ? Math.sin(walk.current) * 0.045 : 0;
+    const now = performance.now() / 1000,
+      pose = sat ? seatPose(sat.kind, sat.y ?? 0, motionOn ? now : 0) : UPRIGHT;
+    // Emotes: a short hop, spin or cheer.
+    const e = emoteState.current,
+      age = now - e.start,
+      active = age < 2.4 && !sat;
+    const lift = !active
+      ? 0
+      : e.kind === 'dance'
+        ? Math.abs(Math.sin(age * 8)) * 0.12
+        : e.kind === 'cheer'
+          ? Math.max(0, Math.sin(age * 7)) * 0.35
+          : e.kind === 'highfive'
+            ? Math.max(0, Math.sin(age * 4)) * 0.25
+            : Math.max(0, Math.sin(age * 6)) * 0.15 * (age < 1 ? 1 : 0);
+    avatar.current.position.y = sat ? pose.y : (moving ? Math.sin(walk.current) * 0.045 : 0) + lift;
+    if (poseRef.current) {
+      poseRef.current.rotation.x = pose.pitch;
+      poseRef.current.position.z = pose.z;
+      poseRef.current.rotation.y = pose.roll + (active && e.kind === 'dance' ? age * 9 : 0);
+      poseRef.current.rotation.z = active && e.kind === 'highfive' ? Math.sin(age * 4) * 0.2 : 0;
+    }
     // A few times a second, check whether anything sits between the camera and you.
     occlusionCheck.current -= dt;
     if (occlusionCheck.current <= 0) {
@@ -333,22 +416,37 @@ export function World({
       last.current = state.clock.elapsedTime;
     }
   });
+  const walkTo = (target: Point) => {
+    onExplore();
+    if (seat) standUp();
+    const route = findPath([pos.current.x, pos.current.z], target);
+    if (route.length) {
+      setSeat(null);
+      path.current = route;
+      setMarker(target);
+    }
+  };
   return (
     <>
-      <AtmosphereScene settings={atmosphere} time={time} />
+      <AtmosphereScene settings={atmosphere} time={time} rain={raining} />
       <IslandTerrain
         onWalk={(target, delta) => {
-          if (delta >= 6) return;
-          onExplore();
-          if (seat) standUp();
-          const route = findPath([pos.current.x, pos.current.z], target);
-          if (route.length) {
-            setSeat(null);
-            path.current = route;
-            setMarker(target);
-          }
+          if (delta < 6) walkTo(target);
         }}
       />
+      <FunSpots
+        playerSeat={seat}
+        radioOn={radioOn}
+        onRadio={onRadio}
+        onTelescope={onTelescope}
+        period={time.period}
+        night={night}
+        motion={motionOn}
+      />
+      <Cat player={pos} motion={motionOn} onPet={onPetCat} />
+      <Shells shells={shells} player={pos} onCollect={onShell} onWalk={walkTo} />
+      <Rain raining={raining} motion={motionOn} />
+      <Rainbow visible={rainbow} />
       <Campus news={news} night={night} />
       <Buildings player={pos} night={night} />
       {desks.map((d, i) => (
@@ -444,7 +542,14 @@ export function World({
         />
       </mesh>
       <group ref={avatar} name="player-avatar">
-        <AvatarBody color={profile.color} xray={0.55} />
+        <group ref={poseRef}>
+          <AvatarBody color={profile.color} xray={0.55} />
+        </group>
+        {bubble && (
+          <Label position={[0, 2.45, 0]} zIndex={21}>
+            <div className="emote-bubble">{bubble}</div>
+          </Label>
+        )}
         <Label position={[0, 1.85, 0]} zIndex={20}>
           <div className="avatar-label">
             <i />

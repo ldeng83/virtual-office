@@ -1,4 +1,4 @@
-import { garden, locations, seats, WHITEBOARD, WHITEBOARD_SPOT, type Point } from './world.ts';
+import { garden, locations, seats, WHITEBOARD, WHITEBOARD_SPOT, type Point, type Seat } from './world.ts';
 import type { Period } from './daylight.ts';
 
 // One shape for everyone on the island. Today two demo coworkers are driven locally by a small
@@ -46,6 +46,9 @@ export type Target = {
   approach: Point;
   angle: number;
   seatId: string | null;
+  // How they sit there, and how high the seat is (the rooftop).
+  seatKind?: Seat['kind'];
+  elevation: number;
   activity: Activity;
   dwell: number;
 };
@@ -109,6 +112,16 @@ export const demoCoworkers: DemoCoworker[] = [
             weight: 1,
             seats: ['gb-0', 'gb-1'],
           },
+          {
+            place: 'Music corner',
+            status: 'Available',
+            activity: 'Playing the piano',
+            icon: '🎹',
+            pose: 'desk',
+            dwell: [12, 28],
+            weight: 1,
+            seats: ['pn-0'],
+          },
         ],
       },
       midday: {
@@ -169,9 +182,51 @@ export const demoCoworkers: DemoCoworker[] = [
             face: [garden.x, garden.z],
           },
           coffee(['cs-0', 'cs-1'], 2),
+          {
+            place: 'Firepit & hammocks',
+            status: 'Available',
+            activity: 'Swinging in a hammock',
+            icon: '🌴',
+            pose: 'look',
+            dwell: [15, 30],
+            weight: 2,
+            seats: ['hm-0', 'hm-1'],
+          },
+          {
+            place: 'Rooftop terrace',
+            status: 'Available',
+            activity: 'Sunset on the roof',
+            icon: '☀️',
+            pose: 'look',
+            dwell: [15, 30],
+            weight: 1,
+            seats: ['rt-1', 'rt-2'],
+          },
         ],
       },
-      dusk: null,
+      dusk: {
+        home: {
+          place: 'Town hall',
+          status: 'Available',
+          activity: 'Movie night',
+          icon: '🎬',
+          pose: 'look',
+          dwell: [25, 50],
+          seats: ['am1-2', 'am1-3'],
+        },
+        errands: [
+          {
+            place: 'Firepit & hammocks',
+            status: 'Available',
+            activity: 'Toasting marshmallows',
+            icon: '🔥',
+            pose: 'sip',
+            dwell: [12, 28],
+            weight: 1,
+            seats: ['fp-0', 'fp-2'],
+          },
+        ],
+      },
       night: null,
     },
   },
@@ -218,6 +273,16 @@ export const demoCoworkers: DemoCoworker[] = [
             weight: 1,
             seats: ['bw-1', 'bw-3'],
           },
+          {
+            place: 'Fishing jetty',
+            status: 'Available',
+            activity: 'Fishing off the jetty',
+            icon: '🎣',
+            pose: 'look',
+            dwell: [15, 30],
+            weight: 1,
+            seats: ['fs-0', 'fs-1'],
+          },
         ],
       },
       midday: {
@@ -253,6 +318,16 @@ export const demoCoworkers: DemoCoworker[] = [
             weight: 1,
             seats: ['cs-2', 'cs-1'],
           },
+          {
+            place: 'Games lawn',
+            status: 'Available',
+            activity: 'Ping-pong at lunch',
+            icon: '🏓',
+            pose: 'look',
+            dwell: [12, 24],
+            weight: 1,
+            seats: ['pp-1', 'pp-0'],
+          },
         ],
       },
       golden: {
@@ -278,19 +353,60 @@ export const demoCoworkers: DemoCoworker[] = [
             weight: 1,
             seats: ['ps-0', 'ps-1'],
           },
+          {
+            place: 'Games lawn',
+            status: 'Available',
+            activity: 'Ping-pong break',
+            icon: '🏓',
+            pose: 'look',
+            dwell: [12, 24],
+            weight: 2,
+            seats: ['pp-0', 'pp-1'],
+          },
+          {
+            place: 'Games lawn',
+            status: 'Available',
+            activity: 'A round of cornhole',
+            icon: '🎯',
+            pose: 'look',
+            dwell: [10, 20],
+            weight: 1,
+            seats: ['ch-0'],
+          },
         ],
       },
       dusk: {
         home: {
-          place: 'Boardwalk',
+          place: 'Firepit & hammocks',
           status: 'Available',
-          activity: 'Winding down by the sea',
-          icon: '🌅',
-          pose: 'look',
+          activity: 'Toasting marshmallows',
+          icon: '🔥',
+          pose: 'sip',
           dwell: [25, 50],
-          seats: ['bw-2', 'bw-1'],
+          seats: ['fp-1', 'fp-3'],
         },
         errands: [
+          {
+            place: 'Town hall',
+            status: 'Available',
+            activity: 'Movie night',
+            icon: '🎬',
+            pose: 'look',
+            dwell: [12, 28],
+            weight: 2,
+            seats: ['am1-4', 'am1-3'],
+          },
+          {
+            place: 'Boardwalk',
+            status: 'Available',
+            activity: 'Watching the sunset',
+            icon: '🌅',
+            pose: 'look',
+            dwell: [12, 28],
+            weight: 1,
+            seats: ['bw-2', 'bw-1'],
+          },
+
           {
             place: 'Café & terrace',
             status: 'Available',
@@ -345,7 +461,16 @@ export function resolveTarget(
     const id = activity.seats.find(s => !taken.has(s)) ?? activity.seats[0];
     const seat = seats.find(s => s.id === id);
     if (!seat) throw new Error(`Unknown seat ${id}`);
-    return { point: seat.point, approach: seat.approach, angle: seat.angle, seatId: seat.id, activity, dwell };
+    return {
+      point: seat.point,
+      approach: seat.approach,
+      angle: seat.angle,
+      seatId: seat.id,
+      seatKind: seat.kind,
+      elevation: seat.y ?? 0,
+      activity,
+      dwell,
+    };
   }
   const point = activity.point!,
     face = activity.face ?? point;
@@ -354,6 +479,7 @@ export function resolveTarget(
     approach: point,
     angle: Math.atan2(face[0] - point[0], face[1] - point[1]),
     seatId: null,
+    elevation: 0,
     activity,
     dwell,
   };

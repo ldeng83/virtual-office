@@ -225,5 +225,6 @@ export function useCoworkers({
       onLook();
     }
   };
-  return { coworkers, work, shipped, feed, greeting, greet, nearby, pickSeat, findPerson };
+  const say = (personId: string, text: string) => setGreeting({ id: personId, text });
+  return { coworkers, work, shipped, feed, greeting, greet, say, nearby, pickSeat, findPerson };
 }

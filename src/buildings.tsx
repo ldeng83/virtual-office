@@ -1,3 +1,4 @@
+import { playerState } from './fun-state';
 import { useMemo, useRef, type RefObject } from 'react';
 import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
@@ -197,7 +198,8 @@ function Shell({ pad, player, night }: { pad: Pad; player: RefObject<THREE.Vecto
       [fx, fz] = cameraView.focus;
     const inside = (x: number, z: number, margin: number) =>
       Math.abs(x - pad.x) < pad.w / 2 + margin && Math.abs(z - pad.z) < pad.d / 2 + margin;
-    const open = (!!p && inside(p.x, p.z, 0.4)) || inside(fx, fz, 0.8);
+    // Stay closed while you're up on the rooftop terrace.
+    const open = !playerState.elevated && ((!!p && inside(p.x, p.z, 0.4)) || inside(fx, fz, 0.8));
     opacity.current = THREE.MathUtils.damp(opacity.current, open ? 0.08 : 1, 7, Math.min(dt, 0.1));
     const o = opacity.current;
     // Windows glow warm after dark.

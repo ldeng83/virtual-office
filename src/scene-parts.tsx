@@ -62,7 +62,7 @@ export function Palm({ x, z, i }: { x: number; z: number; i: number }) {
 export function Seat({ seat, onSelect }: { seat: (typeof seats)[number]; onSelect: (id: string) => void }) {
   return (
     <group
-      position={[seat.point[0], 0, seat.point[1]]}
+      position={[seat.point[0], seat.y ?? 0, seat.point[1]]}
       rotation={[0, seat.angle, 0]}
       onClick={e => {
         e.stopPropagation();
@@ -79,7 +79,42 @@ export function Seat({ seat, onSelect }: { seat: (typeof seats)[number]; onSelec
   );
 }
 // Seat furniture by kind; the avatar sits at the group's origin facing +z.
+// Invisible but clickable area, for seats whose furniture is drawn elsewhere (hammocks, kayaks, play spots).
+function HitArea({ w, d, h = 0.6 }: { w: number; d: number; h?: number }) {
+  return (
+    <mesh position={[0, h / 2, 0]}>
+      <boxGeometry args={[w, h, d]} />
+      <meshBasicMaterial transparent opacity={0} depthWrite={false} />
+    </mesh>
+  );
+}
 function seatModel(kind: (typeof seats)[number]['kind']) {
+  if (kind === 'hammock') return <HitArea w={0.9} d={2} h={1.1} />;
+  if (kind === 'kayak') return <HitArea w={0.8} d={2.6} h={0.4} />;
+  if (kind === 'stand')
+    return (
+      <>
+        <mesh position={[0, 0.13, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+          <ringGeometry args={[0.18, 0.24, 24]} />
+          <meshBasicMaterial color="#fffce8" transparent opacity={0.7} />
+        </mesh>
+        <HitArea w={0.6} d={0.6} h={1.2} />
+      </>
+    );
+  if (kind === 'log')
+    return (
+      <mesh position={[0, 0.2, 0]} rotation={[0, 0, Math.PI / 2]} castShadow receiveShadow>
+        <cylinderGeometry args={[0.19, 0.2, 0.9, 10]} />
+        <meshStandardMaterial color="#8a6a4b" roughness={0.95} />
+      </mesh>
+    );
+  if (kind === 'crate')
+    return (
+      <>
+        <Box p={[0, 0.34, 0]} s={[0.46, 0.4, 0.46]} c="#b8946a" />
+        <Box p={[0, 0.34, 0.235]} s={[0.46, 0.06, 0.01]} c="#9c7a54" />
+      </>
+    );
   if (kind === 'bench')
     return (
       <>
