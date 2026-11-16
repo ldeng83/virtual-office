@@ -4,9 +4,19 @@ import * as THREE from 'three';
 import { riders } from './fun-state';
 import { climbFaceZ, type RideView } from './rides';
 import { StaticBatch } from './static-batch';
-import { bluff, jetSkiMoorings, jetty, marina, reef, sailboatMooring, towBoatMooring, waterSportsHut } from './world';
+import {
+  bluff,
+  jetSkiMoorings,
+  jetty,
+  marina,
+  reef,
+  sailboatMooring,
+  seats,
+  towBoatMooring,
+  waterSportsHut,
+} from './world';
 
-// Water sports dock (jet skis, sailboat, parasail tow boat), the climbing bluff and the dive reef.
+// Water sports dock (jet skis, sailboat, parasail tow boat, water taxis), the climbing bluff and the dive reef.
 // Every vehicle sits at its mooring until someone rides it, then follows its rider (in `riders`).
 type V3 = [number, number, number];
 const ignore = () => {};
@@ -54,6 +64,7 @@ function follow(object: THREE.Object3D, ride: RideView, lift = 0) {
   object.rotation.set(0, ride.heading, ride.roll);
 }
 const sailor = () => riders['sb-0'] ?? riders['sb-1'];
+const taxiSeats = ['fy-0', 'fy-1'].map(id => seats.find(s => s.id === id)!);
 
 export function WaterSports({ motion }: { motion: boolean }) {
   return (
@@ -71,7 +82,8 @@ function Marina({ motion }: { motion: boolean }) {
     boom = useRef<THREE.Group>(null),
     towBoat = useRef<THREE.Group>(null),
     chute = useRef<THREE.Group>(null),
-    towLine = useRef<THREE.Mesh>(null);
+    towLine = useRef<THREE.Mesh>(null),
+    taxis = useRef<THREE.Group>(null);
   const a = useMemo(() => new THREE.Vector3(), []),
     b = useMemo(() => new THREE.Vector3(), []);
   useFrame(({ clock }) => {
@@ -96,6 +108,13 @@ function Marina({ motion }: { motion: boolean }) {
           1 / 60,
         );
     }
+    // Water taxis wait at their jetty until someone rides; afterwards they're back home.
+    taxis.current?.children.forEach((taxi, i) => {
+      const ride = riders[`fy-${i}`],
+        seat = taxiSeats[i];
+      if (ride) follow(taxi, ride);
+      else moor(taxi, seat.point[0], seat.point[1], seat.angle, t, 7 + i);
+    });
     const ride = riders['pa-0'],
       towing = ride?.boat;
     if (towBoat.current) {
@@ -189,6 +208,20 @@ function Marina({ motion }: { motion: boolean }) {
         </group>
         <Sail jib />
       </group>
+      {/* Water taxis (one at this dock, one at the Highlands' west jetty) */}
+      <group ref={taxis} userData={{ dynamic: true }}>
+        {taxiSeats.map(seat => (
+          <group key={seat.id}>
+            <Blob p={[0, 0, 0]} s={[0.8, 0.3, 1.8]} c="#f2c14e" rough={0.5} />
+            <Box p={[0, 0.2, -0.1]} s={[1.15, 0.06, 2.6]} c="#efe7d2" />
+            {[-0.45, 0.45].map(x =>
+              [-0.6, 0.5].map(z => <Cyl key={`${x}${z}`} p={[x, 0.65, z]} r={0.03} h={0.9} c="#e8e2d2" />),
+            )}
+            <Box p={[0, 1.12, -0.05]} s={[1.2, 0.06, 1.5]} c="#3c94b4" />
+            <Box p={[0, 0.38, -0.95]} s={[0.9, 0.26, 0.1]} c="#2e3a3d" />
+          </group>
+        ))}
+      </group>
       {/* Parasail tow boat, its chute and line */}
       <group ref={towBoat} userData={{ dynamic: true }}>
         <Blob p={[0, 0, 0]} s={[0.7, 0.28, 1.6]} c="#f6f1e4" rough={0.5} />
@@ -218,7 +251,7 @@ function Marina({ motion }: { motion: boolean }) {
         <cylinderGeometry args={[0.015, 0.015, 1, 4]} />
         <meshBasicMaterial color="#f2efe6" />
       </mesh>
-      {['ky-0', 'ky-1', 'js-0', 'js-1', 'sb', 'pa-0'].map(id => (
+      {['ky-0', 'ky-1', 'js-0', 'js-1', 'sb', 'pa-0', 'fy-0', 'fy-1'].map(id => (
         <Wake key={id} motion={motion} rider={() => (id === 'sb' ? sailor() : riders[id])} />
       ))}
     </StaticBatch>

@@ -1844,3 +1844,47 @@ main {
     display: none;
   }
 }
+
+/* Trailhead board on the Highlands: pick a trail to hike. */
+.trail-picker {
+  display: grid;
+  gap: 4px;
+  padding: 8px;
+  border-radius: 8px;
+  background: #fffdf0f2;
+  box-shadow: 0 3px 12px #49624b33;
+  font-size: 10px;
+  color: #2f4436;
+}
+.trail-picker strong {
+  font-size: 9px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #547264;
+}
+.trail-picker button {
+  pointer-events: auto;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 8px;
+  border: 1px solid #dfe5d4;
+  border-radius: 6px;
+  background: #fff;
+  font: inherit;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.trail-picker button:hover {
+  background: #eef3e6;
+}
+.trail-picker button i {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+}
+.trail-picker button span {
+  margin-left: auto;
+  padding-left: 8px;
+  color: #7d8a7c;
+}

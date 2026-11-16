@@ -5,6 +5,7 @@ import type { IslandTime } from './atmosphere';
 import { periods } from './daylight';
 import { riders } from './fun-state';
 import { shorelineGLSL, ISLAND_CENTER_Z } from './shoreline';
+import { highlandsGLSL } from './highlands';
 
 const palettes = {
   dawn: ['#769aaf', '#b2d9d1', '#eededc', '#ffe5d1'],
@@ -19,10 +20,13 @@ const vertexShader = `
     varying vec3 vSurface;
     uniform float time;
     ${shorelineGLSL}
+    ${highlandsGLSL}
+    // Both coasts: the office island and the Highlands.
+    float shoreDist(vec2 p) { return min(coastDistance(p), highlandsDistance(p)); }
     void main() {
         vec4 world = modelMatrix * vec4(position, 1.0);
         vOcean = world.xz;
-        float offshore = smoothstep(0.2, 2.6, coastDistance(world.xz));
+        float offshore = smoothstep(0.2, 2.6, shoreDist(world.xz));
         float swell = sin(world.x * 0.55 + world.z * 0.32 - time * 0.85) * 0.08
                     + sin(world.x * -0.28 + world.z * 0.7 - time * 0.62) * 0.045;
         float nearby = 1.0 - smoothstep(70.0, 110.0, length(vec2(world.x, world.z - ${ISLAND_CENTER_Z.toFixed(10)})));
@@ -44,6 +48,9 @@ const fragmentShader = `
     uniform vec2 diveCenter;
     uniform float diveClear;
     ${shorelineGLSL}
+    ${highlandsGLSL}
+    // Both coasts: the office island and the Highlands.
+    float shoreDist(vec2 p) { return min(coastDistance(p), highlandsDistance(p)); }
     float hash(vec2 p) { return fract(sin(dot(p, vec2(127.1,311.7))) * 43758.5453); }
     float caustic(vec2 p) {
         vec2 q = p + vec2(sin(p.y * 1.5 + time * 0.32), cos(p.x * 1.3 - time * 0.27)) * 0.3;
@@ -54,7 +61,7 @@ const fragmentShader = `
     void main() {
         vec2 p = vOcean;
         vec2 coast = vec2(p.x / 1.28, p.y);
-        float shore = coastDistance(p);
+        float shore = shoreDist(p);
         float angle = atan(coast.y, coast.x);
         float wave = sin(p.x * 0.72 + p.y * 0.46 - time * 0.45)
                    + sin(p.x * -0.34 + p.y * 0.65 + time * 0.3);

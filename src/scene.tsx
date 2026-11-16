@@ -32,6 +32,8 @@ import { Buildings } from './buildings';
 import { cameraView, clampFocus, type ViewMode } from './camera-view';
 import { currentTask, type DemoCoworker, type Target, type WorkState } from './people';
 import { OVERVIEW_CENTER } from './shoreline';
+import { groundHeight, HIGHLANDS_OVERVIEW, inHighlands, trailById, type Trail } from './highlands';
+import { HighlandsScene } from './highlands-scene';
 import { DeskScreen, Whiteboard } from './work-props';
 import { AvatarBody, Coworker } from './coworkers';
 import { stepAlongPath, turnToward } from './steering';
@@ -43,7 +45,8 @@ const Atmosphere3D = React.memo(AtmosphereScene),
   CampusScene = React.memo(Campus),
   BuildingShells = React.memo(Buildings),
   WaterSportsScene = React.memo(WaterSports),
-  Terrain = React.memo(IslandTerrain);
+  Terrain = React.memo(IslandTerrain),
+  Highlands3D = React.memo(HighlandsScene);
 export const MIN_ZOOM = 10,
   MAX_ZOOM = 65;
 const occlusionRay = new THREE.Raycaster(),
@@ -96,6 +99,7 @@ export function World({
   emote,
   raining,
   rainbow,
+  onHike,
 }: {
   news: News;
   radioOn: boolean;
@@ -107,6 +111,7 @@ export function World({
   emote: { kind: Emote; seq: number } | null;
   raining: boolean;
   rainbow: boolean;
+  onHike: (trail: Trail) => void;
   coworkers: { person: DemoCoworker; target: Target | null }[];
   work: Record<string, WorkState>;
   shipped: Record<string, string>;
@@ -224,6 +229,7 @@ export function World({
     const t = window.setTimeout(() => setBubble(null), 2400);
     return () => window.clearTimeout(t);
   }, [emote]);
+  const arrived = useRef<Point | null>(null);
   const rideY = useRef(0),
     snapZoom = useRef(true),
     reported = useRef<Point>([Infinity, Infinity]);
@@ -234,7 +240,11 @@ export function World({
     if (s?.ride) delete riders[s.id];
     rideY.current = 0;
     // Rides (out on the water or up the bluff) and rooftop seats always return you to their step-in spot.
-    if (s && (s.ride || s.y || Math.hypot(pos.current.x - s.point[0], pos.current.z - s.point[1]) < 0.3))
+    // The water taxi drops you on the far side when it arrives.
+    const exit = arrived.current;
+    arrived.current = null;
+    if (exit) pos.current.set(exit[0], 0, exit[1]);
+    else if (s && (s.ride || s.y || Math.hypot(pos.current.x - s.point[0], pos.current.z - s.point[1]) < 0.3))
       pos.current.set(s.approach[0], 0, s.approach[1]);
   };
   useEffect(() => {
@@ -295,7 +305,10 @@ export function World({
       pos.current.set(x, 0, z);
       rideY.current = view.y;
       avatar.current.rotation.y = view.heading;
-      if (done) setSeat(null);
+      if (done) {
+        arrived.current = sat.ride?.exit ?? null;
+        setSeat(null);
+      }
     }
     if (k.size) {
       if (viewMode !== 'follow') onExplore();
@@ -355,8 +368,13 @@ export function World({
       const free = viewMode === 'free' || dragging.current || lookPending.current;
       if (viewMode === 'free') lookPending.current = false;
       if (free) desiredFocus.current.copy(freeFocus.current);
-      else if (viewMode === 'follow') desiredFocus.current.copy(pos.current).setY(rideY.current * 0.8);
-      else desiredFocus.current.set(...OVERVIEW_CENTER);
+      else if (viewMode === 'follow')
+        desiredFocus.current
+          .copy(pos.current)
+          .setY(rideY.current ? rideY.current * 0.8 : groundHeight(pos.current.x, pos.current.z));
+      // The overview frames whichever island you're on.
+      else
+        desiredFocus.current.set(...(inHighlands(pos.current.x, pos.current.z) ? HIGHLANDS_OVERVIEW : OVERVIEW_CENTER));
       cameraDelta.current
         .copy(desiredFocus.current)
         .sub(target)
@@ -398,7 +416,9 @@ export function World({
           : e.kind === 'highfive'
             ? Math.max(0, Math.sin(age * 4)) * 0.25
             : Math.max(0, Math.sin(age * 6)) * 0.15 * (age < 1 ? 1 : 0);
-    avatar.current.position.y = sat ? pose.y : (moving ? Math.sin(walk.current) * 0.045 : 0) + lift;
+    // Standing on the ground (hills, bridges) or riding at the ride's own height.
+    const floor = sat?.ride ? 0 : groundHeight(pos.current.x, pos.current.z);
+    avatar.current.position.y = floor + (sat ? pose.y : (moving ? Math.sin(walk.current) * 0.045 : 0) + lift);
     if (poseRef.current) {
       poseRef.current.rotation.x = pose.pitch;
       poseRef.current.position.z = pose.z;
@@ -423,7 +443,7 @@ export function World({
       const want = hidden.current || (controls.current?.object.zoom ?? 30) < 14 ? 0.85 : 0;
       findMeMaterial.current.opacity = THREE.MathUtils.damp(findMeMaterial.current.opacity, want, 8, dt);
       findMe.current.visible = findMeMaterial.current.opacity > 0.02;
-      findMe.current.position.set(pos.current.x, 0.14, pos.current.z);
+      findMe.current.position.set(pos.current.x, floor + 0.14, pos.current.z);
       findMe.current.scale.setScalar(1 + Math.sin(state.clock.elapsedTime * 3) * 0.06);
     }
     // Report where you are a few times a second, but only when you've moved (each report re-renders the app).
@@ -436,7 +456,8 @@ export function World({
     }
   });
   // Stable handlers for the memoized scenery, always calling the latest version.
-  const latest = useRef({ walkTo: (_: Point) => {}, onPickSeat });
+  const latest = useRef({ walkTo: (_: Point) => {}, onPickSeat, hike: (_: Trail['id']) => {} });
+  const hike = React.useCallback((id: Trail['id']) => latest.current.hike(id), []);
   const pickSeat = React.useCallback((id: string) => latest.current.onPickSeat(id), []);
   const walkOnGround = React.useCallback((target: Point, delta: number) => {
     if (delta < 6) latest.current.walkTo(target);
@@ -451,7 +472,20 @@ export function World({
       setMarker(target);
     }
   };
-  latest.current = { walkTo, onPickSeat };
+  // Autopilot hike: walk to the start of the trail, then follow it to the end (any key stops).
+  const startHike = (id: Trail['id']) => {
+    const trail = trailById(id),
+      here: Point = [pos.current.x, pos.current.z],
+      lead = findPath(here, trail.points[0]);
+    if (!lead.length && Math.hypot(here[0] - trail.points[0][0], here[1] - trail.points[0][1]) > 1) return;
+    onExplore();
+    if (seat) standUp();
+    setSeat(null);
+    path.current = [...lead, ...trail.points.slice(1)];
+    setMarker(trail.points[trail.points.length - 1]);
+    onHike(trail);
+  };
+  latest.current = { walkTo, onPickSeat, hike: startHike };
   return (
     <>
       <Atmosphere3D settings={atmosphere} time={time} rain={raining} />
@@ -466,6 +500,14 @@ export function World({
         motion={motionOn}
       />
       <WaterSportsScene motion={motionOn} />
+      <Highlands3D
+        onWalk={walkOnGround}
+        onHike={hike}
+        player={pos}
+        night={night}
+        period={time.period}
+        motion={motionOn}
+      />
       <Cat player={pos} motion={motionOn} onPet={onPetCat} />
       <Shells shells={shells} player={pos} onCollect={onShell} onWalk={walkTo} />
       <Rain raining={raining} motion={motionOn} />
@@ -521,12 +563,12 @@ export function World({
         .map(d => (
           <ZoneLabel
             key={d.id}
-            position={[d.point[0], fitMode === 'overview' ? 3 : 2.6, d.point[1] - 1.6]}
+            position={[d.point[0], groundHeight(...d.point) + (fitMode === 'overview' ? 3 : 2.6), d.point[1] - 1.6]}
             title={d.name.toUpperCase()}
           />
         ))}
       {marker && (
-        <mesh position={[marker[0], 0.22, marker[1]]} rotation={[-Math.PI / 2, 0, 0]}>
+        <mesh position={[marker[0], groundHeight(...marker) + 0.22, marker[1]]} rotation={[-Math.PI / 2, 0, 0]}>
           <ringGeometry args={[0.18, 0.24, 24]} />
           <meshBasicMaterial color="#fffce8" />
         </mesh>

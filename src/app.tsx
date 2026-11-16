@@ -286,6 +286,11 @@ export function App() {
                   emote={fun.emote}
                   raining={fun.raining}
                   rainbow={fun.rainbow}
+                  onHike={trail =>
+                    setToast(
+                      `🥾 Hiking the ${trail.name} (${trail.level.toLowerCase()}). Press a movement key to stop.`,
+                    )
+                  }
                 />
               </Canvas>
             </Suspense>
@@ -304,7 +309,7 @@ export function App() {
               <Compass size={14} /> Island overview
             </button>
           </div>
-          {loaded && viewMode === 'overview' && (
+          {loaded && viewMode === 'overview' && position[1] > -56 && (
             <div className="island-caption">
               <span>YOUR EVERYDAY GETAWAY</span>
               <h2>Good work happens here.</h2>
@@ -413,9 +418,11 @@ export function App() {
             </button>
           ))}
         </div>
-        <div className="fun-stats" title="Today’s seashells, total shells, and fish caught">
+        <div className="fun-stats" title="Today’s seashells, fish caught, trails completed and summits this week">
           <span>🐚 {5 - fun.shells.length}/5 today</span>
           <span>🐟 {fun.stats.fish}</span>
+          <span>🥾 {fun.trailsDone}/3</span>
+          <span>⛰️ {fun.summitsThisWeek}</span>
         </div>
         <button className="help-button" onClick={() => setModal('help')}>
           <HelpCircle size={16} /> How to explore

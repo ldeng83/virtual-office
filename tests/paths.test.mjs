@@ -40,7 +40,16 @@ test('smoothed routes are short: close to the straight-line distance when open, 
       if (a === b) continue;
       const route = findPath(a.point, b.point),
         direct = Math.hypot(a.point[0] - b.point[0], a.point[1] - b.point[1]);
-      assert.ok(length(a.point, route) < direct * 1.6 + 2, `${a.name} → ${b.name} is a long detour`);
-      assert.ok(route.length <= 14, `${a.name} → ${b.name} has ${route.length} waypoints`);
+      // Up the mountain, routes follow the switchbacks rather than the straight line; between two
+      // Highlands spots the way round can be much longer than the crow flies (via the trailhead).
+      const highlands = Math.min(a.point[1], b.point[1]) < -56;
+      if (Math.max(a.point[1], b.point[1]) >= -56)
+        assert.ok(
+          length(a.point, route) < direct * (highlands ? 3 : 1.6) + (highlands ? 10 : 2),
+          `${a.name} → ${b.name} is a long detour`,
+        );
+      // Mountain routes follow the switchbacks, so they turn more often.
+      const limit = Math.min(a.point[1], b.point[1]) < -56 ? 28 : 14;
+      assert.ok(route.length <= limit, `${a.name} → ${b.name} has ${route.length} waypoints`);
     }
 });

@@ -2,14 +2,48 @@ import { memo, useEffect, useRef, useState, type PointerEvent as ReactPointerEve
 import { Compass, ChevronDown } from 'lucide-react';
 import { amphitheater, boardwalk, districts, pads, plaza, ponds, walkways, type Point } from './world';
 import { shorePoint } from './shoreline';
+import { DECKS, highlandsPoint, LAKE, PEAK, POOL, TRAILS } from './highlands';
 import { cameraView } from './camera-view';
 import { peopleView } from './people';
 type MapPerson = { id: string; name: string; color: string };
 const coast = Array.from({ length: 128 }, (_, i) => shorePoint((i / 128) * Math.PI * 2));
 const outline = coast.map(([x, z], i) => `${i ? 'L' : 'M'} ${x} ${z}`).join(' ') + ' Z';
+const highlandsOutline =
+  Array.from({ length: 128 }, (_, i) => highlandsPoint((i / 128) * Math.PI * 2))
+    .map(([x, z], i) => `${i ? 'L' : 'M'} ${x.toFixed(2)} ${z.toFixed(2)}`)
+    .join(' ') + ' Z';
+// The map shows whichever island the camera is over.
+const VIEWS = { main: '-47 -56 100 76', highlands: '-41 -125 100 76' };
 // The fixed parts of the map, built once: the map re-renders whenever the camera moves.
 const mapBase = (
   <>
+    <path d={highlandsOutline} fill="#a9bd8e" stroke="#e8d6b1" strokeWidth="2" />
+    <circle cx={PEAK.x} cy={PEAK.z} r="9" fill="#a39a85" opacity="0.55" />
+    <circle cx={PEAK.x} cy={PEAK.z} r="4.5" fill="#968c78" opacity="0.7" />
+    <ellipse cx={LAKE.x} cy={LAKE.z} rx={LAKE.rx} ry={LAKE.rz} fill="#83b6ab" />
+    <circle cx={POOL.x} cy={POOL.z} r={POOL.r} fill="#83b6ab" />
+    {TRAILS.map(t => (
+      <polyline
+        key={t.id}
+        points={t.points.map(p => p.map(v => v.toFixed(1)).join(',')).join(' ')}
+        fill="none"
+        stroke={t.color}
+        strokeWidth="0.7"
+        strokeDasharray="1.4 0.8"
+        strokeLinecap="round"
+      />
+    ))}
+    {DECKS.map(d => (
+      <line
+        key={d.id}
+        x1={d.a[0]}
+        y1={d.a[1]}
+        x2={d.b[0]}
+        y2={d.b[1]}
+        stroke="#b8946a"
+        strokeWidth={d.kind === 'rope' ? 1.1 : 0.9}
+      />
+    ))}
     <path d={outline} fill="#b5c69e" stroke="#e8d6b1" strokeWidth="2" />
     {walkways.map((points, i) => (
       <polyline
@@ -83,11 +117,12 @@ const Districts = memo(function Districts({ travel }: { travel: (p: Point) => vo
 });
 // Follows the camera and coworkers every frame, but only re-renders when something visibly moves.
 function useMapFrame(active: boolean, ids: string) {
-  const [frame, setFrame] = useState({ viewport: '', dots: '' });
+  const [frame, setFrame] = useState({ viewport: '', dots: '', region: 'main' as 'main' | 'highlands' });
   useEffect(() => {
     if (!active) return;
     let handle = 0;
     const tick = () => {
+      const region: 'main' | 'highlands' = cameraView.focus[1] < -56 ? 'highlands' : 'main';
       const viewport = cameraView.corners.map(([x, z]) => `${x.toFixed(1)},${z.toFixed(1)}`).join(' ');
       const dots = ids
         .split(',')
@@ -98,7 +133,11 @@ function useMapFrame(active: boolean, ids: string) {
         })
         .filter(Boolean)
         .join('|');
-      setFrame(current => (current.viewport === viewport && current.dots === dots ? current : { viewport, dots }));
+      setFrame(current =>
+        current.viewport === viewport && current.dots === dots && current.region === region
+          ? current
+          : { viewport, dots, region },
+      );
       handle = requestAnimationFrame(tick);
     };
     tick();
@@ -118,7 +157,7 @@ export function IslandMap({
   people?: MapPerson[];
 }) {
   const [open, setOpen] = useState(() => !window.matchMedia('(max-width: 760px)').matches);
-  const { viewport, dots } = useMapFrame(open, people.map(p => p.id).join(','));
+  const { viewport, dots, region } = useMapFrame(open, people.map(p => p.id).join(','));
   const pointer = useRef<number | null>(null);
   const look = (e: ReactPointerEvent<SVGSVGElement>) => {
     const matrix = e.currentTarget.getScreenCTM();
@@ -142,7 +181,7 @@ export function IslandMap({
       {open && (
         <div id="island-mini-map">
           <svg
-            viewBox="-47 -56 100 76"
+            viewBox={VIEWS[region]}
             role="group"
             aria-label="Island map. Click or drag to look around; select a district to travel there."
             onPointerDown={e => {

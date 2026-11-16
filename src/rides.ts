@@ -1,10 +1,11 @@
 import { ISLAND_CENTER_Z, ISLAND_X_SCALE, shorePoint } from './shoreline.ts';
 import { turnToward } from './steering.ts';
+import { highlandsDistance } from './highlands.ts';
 import { bluff, jetty, marina, reef, type Point, type Seat } from './world.ts';
 
 // Autopilot rides: each one is a path over time, starting and ending at its launch spot.
 // The player controller follows the rider; the boats, skis and chute follow `ride` (in fun-state).
-export type RideKind = 'kayak' | 'jetski' | 'sailboat' | 'parasail' | 'climb' | 'scuba';
+export type RideKind = 'kayak' | 'jetski' | 'sailboat' | 'parasail' | 'climb' | 'scuba' | 'ferry';
 export type RidePose = {
   x: number;
   y: number;
@@ -37,9 +38,12 @@ const swingWide = (a: number) =>
 // A loop round the island: ease out from the launch, circle once, ease back in.
 function loop(launch: Point, t: number, speed: number, offset: (a: number) => number, ease = 4) {
   const duration = (Math.PI * 2) / Math.abs(speed),
-    a = coastAngle(launch) + speed * t,
-    [lx, lz] = shorePoint(a, offset(a) + swingWide(a)),
-    k = smooth(t / ease) * smooth((duration - t) / ease);
+    a = coastAngle(launch) + speed * t;
+  // On the north side the strait is narrow: stay well clear of the Highlands' shore.
+  let reach = offset(a) + swingWide(a),
+    [lx, lz] = shorePoint(a, reach);
+  while (reach > 3 && highlandsDistance(lx, lz) < 4) [lx, lz] = shorePoint(a, (reach -= 0.5));
+  const k = smooth(t / ease) * smooth((duration - t) / ease);
   return { x: launch[0] + (lx - launch[0]) * k, z: launch[1] + (lz - launch[1]) * k, k, duration };
 }
 const ROUTES = {
@@ -52,13 +56,14 @@ export const PARASAIL_HEIGHT = 10;
 export const CLIMB_SECONDS = 22;
 
 // Where the rider is `t` seconds into the ride. Heading comes from where the ride goes next.
-export function ridePose(kind: RideKind, launch: Point, t: number): RidePose {
+export function ridePose(kind: RideKind, launch: Point, t: number, route?: Point[]): RidePose {
+  if (kind === 'ferry') return withHeading(t => ferryPose(route ?? [launch], t), t);
   if (kind === 'climb') return climbPose(launch, t);
   if (kind === 'scuba') return withHeading(t => divePose(launch, t), t);
   if (kind === 'parasail') return parasailPose(launch, t);
-  const route = ROUTES[kind];
+  const lap = ROUTES[kind];
   const at = (t: number) => {
-    const p = loop(launch, t, route.speed, route.offset);
+    const p = loop(launch, t, lap.speed, lap.offset);
     // Jet skis hop a wave every few seconds once they're out on the water.
     const phase = t % 5.5,
       hop = kind === 'jetski' && p.k > 0.95 && phase > 4.6 ? Math.sin(((phase - 4.6) / 0.9) * Math.PI) * 0.55 : 0;
@@ -154,6 +159,8 @@ export function riderPose(kind: RideKind, t: number, depth = 0) {
       return { y: -0.42, pitch: 0.12, z: -0.1, roll: 0 };
     case 'sailboat':
       return { y: -0.55, pitch: 0, z: 0, roll: 0 };
+    case 'ferry':
+      return { y: -0.35, pitch: 0, z: 0, roll: 0 };
     case 'parasail':
       return { y: -0.55, pitch: 0, z: 0, roll: 0 };
     case 'climb':
@@ -186,7 +193,7 @@ export function startRide(seat: Seat, riders: Record<string, RideView>): RideVie
 // Move a rider along; returns true when the ride is over.
 export function stepRide(seat: Seat, view: RideView, dt: number) {
   view.t += dt;
-  const p = ridePose(view.kind, seat.ride!.launch, view.t);
+  const p = ridePose(view.kind, seat.ride!.launch, view.t, seat.ride!.route);
   if (!Number.isNaN(p.heading)) view.heading = turnToward(view.heading, p.heading, dt, view.kind === 'climb' ? 6 : 3);
   Object.assign(view, { x: p.x, y: p.y, z: p.z, roll: p.roll, boat: p.boat ?? null });
   return p.done;
@@ -204,4 +211,31 @@ export const RIDE_SECONDS: Record<RideKind, number> = {
   parasail: (Math.PI * 2) / ROUTES.parasail.speed,
   climb: CLIMB_SECONDS + 20,
   scuba: DIVE_SECONDS,
+  ferry: 60,
 };
+
+// The water taxi: along its route at a steady speed, easing away from one jetty and into the other.
+const FERRY_SPEED = 4.2;
+export const routeLength = (route: Point[]) =>
+  route.slice(1).reduce((sum, p, i) => sum + Math.hypot(p[0] - route[i][0], p[1] - route[i][1]), 0);
+export const ferrySeconds = (route: Point[]) => routeLength(route) / FERRY_SPEED + 3;
+function ferryPose(route: Point[], t: number) {
+  const total = routeLength(route),
+    duration = ferrySeconds(route),
+    // Constant speed, with 1.5 s of easing at each end.
+    u = clamp01(t / duration),
+    eased = u < 0.05 ? (u * u) / 0.1 : u > 0.95 ? 1 - ((1 - u) * (1 - u)) / 0.1 : (u - 0.025) / 0.95,
+    goal = Math.min(total, Math.max(0, eased * total));
+  let along = 0;
+  for (let i = 1; i < route.length; i++) {
+    const a = route[i - 1],
+      b = route[i],
+      d = Math.hypot(b[0] - a[0], b[1] - a[1]);
+    if (along + d >= goal || i === route.length - 1) {
+      const f = d ? clamp01((goal - along) / d) : 1;
+      return { x: a[0] + (b[0] - a[0]) * f, y: 0, z: a[1] + (b[1] - a[1]) * f, done: t >= duration };
+    }
+    along += d;
+  }
+  return { x: route[0][0], y: 0, z: route[0][1], done: true };
+}

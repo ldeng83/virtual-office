@@ -1,4 +1,5 @@
 import { lampPosts } from './world';
+import { cameraView } from './camera-view';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useFrame } from '@react-three/fiber';
 import { Moon, Sun, Sunrise, Sunset, CloudSun, Volume2, VolumeX, Waves } from 'lucide-react';
@@ -118,7 +119,11 @@ export function AtmosphereScene({
     if (sun.current) {
       sun.current.color.copy(c.light);
       sun.current.intensity = c.sun * (1 - wet.current * 0.55);
-      sun.current.position.copy(c.position);
+      // The sun (and its shadow area) follows the camera, so the Highlands get shadows too.
+      const [fx, fz] = cameraView.focus;
+      sun.current.target.position.set(fx, 0, fz);
+      sun.current.target.updateMatrixWorld();
+      sun.current.position.copy(c.position).add(sun.current.target.position);
     }
     if (fire.current)
       fire.current.intensity =

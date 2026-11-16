@@ -13,6 +13,7 @@ import {
   type WorkState,
 } from './people';
 import type { Period } from './daylight';
+import { routeLength } from './rides';
 
 export type FeedItem = { id: number; at: Date; personId: string; who: string; icon: string; text: string };
 export type CoworkerView = { person: DemoCoworker; target: Target | null };
@@ -71,7 +72,10 @@ export function useCoworkers({
       // Deadlines are fixed per activity so one coworker's change doesn't reset the other's clock.
       if (!deadlines.current.has(current)) {
         const at = peopleView[person.id],
-          walkSeconds = at ? (Math.hypot(at.x - current.point[0], at.z - current.point[1]) * 1.4) / 2.4 : 0;
+          goal = current.route ? current.approach : current.point,
+          walkSeconds =
+            (at ? (Math.hypot(at.x - goal[0], at.z - goal[1]) * 1.4) / 2.4 : 0) +
+            (current.route ? routeLength(current.route) / 2.4 : 0);
         deadlines.current.set(current, Date.now() + (walkSeconds + current.dwell) * 1000);
       }
       return window.setTimeout(

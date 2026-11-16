@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { ArrowUpRight, Check, Compass, Sun, Users, X, Armchair, Navigation, Palmtree } from 'lucide-react';
+import { Armchair, ArrowUpRight, Check, Compass, Mountain, Navigation, Palmtree, Sun, Users, X } from 'lucide-react';
 import { AtmosphereControls, useOcean, type IslandTime, type Atmosphere } from './atmosphere';
 import { colors, type Profile } from './profile';
 
@@ -214,6 +214,18 @@ export function Dialog({
                     climb the bluff on the north shore, play the piano, turn on the café radio, relax on the rooftop,
                     catch the quiz or a movie at the town hall, and look through the telescope at night. Pet Mochi the
                     cat, hunt for today’s five seashells, and use the emotes at the bottom.
+                  </p>
+                </div>
+              </li>
+              <li>
+                <Mountain />
+                <div>
+                  <strong>Explore the Highlands</strong>
+                  <p>
+                    Cross the rope bridge from beside the games lawn (or take the water taxi from the water sports dock)
+                    to a wild island with a mountain, a lake, a waterfall and forest. Pick a trail on the trailhead
+                    board to hike it: Lakeside Loop, Waterfall Trail or Summit Ridge. Finish a trail for its badge, and
+                    look out for deer, the crystal cave and fireflies at night.
                   </p>
                 </div>
               </li>

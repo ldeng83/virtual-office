@@ -1,5 +1,6 @@
 import { Label } from './label';
 import { seats } from './world';
+import { groundHeight } from './highlands';
 import type { RideKind } from './rides';
 
 export function Box({
@@ -63,7 +64,7 @@ export function Palm({ x, z, i }: { x: number; z: number; i: number }) {
 export function Seat({ seat, onSelect }: { seat: (typeof seats)[number]; onSelect: (id: string) => void }) {
   return (
     <group
-      position={[seat.point[0], seat.y ?? 0, seat.point[1]]}
+      position={[seat.point[0], (seat.y ?? 0) + groundHeight(...seat.point), seat.point[1]]}
       rotation={[0, seat.angle, 0]}
       onClick={e => {
         e.stopPropagation();

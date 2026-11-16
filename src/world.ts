@@ -1,5 +1,26 @@
 import { shoreDistance, shorePoint, WALK_INSET } from './shoreline.ts';
 import type { RideKind } from './rides.ts';
+import {
+  BRIDGE_FOOT,
+  CAMPSITE,
+  deckAt,
+  DECKS,
+  groundHeight,
+  HUB,
+  highlandsWalkable,
+  inHighlands,
+  LAKE,
+  POOL,
+  RANGER_HUT,
+  RIDGE_VIEW,
+  SUMMIT,
+  TENTS,
+  TRAIL_BOARD,
+  trailById,
+  TRAILS,
+  treeAt,
+  WEST_JETTY,
+} from './highlands.ts';
 export type Point = [number, number];
 // ---- Campus layout (world units: x east, z south; the arrival pier is on the south shore) ----
 // Building pads: floors now, walls and roofs later. `glass` pads become see-through pavilions.
@@ -141,7 +162,8 @@ export type Seat = {
   y?: number;
   // Autopilot rides (kayaks, jet skis, boats, the climb, the dive) start from `launch`;
   // `deck` places a second rider along the boat.
-  ride?: { kind: RideKind; launch: Point; deck?: number };
+  // The water taxi follows `route` and drops you at `exit` on the far side.
+  ride?: { kind: RideKind; launch: Point; deck?: number; route?: Point[]; exit?: Point };
   // Set for seats reached in a special way (rooftop stairs, rides off the docks).
   fixedApproach?: boolean;
   // Where people step in and out of the seat; the seat itself is solid.
@@ -204,6 +226,24 @@ export const jetSkiMoorings: Point[] = [
 ];
 export const sailboatMooring: Point = [-8.6, 16.6];
 export const towBoatMooring: Point = [-10.5, 21.2];
+// The water taxi runs from the dock round the west coast to the Highlands' west jetty.
+export const ferryMoorings = {
+  main: [-8.8, 20.1] as Point,
+  highlands: [WEST_JETTY.x1 + 0.9, WEST_JETTY.z - 1.7] as Point,
+};
+export const FERRY_ROUTE: Point[] = [
+  ferryMoorings.main,
+  [-8, 25],
+  [-16, 27.5],
+  [-30, 19],
+  [-43, 4],
+  [-47, -14],
+  [-45, -34],
+  [-39, -54],
+  [-34, -68],
+  [-31.5, -77.7],
+  ferryMoorings.highlands,
+];
 // Climbing bluff on the north shore: a rock face with a lookout on top. faceZ is the face at its foot.
 export const bluff = { x: -1.4, z: -48.7, rx: 3.6, rz: 2.8, h: 6.5, faceZ: -45.9, lean: 1.2 };
 // A small reef off the end of the fishing jetty, for diving.
@@ -390,6 +430,63 @@ export const seats = [
     approach: [bluff.x, bluff.faceZ + 1.2] as Point,
     fixedApproach: true,
   },
+  // Water taxis: one at the water sports dock, one at the Highlands' west jetty.
+  ...[
+    { id: 'fy-0', point: ferryMoorings.main, route: FERRY_ROUTE, approach: [marina.x + 0.45, marina.z1 - 0.6] },
+    {
+      id: 'fy-1',
+      point: ferryMoorings.highlands,
+      route: [...FERRY_ROUTE].reverse(),
+      approach: [ferryMoorings.highlands[0], WEST_JETTY.z - 0.45],
+    },
+  ].map(f => ({
+    id: f.id,
+    name: 'Water taxi',
+    point: f.point,
+    angle: Math.atan2(f.route[1][0] - f.route[0][0], f.route[1][1] - f.route[0][1]),
+    kind: 'ride' as const,
+    ride: {
+      kind: 'ferry' as const,
+      launch: f.point,
+      route: f.route,
+      exit:
+        f.id === 'fy-0'
+          ? ([ferryMoorings.highlands[0], WEST_JETTY.z - 0.45] as Point)
+          : ([marina.x + 0.45, marina.z1 - 0.6] as Point),
+    },
+    approach: f.approach as Point,
+    fixedApproach: true,
+  })),
+  // The Highlands: logs round the campfire, a bench at the end of the lake jetty, by the waterfall pool,
+  // at the ridge viewpoint and two on the summit.
+  ...[0, 1, 2, 3].map(i => {
+    const a = (i / 4) * Math.PI * 2 + Math.PI / 4,
+      point: Point = [CAMPSITE.fire[0] + Math.cos(a) * 1.6, CAMPSITE.fire[1] + Math.sin(a) * 1.6];
+    return { id: `cf-${i}`, name: 'Campfire log', point, angle: facing(point, CAMPSITE.fire), kind: 'log' as const };
+  }),
+  {
+    id: 'lj-0',
+    name: 'Lake jetty bench',
+    point: [LAKE.x, LAKE.z + LAKE.rz - 2.4] as Point,
+    angle: Math.PI,
+    kind: 'bench' as const,
+  },
+  {
+    id: 'wf-0',
+    name: 'Waterfall bench',
+    point: [POOL.x - 4, POOL.z + 0.6] as Point,
+    angle: Math.PI / 2,
+    kind: 'bench' as const,
+  },
+  { id: 'rv-0', name: 'Ridge viewpoint', point: RIDGE_VIEW, angle: 0.9, kind: 'bench' as const },
+  { id: 'sm-0', name: 'Summit bench', point: [SUMMIT[0], SUMMIT[1] + 1.5] as Point, angle: 0, kind: 'bench' as const },
+  {
+    id: 'sm-1',
+    name: 'Summit bench',
+    point: [SUMMIT[0] - 1.5, SUMMIT[1]] as Point,
+    angle: -Math.PI / 2,
+    kind: 'bench' as const,
+  },
   {
     id: 'pn-0',
     name: 'Piano bench',
@@ -408,6 +505,14 @@ export const seats = [
     fixedApproach: true,
   })),
 ].map(seat => ({ approach: seat.point, ...seat })) as Seat[];
+// The trail point nearest `near` (or `back` units before the end, for the summit).
+function onTrail(id: 'lake' | 'falls' | 'summit', near: Point, back = 0): Point {
+  const points = trailById(id).points;
+  if (back) return points[points.length - 1 - Math.round(back / 0.8)];
+  return points.reduce((best, p) =>
+    Math.hypot(p[0] - near[0], p[1] - near[1]) < Math.hypot(best[0] - near[0], best[1] - near[1]) ? p : best,
+  );
+}
 // Places in the sidebar and on the map.
 export const locations = [
   {
@@ -502,6 +607,41 @@ export const locations = [
     point: [bluff.x, bluff.faceZ + 2.2] as Point,
     color: '#b59a82',
   },
+  {
+    id: 'highlands',
+    name: 'Highlands trailhead',
+    detail: 'Over the rope bridge: trails, forest and a mountain',
+    point: HUB,
+    color: '#5f8d5a',
+  },
+  {
+    id: 'lake',
+    name: 'Lakeside Loop',
+    detail: 'Easy · birches and a lake jetty',
+    point: onTrail('lake', [LAKE.x, LAKE.z + LAKE.rz + 2.7]),
+    color: '#5aa469',
+  },
+  {
+    id: 'falls',
+    name: 'Waterfall',
+    detail: 'Moderate · the pool and the cave',
+    point: onTrail('falls', [POOL.x - 3, POOL.z]),
+    color: '#3f86c7',
+  },
+  {
+    id: 'summit',
+    name: 'Summit',
+    detail: 'Hard · the best view there is',
+    point: onTrail('summit', SUMMIT, 1.4),
+    color: '#6b6b6b',
+  },
+  {
+    id: 'campsite',
+    name: 'Campsite',
+    detail: 'Tents and a campfire by the woods',
+    point: [CAMPSITE.x + 2.6, CAMPSITE.z + 2.4] as Point,
+    color: '#e09a6b',
+  },
 ];
 export const districts = locations;
 // Walkways: spokes from the plaza to every zone.
@@ -573,6 +713,10 @@ export const walkways: Point[][] = [
     [-6.2, -32.83],
     [bluff.x, bluff.faceZ + 1.2],
   ],
+  [
+    [10, -36.37],
+    [BRIDGE_FOOT[0], BRIDGE_FOOT[1] + 0.6],
+  ],
 ];
 // Small fixed decor that also blocks walking.
 // Plaza lamp posts: evenly spaced round the edge, skipping spots where a walkway leaves the plaza.
@@ -601,6 +745,11 @@ const blocks: Block[] = [
   { x: firepit.x, z: firepit.z, r: firepit.r + 0.25 },
   { x: piano.x, z: piano.z, hx: piano.w / 2 + 0.2, hz: piano.d / 2 + 0.2 },
   { x: telescope[0], z: telescope[1], r: 0.45 },
+  // Highlands props.
+  { x: RANGER_HUT.x, z: RANGER_HUT.z, hx: RANGER_HUT.w / 2 + 0.25, hz: RANGER_HUT.d / 2 + 0.25 },
+  { x: TRAIL_BOARD[0], z: TRAIL_BOARD[1], hx: 0.9, hz: 0.35 },
+  { x: CAMPSITE.fire[0], z: CAMPSITE.fire[1], r: 0.8 },
+  ...TENTS.map(t => ({ x: t.x, z: t.z, r: 1.15 })),
   { x: waterSportsHut.x, z: waterSportsHut.z, hx: waterSportsHut.w / 2 + 0.25, hz: waterSportsHut.d / 2 + 0.25 },
   {
     x: roofStair.x,
@@ -634,6 +783,33 @@ const blocks: Block[] = [
     { x: b.x + 1.1, z: b.z - 0.2, hx: 0.25, hz: 0.8 },
   ]),
 ];
+// Everything solid (props, seats, desks, palms) in a coarse grid, so walking checks only look nearby.
+const OBSTACLE_CELL = 2;
+let obstacleGrid: Map<string, Block[]> | null = null;
+function obstacles() {
+  if (obstacleGrid) return obstacleGrid;
+  const grid = new Map<string, Block[]>();
+  const all: Block[] = [
+    ...blocks,
+    ...desks.map(d => ({ x: d.x, z: d.z, hx: 0.73, hz: 0.57 })),
+    ...trees.map(([x, z]) => ({ x, z, r: 0.65 })),
+  ];
+  for (const b of all) {
+    const [rx, rz] = 'r' in b ? [b.r, b.r] : [b.hx, b.hz];
+    for (let cx = Math.floor((b.x - rx) / OBSTACLE_CELL); cx <= Math.floor((b.x + rx) / OBSTACLE_CELL); cx++)
+      for (let cz = Math.floor((b.z - rz) / OBSTACLE_CELL); cz <= Math.floor((b.z + rz) / OBSTACLE_CELL); cz++) {
+        const key = `${cx},${cz}`,
+          list = grid.get(key);
+        if (list) list.push(b);
+        else grid.set(key, [b]);
+      }
+  }
+  return (obstacleGrid = grid);
+}
+const blocked = (x: number, z: number) =>
+  (obstacles().get(`${Math.floor(x / OBSTACLE_CELL)},${Math.floor(z / OBSTACLE_CELL)}`) ?? []).some(b =>
+    'r' in b ? Math.hypot(x - b.x, z - b.z) < b.r : Math.abs(x - b.x) < b.hx && Math.abs(z - b.z) < b.hz,
+  );
 export function segmentDistance(point: Point, a: Point, b: Point) {
   const dx = b[0] - a[0],
     dz = b[1] - a[1];
@@ -657,6 +833,7 @@ function clearForTree(point: Point) {
       Math.abs(point[1] - gamesLawn.z) > gamesLawn.d / 2 + 1) &&
     segmentDistance(point, [jetty.x0, jetty.z], [jetty.x1 + 2, jetty.z]) > 2.2 &&
     segmentDistance(point, [marina.x, marina.z0 - 2], [marina.x, marina.z1]) > 2.2 &&
+    segmentDistance(point, [BRIDGE_FOOT[0], BRIDGE_FOOT[1] + 3], DECKS[0].b) > 2.4 &&
     Math.hypot(point[0] - waterSportsHut.x, point[1] - waterSportsHut.z) > 2.6 &&
     Math.hypot(point[0] - bluff.x, point[1] - bluff.z) > bluff.rx + 2.5 &&
     Math.hypot(point[0] - roofStair.x, point[1] - (roofStair.z0 + roofStair.z1) / 2) > 3.5
@@ -683,16 +860,28 @@ export const onJetty = (x: number, z: number) =>
   (Math.abs(x - marina.x) < marina.w / 2 - 0.15 && z > marina.z0 && z < marina.z1 - 0.15);
 export const onBluff = (x: number, z: number) =>
   ((x - bluff.x) / (bluff.rx + 0.3)) ** 2 + ((z - bluff.z) / (bluff.rz + 0.35)) ** 2 < 1;
+// The Highlands' ground rules (slope, water, forest) are costly and never change, so each 0.1-unit
+// cell is worked out once and remembered (0 = not yet, 1 = walkable, 2 = not).
+const HL = { x0: -34, z0: -124, w: 880, h: 700, step: 0.1 };
+const highlandsRaster = new Uint8Array(HL.w * HL.h);
+function highlandsCell(x: number, z: number) {
+  const i = Math.round((x - HL.x0) / HL.step),
+    j = Math.round((z - HL.z0) / HL.step);
+  if (i < 0 || j < 0 || i >= HL.w || j >= HL.h) return false;
+  const k = j * HL.w + i;
+  if (!highlandsRaster[k]) {
+    const cx = HL.x0 + i * HL.step,
+      cz = HL.z0 + j * HL.step;
+    highlandsRaster[k] = highlandsWalkable(cx, cz) && !treeAt(cx, cz) && !blocked(cx, cz) ? 1 : 2;
+  }
+  return highlandsRaster[k] === 1;
+}
 export function walkable(x: number, z: number) {
+  if (deckAt(x, z)) return !blocked(x, z);
+  // Over the bridge: the Highlands have their own ground rules (slopes, water, forest).
+  if (inHighlands(x, z)) return highlandsCell(x, z);
   if (shoreDistance(x, z) > -WALK_INSET && !onJetty(x, z)) return false;
-  if (desks.some(d => Math.abs(x - d.x) < 0.73 && Math.abs(z - d.z) < 0.57)) return false;
-  if (trees.some(t => Math.hypot(x - t[0], z - t[1]) < 0.65)) return false;
-  if (
-    blocks.some(b =>
-      'r' in b ? Math.hypot(x - b.x, z - b.z) < b.r : Math.abs(x - b.x) < b.hx && Math.abs(z - b.z) < b.hz,
-    )
-  )
-    return false;
+  if (blocked(x, z)) return false;
   if (onBluff(x, z)) return false;
   if (ponds.some(p => ((x - p.x) / (p.rx + 0.25)) ** 2 + ((z - p.z) / (p.rz + 0.25)) ** 2 < 1)) return false;
   return true;
@@ -756,10 +945,57 @@ function gridWalkable(x: number, z: number) {
   if (!gridCache.has(key)) gridCache.set(key, walkable(x / 2, z / 2));
   return gridCache.get(key)!;
 }
+// Midpoints between grid cells (in quarter units), cached the same way.
+const midCache = new Map<string, boolean>();
+function midWalkable(x: number, z: number) {
+  const key = `${x},${z}`;
+  if (!midCache.has(key)) midCache.set(key, walkable(x / 4, z / 4));
+  return midCache.get(key)!;
+}
+// On the Highlands the walkable shapes are finer (trail edges on steep slopes), so steps there are
+// sampled every 0.05 units; those checks are cheap because the Highlands raster remembers them.
+function denseStep(p: Point, n: Point) {
+  for (let k = 1; k < 10; k++)
+    if (!walkable((p[0] + ((n[0] - p[0]) * k) / 10) / 2, (p[1] + ((n[1] - p[1]) * k) / 10) / 2)) return false;
+  return true;
+}
+const eighthCache = new Map<string, boolean>();
+function eighthWalkable(x: number, z: number) {
+  const key = `${x},${z}`;
+  if (!eighthCache.has(key)) eighthCache.set(key, walkable(x / 8, z / 8));
+  return eighthCache.get(key)!;
+}
 // Grid A* (8 directions, no corner cutting), then straightened so routes run in clean lines.
 export function findPath(start: Point, end: Point): Point[] {
+  const hike = inHighlands(...end) ? trailRoute(start, end) : null;
+  if (hike) return hike;
   const route = gridPath(start, end);
   return route.length ? smoothPath(start, route) : route;
+}
+// Up the mountain, people keep to the trail (and searching the whole mountain is slow): head for the
+// trailhead, or join the trail where you are, then follow it to the spot nearest your destination.
+function trailRoute(start: Point, end: Point): Point[] | null {
+  if (groundHeight(...end) < 2.5 || !walkable(...end)) return null;
+  const nearest = (points: Point[], p: Point) => {
+    let best = 0;
+    points.forEach((q, i) => {
+      if (Math.hypot(q[0] - p[0], q[1] - p[1]) < Math.hypot(points[best][0] - p[0], points[best][1] - p[1])) best = i;
+    });
+    return { index: best, distance: Math.hypot(points[best][0] - p[0], points[best][1] - p[1]) };
+  };
+  const options = TRAILS.map(trail => ({ trail, to: nearest(trail.points, end), from: nearest(trail.points, start) }))
+    .filter(o => o.to.distance < 1.6)
+    .sort((a, b) => a.to.index - b.to.index);
+  for (const { trail, to, from } of options) {
+    const onTrail = from.distance < 1.2,
+      i = onTrail ? from.index : 0,
+      part = i <= to.index ? trail.points.slice(i, to.index + 1) : trail.points.slice(to.index, i + 1).reverse();
+    const lead = onTrail ? [] : gridPath(start, trail.points[0]);
+    if (!onTrail && !lead.length) continue;
+    const route = [...lead, ...part, end];
+    return smoothPath(start, route);
+  }
+  return null;
 }
 function gridPath(start: Point, end: Point): Point[] {
   if (!walkable(...end)) return [];
@@ -814,10 +1050,14 @@ function gridPath(start: Point, end: Point): Point[] {
       if (dx && dz && !(gridWalkable(p[0] + dx, p[1]) && gridWalkable(p[0], p[1] + dz))) continue;
       const n: Point = [p[0] + dx, p[1] + dz],
         nextCost = cost + (dx && dz ? Math.SQRT2 : 1) + (hugsObstacle(n) ? 0.6 : 0);
-      // The midpoint check catches thin obstacles (lamp posts) that fit between grid cells.
+      // The midpoint and quarter-way checks catch thin obstacles (lamp posts) and narrow trail corridors
+      // that fit between grid cells.
       if (
         gridWalkable(...n) &&
-        walkable((p[0] + n[0]) / 4, (p[1] + n[1]) / 4) &&
+        midWalkable(p[0] + n[0], p[1] + n[1]) &&
+        eighthWalkable(3 * p[0] + n[0], 3 * p[1] + n[1]) &&
+        eighthWalkable(p[0] + 3 * n[0], p[1] + 3 * n[1]) &&
+        (!inHighlands(p[0] / 2, p[1] / 2) || denseStep(p, n)) &&
         nextCost < (costs.get(key(n)) ?? Infinity)
       ) {
         costs.set(key(n), nextCost);

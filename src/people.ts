@@ -1,6 +1,7 @@
 import { garden, locations, seats, WHITEBOARD, WHITEBOARD_SPOT, type Point, type Seat } from './world.ts';
 import type { Period } from './daylight.ts';
 import { RIDE_SECONDS, type RideKind } from './rides.ts';
+import { trailById, type Trail } from './highlands.ts';
 
 // One shape for everyone on the island. Today two demo coworkers are driven locally by a small
 // activity planner; later the same records will arrive from the shared presence server.
@@ -23,6 +24,8 @@ export type Activity = {
   face?: Point;
   // Time spent here moves their current task forward.
   work?: boolean;
+  // Or hike a trail on the Highlands, ending at its far end.
+  trail?: Trail['id'];
 };
 export type Task = { title: string; icon: string; seconds: number };
 export type WorkState = { task: number; progress: number };
@@ -52,6 +55,8 @@ export type Target = {
   elevation: number;
   activity: Activity;
   dwell: number;
+  // For hikes: the trail they follow after reaching `approach`.
+  route?: Point[];
 };
 
 export const ARRIVAL_DOCK: Point = locations[0].point;
@@ -70,6 +75,17 @@ const coffee = (seatIds: string[], weight = 3): Activity => ({
 });
 
 // Rides last as long as the ride (they wait at the launch for a moment after) and leave them Available.
+// Hikes: the walk there and the trail itself are counted separately, so the dwell is a rest at the end.
+const hike = (trail: Trail['id'], activity: string, icon: string, rest: [number, number], weight = 1): Activity => ({
+  place: trailById(trail).name,
+  status: 'Available',
+  activity,
+  icon,
+  pose: 'look',
+  dwell: rest,
+  weight,
+  trail,
+});
 const ride = (
   kind: RideKind,
   place: string,
@@ -142,6 +158,7 @@ export const demoCoworkers: DemoCoworker[] = [
             weight: 1,
             seats: ['pn-0'],
           },
+          hike('lake', 'A morning lap of the lake', '🥾', [10, 20]),
         ],
       },
       midday: {
@@ -191,6 +208,7 @@ export const demoCoworkers: DemoCoworker[] = [
           work: true,
         },
         errands: [
+          hike('summit', 'Hiking up to the summit', '⛰️', [20, 30]),
           ride('parasail', 'Water sports', 'Parasailing', '🪂', ['pa-0']),
           ride('climb', 'Climbing bluff', 'Climbing the bluff', '🧗', ['cl-0']),
           {
@@ -321,6 +339,7 @@ export const demoCoworkers: DemoCoworker[] = [
           seats: ['pm-4', 'pm-3'],
         },
         errands: [
+          hike('falls', 'A walk up to the waterfall', '💧', [15, 25]),
           ride('jetski', 'Water sports', 'Out on a jet ski', '🚤', ['js-0', 'js-1']),
           {
             place: 'Pavilion M',
@@ -368,6 +387,7 @@ export const demoCoworkers: DemoCoworker[] = [
           work: true,
         },
         errands: [
+          hike('summit', 'Racing up Summit Ridge', '⛰️', [15, 25]),
           ride('kayak', 'Fishing jetty', 'Kayaking round the island', '🛶', ['ky-0', 'ky-1']),
           ride('climb', 'Climbing bluff', 'Climbing the bluff', '🧗', ['cl-0']),
           { ...coffee(['ts-0', 'ts-1'], 2), activity: 'Coffee on the terrace' },
@@ -486,6 +506,20 @@ export function resolveTarget(
 ): Target | null {
   if (!activity) return null;
   const dwell = activity.dwell[0] + (activity.dwell[1] - activity.dwell[0]) * random();
+  if (activity.trail) {
+    const points = trailById(activity.trail).points,
+      [a, b] = points.slice(-2);
+    return {
+      point: points[points.length - 1],
+      approach: points[0],
+      angle: Math.atan2(b[0] - a[0], b[1] - a[1]),
+      seatId: null,
+      elevation: 0,
+      activity,
+      dwell,
+      route: points,
+    };
+  }
   if (activity.seats) {
     const id = activity.seats.find(s => !taken.has(s)) ?? activity.seats[0];
     const seat = seats.find(s => s.id === id);

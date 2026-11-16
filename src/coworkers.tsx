@@ -5,6 +5,7 @@ import { Label } from './label';
 import * as THREE from 'three';
 import { findPath, seats, type Point } from './world';
 import { riders } from './fun-state';
+import { groundHeight } from './highlands';
 import { riderPose, riderSpot, startRide, stepRide } from './rides';
 import { ARRIVAL_DOCK, peopleView, type DemoCoworker, type Target } from './people';
 import { stepAlongPath, turnToward, wrapAngle } from './steering';
@@ -184,7 +185,11 @@ export function Coworker({
       leaving.current = false;
       const route = findPath(present.current && !seated ? [pos.current.x, pos.current.z] : start, target.approach);
       path.current = route.length
-        ? [...from(route), ...(target.seatId && !target.elevation ? [target.point] : [])]
+        ? [
+            ...from(route),
+            ...(target.route ? target.route.slice(1) : []),
+            ...(target.seatId && !target.elevation ? [target.point] : []),
+          ]
         : [];
       climbing.current = !!target.elevation;
       if (!route.length) pos.current.set(target.point[0], 0, target.point[1]);
@@ -305,7 +310,9 @@ export function Coworker({
         : seated
           ? seatPose(target!.seatKind, target!.elevation, motion ? performance.now() / 1000 : 0)
           : UPRIGHT;
-    g.position.y = moving ? Math.sin(walk.current) * 0.045 : sitting.y + Math.sin(hop.current * Math.PI) * 0.18;
+    const floor = riding ? 0 : groundHeight(pos.current.x, pos.current.z);
+    g.position.y =
+      floor + (moving ? Math.sin(walk.current) * 0.045 : sitting.y + Math.sin(hop.current * Math.PI) * 0.18);
     if (poseGroup.current) {
       poseGroup.current.rotation.x = sitting.pitch;
       poseGroup.current.position.z = sitting.z;
