@@ -6,12 +6,12 @@ import { periods } from './daylight';
 import { shorelineGLSL, ISLAND_CENTER_Z } from './shoreline';
 
 const palettes = {
-    dawn: ['#769aaf', '#b2d9d1', '#eededc', '#ffe5d1'],
-    morning: ['#5aabba', '#91ddcb', '#e0f4e7', '#fff6d9'],
-    midday: ['#4f9fb7', '#89ddce', '#e1f5e7', '#fffce5'],
-    golden: ['#899eae', '#b4cfc2', '#f4dfc5', '#ffe0ac'],
-    dusk: ['#626e94', '#889faa', '#c4c7da', '#e4d4f0'],
-    night: ['#233f59', '#437e86', '#8bb8c2', '#c7e5f3'],
+  dawn: ['#769aaf', '#b2d9d1', '#eededc', '#ffe5d1'],
+  morning: ['#5aabba', '#91ddcb', '#e0f4e7', '#fff6d9'],
+  midday: ['#4f9fb7', '#89ddce', '#e1f5e7', '#fffce5'],
+  golden: ['#899eae', '#b4cfc2', '#f4dfc5', '#ffe0ac'],
+  dusk: ['#626e94', '#889faa', '#c4c7da', '#e4d4f0'],
+  night: ['#233f59', '#437e86', '#8bb8c2', '#c7e5f3'],
 };
 const vertexShader = `
     varying vec2 vOcean;
@@ -106,38 +106,94 @@ const fragmentShader = `
 `;
 
 export function Ocean({ motion, time }: { motion: boolean; time: IslandTime }) {
-    const material = useRef<THREE.ShaderMaterial>(null);
-    const farMaterial = useRef<THREE.ShaderMaterial>(null);
-    const seabed = useRef<THREE.MeshBasicMaterial>(null);
-    const elapsed = useRef(0);
-    const distantWater = useMemo(() => {
-        const outline = new THREE.Shape();
-        outline.moveTo(-500, -500).lineTo(500, -500).lineTo(500, 500).lineTo(-500, 500).closePath();
-        const hole = new THREE.Path();
-        hole.moveTo(-120, -120).lineTo(-120, 120).lineTo(120, 120).lineTo(120, -120).closePath();
-        outline.holes.push(hole);
-        return new THREE.ShapeGeometry(outline);
-    }, []);
-    const target = useMemo(() => palettes[time.from].map((color, i) => new THREE.Color(color).lerp(new THREE.Color(palettes[time.to][i]), time.progress)), [time.from, time.to, time.progress]);
-    const direction = useMemo(() => new THREE.Vector3(...periods[time.from].position).lerp(new THREE.Vector3(...periods[time.to].position), time.progress).normalize(), [time.from, time.to, time.progress]);
-    const shallowLight = 1 - THREE.MathUtils.lerp(periods[time.from].darkness, periods[time.to].darkness, time.progress) * 0.75;
-    const uniforms = useMemo(() => ({ time: { value: 0 }, lightDirection: { value: direction.clone() }, shallowLight: { value: shallowLight }, deepColor: { value: target[0].clone() }, shallowColor: { value: target[1].clone() }, foamColor: { value: target[2].clone() }, glintColor: { value: target[3].clone() } }), []);
-    useFrame((_, dt) => {
-        if (motion) elapsed.current += Math.min(dt, 0.05);
-        if (!material.current) return;
-        const values = material.current.uniforms;
-        values.time.value = elapsed.current;
-        const alpha = motion ? 1 - Math.exp(-Math.min(dt, 0.1) * 2) : 1;
-        values.lightDirection.value.lerp(direction, alpha).normalize();
-        values.shallowLight.value = THREE.MathUtils.lerp(values.shallowLight.value, shallowLight, alpha);
-        if (seabed.current) seabed.current.color.copy(values.deepColor.value).multiplyScalar(0.7);
-        ['deepColor', 'shallowColor', 'foamColor', 'glintColor'].forEach((key, i) => values[key].value.lerp(target[i], alpha));
-        if (farMaterial.current) farMaterial.current.uniforms = values;
-    });
-    return <><mesh name="ocean-floor" raycast={() => {}} rotation={[-Math.PI / 2, 0, 0]} position={[0, -3.5, 0]}><planeGeometry args={[1000, 1000]}/><meshBasicMaterial ref={seabed} color="#427c96"/></mesh><mesh name="ocean" renderOrder={-1} raycast={() => {}} rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.4, 0]}>
-        <planeGeometry args={[240, 240, 192, 192]}/>
-        <shaderMaterial ref={material} vertexShader={vertexShader} fragmentShader={fragmentShader} uniforms={uniforms} transparent depthWrite={false}/>
-    </mesh><mesh name="ocean-far" renderOrder={-1} raycast={() => {}} rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.4, 0]} geometry={distantWater}>
-        <shaderMaterial ref={farMaterial} vertexShader={vertexShader} fragmentShader={fragmentShader} uniforms={uniforms} transparent depthWrite={false}/>
-    </mesh></>;
+  const material = useRef<THREE.ShaderMaterial>(null);
+  const farMaterial = useRef<THREE.ShaderMaterial>(null);
+  const seabed = useRef<THREE.MeshBasicMaterial>(null);
+  const elapsed = useRef(0);
+  const distantWater = useMemo(() => {
+    const outline = new THREE.Shape();
+    outline.moveTo(-500, -500).lineTo(500, -500).lineTo(500, 500).lineTo(-500, 500).closePath();
+    const hole = new THREE.Path();
+    hole.moveTo(-120, -120).lineTo(-120, 120).lineTo(120, 120).lineTo(120, -120).closePath();
+    outline.holes.push(hole);
+    return new THREE.ShapeGeometry(outline);
+  }, []);
+  const target = useMemo(
+    () =>
+      palettes[time.from].map((color, i) =>
+        new THREE.Color(color).lerp(new THREE.Color(palettes[time.to][i]), time.progress),
+      ),
+    [time.from, time.to, time.progress],
+  );
+  const direction = useMemo(
+    () =>
+      new THREE.Vector3(...periods[time.from].position)
+        .lerp(new THREE.Vector3(...periods[time.to].position), time.progress)
+        .normalize(),
+    [time.from, time.to, time.progress],
+  );
+  const shallowLight =
+    1 - THREE.MathUtils.lerp(periods[time.from].darkness, periods[time.to].darkness, time.progress) * 0.75;
+  const uniforms = useMemo(
+    () => ({
+      time: { value: 0 },
+      lightDirection: { value: direction.clone() },
+      shallowLight: { value: shallowLight },
+      deepColor: { value: target[0].clone() },
+      shallowColor: { value: target[1].clone() },
+      foamColor: { value: target[2].clone() },
+      glintColor: { value: target[3].clone() },
+    }),
+    [],
+  );
+  useFrame((_, dt) => {
+    if (motion) elapsed.current += Math.min(dt, 0.05);
+    if (!material.current) return;
+    const values = material.current.uniforms;
+    values.time.value = elapsed.current;
+    const alpha = motion ? 1 - Math.exp(-Math.min(dt, 0.1) * 2) : 1;
+    values.lightDirection.value.lerp(direction, alpha).normalize();
+    values.shallowLight.value = THREE.MathUtils.lerp(values.shallowLight.value, shallowLight, alpha);
+    if (seabed.current) seabed.current.color.copy(values.deepColor.value).multiplyScalar(0.7);
+    ['deepColor', 'shallowColor', 'foamColor', 'glintColor'].forEach((key, i) =>
+      values[key].value.lerp(target[i], alpha),
+    );
+    if (farMaterial.current) farMaterial.current.uniforms = values;
+  });
+  return (
+    <>
+      <mesh name="ocean-floor" raycast={() => {}} rotation={[-Math.PI / 2, 0, 0]} position={[0, -3.5, 0]}>
+        <planeGeometry args={[1000, 1000]} />
+        <meshBasicMaterial ref={seabed} color="#427c96" />
+      </mesh>
+      <mesh name="ocean" renderOrder={-1} raycast={() => {}} rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.4, 0]}>
+        <planeGeometry args={[240, 240, 192, 192]} />
+        <shaderMaterial
+          ref={material}
+          vertexShader={vertexShader}
+          fragmentShader={fragmentShader}
+          uniforms={uniforms}
+          transparent
+          depthWrite={false}
+        />
+      </mesh>
+      <mesh
+        name="ocean-far"
+        renderOrder={-1}
+        raycast={() => {}}
+        rotation={[-Math.PI / 2, 0, 0]}
+        position={[0, -0.4, 0]}
+        geometry={distantWater}
+      >
+        <shaderMaterial
+          ref={farMaterial}
+          vertexShader={vertexShader}
+          fragmentShader={fragmentShader}
+          uniforms={uniforms}
+          transparent
+          depthWrite={false}
+        />
+      </mesh>
+    </>
+  );
 }

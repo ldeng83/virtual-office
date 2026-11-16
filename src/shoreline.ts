@@ -7,18 +7,29 @@ const BASE_RADIUS = 10.4;
 const GARDEN_EXPANSION = 3.2;
 const GROVE_EXPANSION = 2;
 export function shoreRadius(angle: number) {
-    return (BASE_RADIUS + GARDEN_EXPANSION * Math.max(0, -Math.sin(angle)) ** 2 + GROVE_EXPANSION * Math.max(0, Math.cos(angle)) ** 4) * ISLAND_SCALE;
+  return (
+    (BASE_RADIUS +
+      GARDEN_EXPANSION * Math.max(0, -Math.sin(angle)) ** 2 +
+      GROVE_EXPANSION * Math.max(0, Math.cos(angle)) ** 4) *
+    ISLAND_SCALE
+  );
 }
 export function shoreSlope(angle: number) {
-    return ISLAND_SCALE * (-2 * GARDEN_EXPANSION * Math.max(0, -Math.sin(angle)) * (Math.sin(angle) < 0 ? Math.cos(angle) : 0)
-        - 4 * GROVE_EXPANSION * Math.max(0, Math.cos(angle)) ** 3 * Math.sin(angle));
+  return (
+    ISLAND_SCALE *
+    (-2 * GARDEN_EXPANSION * Math.max(0, -Math.sin(angle)) * (Math.sin(angle) < 0 ? Math.cos(angle) : 0) -
+      4 * GROVE_EXPANSION * Math.max(0, Math.cos(angle)) ** 3 * Math.sin(angle))
+  );
 }
 export function shorePoint(angle: number, offset = 0): [number, number] {
-    const radius = shoreRadius(angle) + offset;
-    return [Math.cos(angle) * radius * ISLAND_X_SCALE, ISLAND_CENTER_Z + Math.sin(angle) * radius];
+  const radius = shoreRadius(angle) + offset;
+  return [Math.cos(angle) * radius * ISLAND_X_SCALE, ISLAND_CENTER_Z + Math.sin(angle) * radius];
 }
 export function shoreDistance(x: number, z: number) {
-    return Math.hypot(x / ISLAND_X_SCALE, z - ISLAND_CENTER_Z) - shoreRadius(Math.atan2(z - ISLAND_CENTER_Z, x / ISLAND_X_SCALE));
+  return (
+    Math.hypot(x / ISLAND_X_SCALE, z - ISLAND_CENTER_Z) -
+    shoreRadius(Math.atan2(z - ISLAND_CENTER_Z, x / ISLAND_X_SCALE))
+  );
 }
 // The ocean shader uses the same contour as terrain, walking, and animal habitats.
 export const shorelineGLSL = `
