@@ -209,10 +209,11 @@ export function Dialog({
                 <div>
                   <strong>Take a break</strong>
                   <p>
-                    Play ping-pong or cornhole on the games lawn, swing in a hammock by the firepit, fish or take a
-                    kayak from the jetty, play the piano, turn on the café radio, relax on the rooftop, catch the quiz
-                    or a movie at the town hall, and look through the telescope at night. Pet Mochi the cat, hunt for
-                    today’s five seashells, and use the emotes at the bottom.
+                    Play ping-pong or cornhole on the games lawn, swing in a hammock by the firepit, fish, kayak or go
+                    scuba diving from the jetty, ride a jet ski, sail or go parasailing from the water sports dock,
+                    climb the bluff on the north shore, play the piano, turn on the café radio, relax on the rooftop,
+                    catch the quiz or a movie at the town hall, and look through the telescope at night. Pet Mochi the
+                    cat, hunt for today’s five seashells, and use the emotes at the bottom.
                   </p>
                 </div>
               </li>

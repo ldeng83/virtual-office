@@ -3,7 +3,7 @@ import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 import type { Period } from './daylight';
 import { cameraView } from './camera-view';
-import { kayakRide } from './fun-state';
+import { ride } from './fun-state';
 import { Label } from './label';
 import { peopleView } from './people';
 import { hammockSway } from './poses';
@@ -224,9 +224,9 @@ function Jetty({ playerSeat, motion }: { playerSeat: string | null; motion: bool
       if (bob) bob.position.y = -0.52 + Math.sin(t * 2.2 + i) * 0.04 + (Math.sin(t * 0.7 + i * 3) > 0.96 ? -0.08 : 0);
     });
     kayaks.current?.children.forEach((kayak, i) => {
-      if (kayakRide.index === i) {
-        kayak.position.set(kayakRide.x, -0.32, kayakRide.z);
-        kayak.rotation.set(0, kayakRide.heading, Math.sin(t * 1.4) * 0.05);
+      if (ride.seat === `ky-${i}`) {
+        kayak.position.set(ride.x, -0.32, ride.z);
+        kayak.rotation.set(0, ride.heading, Math.sin(t * 1.4) * 0.05);
       } else {
         const [mx, mz] = kayakMoorings[i];
         kayak.position.set(mx, -0.32 + Math.sin(t * 1.2 + i) * 0.02, mz);

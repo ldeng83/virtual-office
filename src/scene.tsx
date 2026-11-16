@@ -1,8 +1,9 @@
 import { Cat, Rain, Rainbow, Shells, type Shell } from './island-extras';
 import { FunSpots } from './fun';
-import { EMOTE_ICONS, kayakRide, playerState, type Emote } from './fun-state';
+import { WaterSports } from './water-sports';
+import { EMOTE_ICONS, playerState, ride as rideState, type Emote } from './fun-state';
+import { PARASAIL_HEIGHT, ridePose, riderPose } from './rides';
 import { seatPose, UPRIGHT } from './poses';
-import { ISLAND_CENTER_Z, ISLAND_X_SCALE, shorePoint } from './shoreline';
 import React, { useEffect, useRef, useState } from 'react';
 import { useFrame, useThree } from '@react-three/fiber';
 import { ContactShadows, OrbitControls } from '@react-three/drei';
@@ -218,14 +219,16 @@ export function World({
     const t = window.setTimeout(() => setBubble(null), 2400);
     return () => window.clearTimeout(t);
   }, [emote]);
-  const ride = useRef({ angle: 0, travelled: 0, from: [0, 0] as Point });
+  const rideY = useRef(0),
+    baseZoom = useRef(0);
   const standUp = () => {
     const s = sittingIn.current;
     sittingIn.current = null;
     playerState.elevated = false;
-    kayakRide.index = -1;
-    // Kayaks (out on the water) and rooftop seats always return you to their step-in spot.
-    if (s && (s.kind === 'kayak' || s.y || Math.hypot(pos.current.x - s.point[0], pos.current.z - s.point[1]) < 0.3))
+    rideState.seat = rideState.kind = rideState.boat = null;
+    rideY.current = 0;
+    // Rides (out on the water or up the bluff) and rooftop seats always return you to their step-in spot.
+    if (s && (s.ride || s.y || Math.hypot(pos.current.x - s.point[0], pos.current.z - s.point[1]) < 0.3))
       pos.current.set(s.approach[0], 0, s.approach[1]);
   };
   useEffect(() => {
@@ -233,15 +236,7 @@ export function World({
       const s = seats.find(s => s.id === seat)!;
       sittingIn.current = s;
       playerState.elevated = !!s.y;
-      if (s.kind === 'kayak') {
-        // Paddle a loop around the island, starting from the jetty.
-        ride.current = {
-          angle: Math.atan2(s.point[1] - ISLAND_CENTER_Z, s.point[0] / ISLAND_X_SCALE),
-          travelled: 0,
-          from: s.point,
-        };
-        kayakRide.index = Number(s.id.split('-')[1]);
-      }
+      if (s.ride) Object.assign(rideState, { seat: s.id, kind: s.ride.kind, t: 0, y: 0, heading: s.angle, boat: null });
       path.current = [];
       setMarker(null);
       pos.current.set(s.point[0], 0, s.point[1]);
@@ -278,7 +273,7 @@ export function World({
         fitMode === 'overview'
           ? Math.min(16, size.width / 104, size.height / 80)
           : Math.min(36, size.width / 20, size.height / 17);
-      controls.current.object.zoom = (fit * zoom) / 30;
+      controls.current.object.zoom = baseZoom.current = (fit * zoom) / 30;
       controls.current.object.updateProjectionMatrix();
     }
   }, [zoom, reset, size.width, size.height, viewMode]);
@@ -289,18 +284,19 @@ export function World({
     let dx = 0,
       dz = 0;
     const sat = seat ? sittingIn.current : null;
-    if (sat?.kind === 'kayak' && !k.size) {
-      const r = ride.current;
-      r.travelled += dt;
-      r.angle += dt * 0.07;
-      const [lx, lz] = shorePoint(r.angle, 5.5),
-        [ax, az] = shorePoint(r.angle + 0.02, 5.5),
-        ease = Math.min(1, r.travelled / 3);
-      pos.current.set(r.from[0] + (lx - r.from[0]) * ease, 0, r.from[1] + (lz - r.from[1]) * ease);
-      const heading = Math.atan2(ax - lx, az - lz);
-      avatar.current.rotation.y = turnToward(avatar.current.rotation.y, heading, dt, 4);
-      Object.assign(kayakRide, { x: pos.current.x, z: pos.current.z, heading: avatar.current.rotation.y });
-      if (r.travelled * 0.07 >= Math.PI * 2) setSeat(null);
+    if (sat?.ride && !k.size) {
+      // Autopilot: follow the ride's path; the vehicle follows the shared ride state.
+      rideState.t += dt;
+      const p = ridePose(sat.ride.kind, sat.ride.launch, rideState.t);
+      if (!Number.isNaN(p.heading))
+        rideState.heading = turnToward(rideState.heading, p.heading, dt, sat.ride.kind === 'climb' ? 6 : 3);
+      Object.assign(rideState, { x: p.x, y: p.y, z: p.z, roll: p.roll, boat: p.boat ?? null });
+      // A second rider sits further along the boat.
+      const deck = sat.ride.deck ?? 0;
+      pos.current.set(p.x + Math.sin(rideState.heading) * deck, 0, p.z + Math.cos(rideState.heading) * deck);
+      rideY.current = p.y;
+      avatar.current.rotation.y = rideState.heading;
+      if (p.done) setSeat(null);
     }
     if (k.size) {
       if (viewMode !== 'follow') onExplore();
@@ -336,6 +332,14 @@ export function World({
       walk.current += dt * 12;
     }
     if (controls.current) {
+      // Parasailing pulls the camera back as you rise, to take in the whole island.
+      const lift = sat?.ride?.kind === 'parasail' ? Math.min(1, rideY.current / PARASAIL_HEIGHT) : 0,
+        view = controls.current.object,
+        wantZoom = baseZoom.current * (1 - 0.5 * lift);
+      if (baseZoom.current && Math.abs(view.zoom - wantZoom) > 1e-3) {
+        view.zoom = THREE.MathUtils.damp(view.zoom, wantZoom, 3, dt);
+        view.updateProjectionMatrix();
+      }
       const target = controls.current.target;
       if (cameraView.look) {
         const [x, z] = clampFocus(...cameraView.look);
@@ -346,7 +350,7 @@ export function World({
       const free = viewMode === 'free' || dragging.current || lookPending.current;
       if (viewMode === 'free') lookPending.current = false;
       if (free) desiredFocus.current.copy(freeFocus.current);
-      else if (viewMode === 'follow') desiredFocus.current.copy(pos.current);
+      else if (viewMode === 'follow') desiredFocus.current.copy(pos.current).setY(rideY.current * 0.8);
       else desiredFocus.current.set(...OVERVIEW_CENTER);
       cameraDelta.current
         .copy(desiredFocus.current)
@@ -370,7 +374,12 @@ export function World({
     }
     avatar.current.position.copy(pos.current);
     const now = performance.now() / 1000,
-      pose = sat ? seatPose(sat.kind, sat.y ?? 0, motionOn ? now : 0) : UPRIGHT;
+      rider = sat?.ride && riderPose(sat.ride.kind, now, -rideY.current),
+      pose = rider
+        ? { ...rider, y: rideY.current + rider.y }
+        : sat
+          ? seatPose(sat.kind, sat.y ?? 0, motionOn ? now : 0)
+          : UPRIGHT;
     // Emotes: a short hop, spin or cheer.
     const e = emoteState.current,
       age = now - e.start,
@@ -444,6 +453,7 @@ export function World({
         night={night}
         motion={motionOn}
       />
+      <WaterSports motion={motionOn} />
       <Cat player={pos} motion={motionOn} onPet={onPetCat} />
       <Shells shells={shells} player={pos} onCollect={onShell} onWalk={walkTo} />
       <Rain raining={raining} motion={motionOn} />

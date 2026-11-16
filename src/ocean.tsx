@@ -3,6 +3,7 @@ import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 import type { IslandTime } from './atmosphere';
 import { periods } from './daylight';
+import { ride } from './fun-state';
 import { shorelineGLSL, ISLAND_CENTER_Z } from './shoreline';
 
 const palettes = {
@@ -40,6 +41,8 @@ const fragmentShader = `
     uniform vec3 shallowColor;
     uniform vec3 foamColor;
     uniform vec3 glintColor;
+    uniform vec2 diveCenter;
+    uniform float diveClear;
     ${shorelineGLSL}
     float hash(vec2 p) { return fract(sin(dot(p, vec2(127.1,311.7))) * 43758.5453); }
     float caustic(vec2 p) {
@@ -99,7 +102,10 @@ const fragmentShader = `
         float spark = crossLight * step(0.94, seed) * twinkle * smoothstep(0.35, 1.0, shore);
         water = mix(water, glintColor, clamp(spark * 0.85, 0.0, 0.8));
         float clarity = mix(0.66, 0.88, smoothstep(1.0, 7.0, max(shore, 0.0)));
-        gl_FragColor = vec4(water, clarity);
+        // While you're diving, the water round you clears so the reef shows through.
+        float window = diveClear * (1.0 - smoothstep(4.0, 10.0, distance(p, diveCenter)));
+        water = mix(water, vec3(0.32, 0.72, 0.82), window * 0.35);
+        gl_FragColor = vec4(water, clarity * (1.0 - 0.82 * window));
         #include <tonemapping_fragment>
         #include <colorspace_fragment>
     }
@@ -143,6 +149,8 @@ export function Ocean({ motion, time }: { motion: boolean; time: IslandTime }) {
       shallowColor: { value: target[1].clone() },
       foamColor: { value: target[2].clone() },
       glintColor: { value: target[3].clone() },
+      diveCenter: { value: new THREE.Vector2() },
+      diveClear: { value: 0 },
     }),
     [],
   );
@@ -151,6 +159,9 @@ export function Ocean({ motion, time }: { motion: boolean; time: IslandTime }) {
     if (!material.current) return;
     const values = material.current.uniforms;
     values.time.value = elapsed.current;
+    const diving = ride.kind === 'scuba' && ride.y < -0.2;
+    if (diving) values.diveCenter.value.set(ride.x, ride.z);
+    values.diveClear.value = THREE.MathUtils.damp(values.diveClear.value, diving ? 1 : 0, 2, Math.min(dt, 0.1));
     const alpha = motion ? 1 - Math.exp(-Math.min(dt, 0.1) * 2) : 1;
     values.lightDirection.value.lerp(direction, alpha).normalize();
     values.shallowLight.value = THREE.MathUtils.lerp(values.shallowLight.value, shallowLight, alpha);

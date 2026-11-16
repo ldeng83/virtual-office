@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { Period } from './daylight';
 import { EMOTE_ICONS, type Emote } from './fun-state';
+import type { RideKind } from './rides';
 import { dailyShells } from './island-extras';
 import { LofiRadio, Piano } from './music';
 import type { CoworkerView } from './use-coworkers';
@@ -113,8 +114,8 @@ export function useFun({
   }, [seat]);
 
   useEffect(() => {
-    if (seat?.startsWith('ky-'))
-      notify('🛶 Paddling around the island. Press a movement key or Paddle back to return.');
+    const ride = seats.find(s => s.id === seat)?.ride?.kind;
+    if (ride) notify(RIDE_STARTS[ride]);
     if (seat?.startsWith('hm-')) notify('🌴 Swinging in the hammock. Take your time.');
     if (seat?.startsWith('rt-')) notify('☀️ Up on the rooftop terrace. Best view on the island.');
   }, [seat]);
@@ -229,11 +230,29 @@ export function useFun({
   };
 }
 
+// Rides run on autopilot; any movement key (or the button) brings you back.
+const RIDE_STARTS: Record<RideKind, string> = {
+  kayak: '🛶 Paddling around the island. Press a movement key or Paddle back to return.',
+  jetski: '🚤 Full throttle! A lap of the island on the jet ski.',
+  sailboat: '⛵ Sails up. A slow, calm lap of the island.',
+  parasail: '🪂 Hold on: the boat lifts you up for the best view of the island.',
+  climb: '🧗 Climbing the bluff. There’s a lookout at the top.',
+  scuba: '🤿 Diving down to the reef. Look out for the turtle and the wreck.',
+};
+const RIDE_MESSAGES: Record<RideKind, { text: string; action: string }> = {
+  kayak: { text: 'Paddling around the island', action: 'Paddle back' },
+  jetski: { text: 'Riding the jet ski', action: 'Head back' },
+  sailboat: { text: 'Sailing around the island', action: 'Sail back' },
+  parasail: { text: 'Parasailing over the sea', action: 'Come down' },
+  climb: { text: 'On the climbing bluff', action: 'Climb down' },
+  scuba: { text: 'Scuba diving on the reef', action: 'Surface' },
+};
+
 // What the seat message says for each kind of seat.
 export function seatMessage(id: string) {
   const seat = seats.find(s => s.id === id);
   if (!seat) return { text: 'Settled in', action: 'Stand up' };
-  if (seat.kind === 'kayak') return { text: 'Paddling around the island', action: 'Paddle back' };
+  if (seat.ride) return RIDE_MESSAGES[seat.ride.kind];
   if (seat.kind === 'hammock') return { text: 'Swinging in the hammock', action: 'Get up' };
   if (id === 'pn-0') return { text: 'Playing the piano', action: 'Stop playing' };
   if (id.startsWith('fs-')) return { text: 'Fishing off the jetty', action: 'Reel in' };

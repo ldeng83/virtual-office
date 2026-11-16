@@ -18,8 +18,6 @@ export function seatPose(kind: Seat['kind'], elevation = 0, time = 0): Pose {
       return { y: elevation + 0.22, pitch: -1.05, z: 0.4, roll: 0 };
     case 'hammock':
       return { y: elevation + 0.72, pitch: -Math.PI / 2, z: 0.72, roll: hammockSway(time) };
-    case 'kayak':
-      return { ...UPRIGHT, y: -0.58 };
     case 'crate':
       return { ...UPRIGHT, y: elevation - 0.26 };
     case 'log':

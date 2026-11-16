@@ -1,5 +1,6 @@
 import { Label } from './label';
 import { seats } from './world';
+import type { RideKind } from './rides';
 
 export function Box({
   p,
@@ -74,7 +75,7 @@ export function Seat({ seat, onSelect }: { seat: (typeof seats)[number]; onSelec
       }}
       onPointerOut={() => (document.body.style.cursor = 'auto')}
     >
-      {seatModel(seat.kind)}
+      {seat.ride ? rideHitArea(seat.ride.kind) : seatModel(seat.kind)}
     </group>
   );
 }
@@ -88,9 +89,23 @@ function HitArea({ w, d, h = 0.6 }: { w: number; d: number; h?: number }) {
     </mesh>
   );
 }
+// Rides: the vehicle is drawn elsewhere; the climb and the dive get a step-in ring.
+function rideHitArea(kind: RideKind) {
+  if (kind === 'kayak') return <HitArea w={0.8} d={2.6} h={0.4} />;
+  if (kind === 'jetski') return <HitArea w={0.9} d={2.2} h={0.6} />;
+  if (kind === 'sailboat' || kind === 'parasail') return <HitArea w={1.3} d={1.5} h={1} />;
+  return (
+    <>
+      <mesh position={[0, kind === 'scuba' ? -0.3 : 0.13, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+        <ringGeometry args={[0.22, 0.3, 24]} />
+        <meshBasicMaterial color="#fffce8" transparent opacity={0.75} />
+      </mesh>
+      <HitArea w={0.9} d={0.9} h={kind === 'climb' ? 2 : 0.6} />
+    </>
+  );
+}
 function seatModel(kind: (typeof seats)[number]['kind']) {
   if (kind === 'hammock') return <HitArea w={0.9} d={2} h={1.1} />;
-  if (kind === 'kayak') return <HitArea w={0.8} d={2.6} h={0.4} />;
   if (kind === 'stand')
     return (
       <>

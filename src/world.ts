@@ -1,4 +1,5 @@
 import { shoreDistance, shorePoint, WALK_INSET } from './shoreline.ts';
+import type { RideKind } from './rides.ts';
 export type Point = [number, number];
 // ---- Campus layout (world units: x east, z south; the arrival pier is on the south shore) ----
 // Building pads: floors now, walls and roofs later. `glass` pads become see-through pavilions.
@@ -135,10 +136,13 @@ export type Seat = {
   name: string;
   point: Point;
   angle: number;
-  kind?: 'chair' | 'bench' | 'stool' | 'lounger' | 'armchair' | 'stand' | 'hammock' | 'log' | 'crate' | 'kayak';
+  kind?: 'chair' | 'bench' | 'stool' | 'lounger' | 'armchair' | 'stand' | 'hammock' | 'log' | 'crate' | 'ride';
   // Height of the seat's floor above the ground (the rooftop terrace).
   y?: number;
-  // Set for seats reached in a special way (rooftop stairs, kayaks at the jetty).
+  // Autopilot rides (kayaks, jet skis, boats, the climb, the dive) start from `launch`;
+  // `deck` places a second rider along the boat.
+  ride?: { kind: RideKind; launch: Point; deck?: number };
+  // Set for seats reached in a special way (rooftop stairs, rides off the docks).
   fixedApproach?: boolean;
   // Where people step in and out of the seat; the seat itself is solid.
   approach: Point;
@@ -154,7 +158,7 @@ const seatFootprint: Record<NonNullable<Seat['kind']>, [number, number]> = {
   hammock: [0.9, 2.3],
   log: [0.9, 0.45],
   crate: [0.5, 0.5],
-  kayak: [0.6, 2.4],
+  ride: [0.6, 0.6],
 };
 const facing = (from: Point, to: Point) => Math.atan2(to[0] - from[0], to[1] - from[1]);
 const ring = (
@@ -191,6 +195,19 @@ export const kayakMoorings: Point[] = [
   [-34.28, -6.23],
   [-36.28, -6.23],
 ];
+// Water sports dock on the south-west shore: jet skis, a sailboat and the parasail tow boat.
+export const marina = { x: -10.5, z0: 9.4, z1: 19.6, w: 1.8 };
+export const waterSportsHut = { x: -14.2, z: 8.2, w: 2.6, d: 1.7 };
+export const jetSkiMoorings: Point[] = [
+  [-12.1, 15.6],
+  [-12.1, 17.7],
+];
+export const sailboatMooring: Point = [-8.6, 16.6];
+export const towBoatMooring: Point = [-10.5, 21.2];
+// Climbing bluff on the north shore: a rock face with a lookout on top. faceZ is the face at its foot.
+export const bluff = { x: -1.4, z: -48.7, rx: 3.6, rz: 2.8, h: 6.5, faceZ: -45.9, lean: 1.2 };
+// A small reef off the end of the fishing jetty, for diving.
+export const reef = { x: -43.5, z: -1.2 };
 export const piano = { x: 7.08, z: 4.85, w: 1.5, d: 0.6 };
 export const radio: Point = [11.5, 1.37];
 export const telescope: Point = [-19.7, -35.23];
@@ -318,10 +335,61 @@ export const seats = [
     name: 'Kayak',
     point,
     angle: -Math.PI / 2,
-    kind: 'kayak' as const,
+    kind: 'ride' as const,
+    ride: { kind: 'kayak' as const, launch: point },
     approach: [point[0], jetty.z - 0.45] as Point,
     fixedApproach: true,
   })),
+  {
+    id: 'dv-0',
+    name: 'Dive ladder',
+    point: [jetty.x0 + 2, jetty.z + 1.3] as Point,
+    angle: 0,
+    kind: 'ride' as const,
+    ride: { kind: 'scuba' as const, launch: [jetty.x0 + 2, jetty.z + 1.3] as Point },
+    approach: [jetty.x0 + 2, jetty.z + 0.45] as Point,
+    fixedApproach: true,
+  },
+  ...jetSkiMoorings.map((point, i) => ({
+    id: `js-${i}`,
+    name: 'Jet ski',
+    point,
+    angle: 0,
+    kind: 'ride' as const,
+    ride: { kind: 'jetski' as const, launch: point },
+    approach: [marina.x - 0.45, point[1]] as Point,
+    fixedApproach: true,
+  })),
+  ...[-0.9, 0.7].map((deck, i) => ({
+    id: `sb-${i}`,
+    name: 'Sailboat',
+    point: [sailboatMooring[0], sailboatMooring[1] + deck] as Point,
+    angle: 0,
+    kind: 'ride' as const,
+    ride: { kind: 'sailboat' as const, launch: sailboatMooring, deck },
+    approach: [marina.x + 0.45, sailboatMooring[1] + deck] as Point,
+    fixedApproach: true,
+  })),
+  {
+    id: 'pa-0',
+    name: 'Parasail',
+    point: [towBoatMooring[0], towBoatMooring[1] - 0.9] as Point,
+    angle: 0,
+    kind: 'ride' as const,
+    ride: { kind: 'parasail' as const, launch: towBoatMooring },
+    approach: [marina.x, marina.z1 - 0.4] as Point,
+    fixedApproach: true,
+  },
+  {
+    id: 'cl-0',
+    name: 'Climbing wall',
+    point: [bluff.x, bluff.faceZ + 0.32] as Point,
+    angle: Math.PI,
+    kind: 'ride' as const,
+    ride: { kind: 'climb' as const, launch: [bluff.x, bluff.faceZ + 0.32] as Point },
+    approach: [bluff.x, bluff.faceZ + 1.2] as Point,
+    fixedApproach: true,
+  },
   {
     id: 'pn-0',
     name: 'Piano bench',
@@ -416,9 +484,23 @@ export const locations = [
   {
     id: 'jetty',
     name: 'Fishing jetty',
-    detail: 'Cast a line or take a kayak out',
+    detail: 'Fish, kayak or go scuba diving',
     point: [-30.48, -4.63] as Point,
     color: '#8fb7c9',
+  },
+  {
+    id: 'marina',
+    name: 'Water sports',
+    detail: 'Jet skis, sailing and parasailing',
+    point: [marina.x, 9.6] as Point,
+    color: '#6fb2c8',
+  },
+  {
+    id: 'bluff',
+    name: 'Climbing bluff',
+    detail: 'Climb to the lookout',
+    point: [bluff.x, bluff.faceZ + 2.2] as Point,
+    color: '#b59a82',
   },
 ];
 export const districts = locations;
@@ -483,6 +565,14 @@ export const walkways: Point[][] = [
     [13.68, -33.91],
     [10, -36.37],
   ],
+  [
+    [0, 9.8],
+    [marina.x, 9.8],
+  ],
+  [
+    [-6.2, -32.83],
+    [bluff.x, bluff.faceZ + 1.2],
+  ],
 ];
 // Small fixed decor that also blocks walking.
 // Plaza lamp posts: evenly spaced round the edge, skipping spots where a walkway leaves the plaza.
@@ -492,7 +582,7 @@ export const lampPosts: Point[] = Array.from({ length: 16 }, (_, i) => (i * Math
   .filter((_, i) => i % 2 === 0);
 export const lobbyPlanter: Point = [-3.4, 6.97];
 const seatBlocks: Block[] = seats
-  .filter(seat => !seat.y && seat.kind !== 'kayak')
+  .filter(seat => !seat.y && seat.kind !== 'ride')
   .map(seat => {
     const [w, d] = seatFootprint[seat.kind ?? 'chair'],
       s = Math.abs(Math.sin(seat.angle)),
@@ -511,6 +601,7 @@ const blocks: Block[] = [
   { x: firepit.x, z: firepit.z, r: firepit.r + 0.25 },
   { x: piano.x, z: piano.z, hx: piano.w / 2 + 0.2, hz: piano.d / 2 + 0.2 },
   { x: telescope[0], z: telescope[1], r: 0.45 },
+  { x: waterSportsHut.x, z: waterSportsHut.z, hx: waterSportsHut.w / 2 + 0.25, hz: waterSportsHut.d / 2 + 0.25 },
   {
     x: roofStair.x,
     z: (roofStair.z0 + roofStair.z1) / 2,
@@ -565,6 +656,9 @@ function clearForTree(point: Point) {
     (Math.abs(point[0] - gamesLawn.x) > gamesLawn.w / 2 + 1 ||
       Math.abs(point[1] - gamesLawn.z) > gamesLawn.d / 2 + 1) &&
     segmentDistance(point, [jetty.x0, jetty.z], [jetty.x1 + 2, jetty.z]) > 2.2 &&
+    segmentDistance(point, [marina.x, marina.z0 - 2], [marina.x, marina.z1]) > 2.2 &&
+    Math.hypot(point[0] - waterSportsHut.x, point[1] - waterSportsHut.z) > 2.6 &&
+    Math.hypot(point[0] - bluff.x, point[1] - bluff.z) > bluff.rx + 2.5 &&
     Math.hypot(point[0] - roofStair.x, point[1] - (roofStair.z0 + roofStair.z1) / 2) > 3.5
   );
 }
@@ -585,7 +679,10 @@ for (const point of [
 ] as Point[])
   if (clearForTree(point)) trees.push(point);
 export const onJetty = (x: number, z: number) =>
-  Math.abs(z - jetty.z) < jetty.w / 2 - 0.15 && x > jetty.x0 + 0.15 && x < jetty.x1;
+  (Math.abs(z - jetty.z) < jetty.w / 2 - 0.15 && x > jetty.x0 + 0.15 && x < jetty.x1) ||
+  (Math.abs(x - marina.x) < marina.w / 2 - 0.15 && z > marina.z0 && z < marina.z1 - 0.15);
+export const onBluff = (x: number, z: number) =>
+  ((x - bluff.x) / (bluff.rx + 0.3)) ** 2 + ((z - bluff.z) / (bluff.rz + 0.35)) ** 2 < 1;
 export function walkable(x: number, z: number) {
   if (shoreDistance(x, z) > -WALK_INSET && !onJetty(x, z)) return false;
   if (desks.some(d => Math.abs(x - d.x) < 0.73 && Math.abs(z - d.z) < 0.57)) return false;
@@ -596,6 +693,7 @@ export function walkable(x: number, z: number) {
     )
   )
     return false;
+  if (onBluff(x, z)) return false;
   if (ponds.some(p => ((x - p.x) / (p.rx + 0.25)) ** 2 + ((z - p.z) / (p.rz + 0.25)) ** 2 < 1)) return false;
   return true;
 }
