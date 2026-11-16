@@ -1,7 +1,11 @@
 export const ISLAND_X_SCALE = 1.28;
-export const ISLAND_SCALE = Math.sqrt(5);
-export const ISLAND_CENTER_Z = 10.4 * (1 - ISLAND_SCALE);
-export const WALK_INSET = 1.25 * ISLAND_SCALE;
+// The island was grown 5x in area from the original, then by GROWTH again around the same centre.
+const BASE_SCALE = Math.sqrt(5);
+export const GROWTH = 1.2;
+export const ISLAND_SCALE = BASE_SCALE * GROWTH;
+export const ISLAND_CENTER_Z = 10.4 * (1 - BASE_SCALE);
+// The unwalkable beach band keeps its width as the island grows.
+export const WALK_INSET = 1.25 * BASE_SCALE;
 export const OVERVIEW_CENTER: [number, number, number] = [2.8, 0, ISLAND_CENTER_Z - 1.6 * ISLAND_SCALE];
 const BASE_RADIUS = 10.4;
 const GARDEN_EXPANSION = 3.2;

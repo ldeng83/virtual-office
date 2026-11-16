@@ -68,7 +68,7 @@ export function IslandMap({
       {open && (
         <div id="island-mini-map">
           <svg
-            viewBox="-40 -48 84 64"
+            viewBox="-47 -56 100 76"
             role="group"
             aria-label="Island map. Click or drag to look around; select a district to travel there."
             onPointerDown={e => {

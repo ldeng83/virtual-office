@@ -335,8 +335,8 @@ export function Campus({ news, night }: { news: News; night: number }) {
           )}
         </group>
       ))}
-      <Screen x={19} z={-16.4} w={2.6} h={1.4} y={1} facing={0} />
-      <Screen x={17} z={-28.4} w={4} h={1.6} y={1} facing={0} />
+      <Screen x={22.8} z={-16.63} w={2.6} h={1.4} y={1} facing={0} />
+      <Screen x={20.4} z={-30.93} w={4} h={1.6} y={1} facing={0} />
 
       {/* Focus library: six booths with a desk, side panels and a lamp */}
       {booths.map(b => (
@@ -414,11 +414,11 @@ export function Campus({ news, night }: { news: News; night: number }) {
           ))}
         </group>
       ))}
-      <Box p={[-17.6, 0.16, -31.5]} s={[2.6, 0.12, 2.2]} c={TIMBER} />
+      <Box p={[-19.7, 0.16, -35.63]} s={[2.6, 0.12, 2.2]} c={TIMBER} />
       {[-0.6, 0.6].map(x => (
         <Box
           key={x}
-          p={[-17.6 + x, 0.23, -31.5]}
+          p={[-19.7 + x, 0.23, -35.63]}
           s={[0.6, 0.02, 1.5]}
           c={x < 0 ? '#9cc0b3' : '#e0a8b4'}
           shadow={false}

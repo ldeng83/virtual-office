@@ -12,6 +12,7 @@ import { Waves } from 'lucide-react';
 import {
   desks,
   findPath,
+  locations,
   seats,
   trees,
   walkable,
@@ -190,7 +191,7 @@ export function World({
     desiredFocus = useRef(new THREE.Vector3()),
     lookPending = useRef(false);
   const mover = useRef({ speed: 0 });
-  const pos = useRef(new THREE.Vector3(0, 0, 7)),
+  const pos = useRef(new THREE.Vector3(locations[0].point[0], 0, locations[0].point[1])),
     path = useRef<Point[]>([]),
     keys = useRef(new Set<string>()),
     walk = useRef(0),
@@ -275,7 +276,7 @@ export function World({
     if (controls.current) {
       const fit =
         fitMode === 'overview'
-          ? Math.min(16, size.width / 88, size.height / 68)
+          ? Math.min(16, size.width / 104, size.height / 80)
           : Math.min(36, size.width / 20, size.height / 17);
       controls.current.object.zoom = (fit * zoom) / 30;
       controls.current.object.updateProjectionMatrix();
@@ -508,9 +509,9 @@ export function World({
       {trees.map(([x, z], i) => (
         <Palm key={i} x={x} z={z} i={i} />
       ))}
-      <Box p={[0, -0.03, 9.3]} s={[2, 0.2, 3]} c="#b39a78" />
+      <Box p={[0, -0.03, 13.95]} s={[2, 0.2, 3]} c="#b39a78" />
       {Array.from({ length: 9 }, (_, i) => (
-        <Box key={i} p={[0, 0.08, 8 + i * 0.3]} s={[2.05, 0.04, 0.22]} c="#d5ba92" />
+        <Box key={i} p={[0, 0.08, 12.65 + i * 0.3]} s={[2.05, 0.04, 0.22]} c="#d5ba92" />
       ))}
       {districts
         .filter(d => d.id !== 'arrival')
@@ -561,7 +562,7 @@ export function World({
       <OrbitControls
         ref={controls}
         makeDefault
-        target={[0, 0, 7]}
+        target={[locations[0].point[0], 0, locations[0].point[1]]}
         minZoom={2}
         maxZoom={75}
         minPolarAngle={0.3}

@@ -1,3 +1,4 @@
+import { lampPosts } from './world';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useFrame } from '@react-three/fiber';
 import { Moon, Sun, Sunrise, Sunset, CloudSun, Volume2, VolumeX, Waves } from 'lucide-react';
@@ -145,16 +146,16 @@ export function AtmosphereScene({
       />
       <Ocean motion={settings.motion} time={time} />
       <SeaLife motion={settings.motion} />
-      <pointLight ref={fire} position={[11, 1.7, 3.4]} color="#ffab59" distance={8} decay={2} />
+      <pointLight ref={fire} position={[13.2, 1.7, 5.97]} color="#ffab59" distance={8} decay={2} />
       <group ref={lamps}>
-        {Array.from({ length: 8 }, (_, i) => (i * Math.PI) / 4 + Math.PI / 8).map(a => (
-          <mesh key={a} position={[Math.cos(a) * 6.6, 2.05, -9 + Math.sin(a) * 6.6]}>
+        {lampPosts.map(([x, z]) => (
+          <mesh key={`${x},${z}`} position={[x, 2.05, z]}>
             <sphereGeometry args={[0.07, 8, 6]} />
             <meshStandardMaterial color="#ffe0a0" emissive="#ffca79" />
           </mesh>
         ))}
       </group>
-      <pointLight ref={studio} position={[0, 2.6, -25]} color="#ffd19a" distance={14} decay={2} />
+      <pointLight ref={studio} position={[0, 2.6, -27.43]} color="#ffd19a" distance={14} decay={2} />
       <group ref={stars}>
         {Array.from({ length: 65 }, (_, i) => (
           <mesh

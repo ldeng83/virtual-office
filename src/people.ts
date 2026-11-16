@@ -143,8 +143,8 @@ export const demoCoworkers: DemoCoworker[] = [
             pose: 'look',
             dwell: [8, 16],
             weight: 3,
-            point: [19, -10.6],
-            face: [19, -14],
+            point: [22.8, -10.83],
+            face: [22.8, -14.23],
           },
           {
             place: 'Main workspace',

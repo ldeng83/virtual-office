@@ -398,15 +398,15 @@ function RoofTerrace() {
     run = (roofStair.z1 - roofStair.z0) / steps;
   return (
     <group name="roof-terrace">
-      <Box p={[-6.4, top - 0.02, -26]} s={[6.6, 0.06, 5.6]} c="#c9a87e" />
+      <Box p={[-6.4, top - 0.02, -28.43]} s={[6.6, 0.06, 5.6]} c="#c9a87e" />
       {[-9.7, -3.1].map(x => (
-        <Box key={x} p={[x, top + 0.45, -26]} s={[0.05, 0.9, 5.6]} c="#d9d2c0" />
+        <Box key={x} p={[x, top + 0.45, -28.43]} s={[0.05, 0.9, 5.6]} c="#d9d2c0" />
       ))}
-      <Box p={[-6.4, top + 0.45, -28.8]} s={[6.6, 0.9, 0.05]} c="#d9d2c0" />
-      <Box p={[-6.4, top + 0.88, -23.2]} s={[6.6, 0.05, 0.05]} c="#d9d2c0" />
+      <Box p={[-6.4, top + 0.45, -31.23]} s={[6.6, 0.9, 0.05]} c="#d9d2c0" />
+      <Box p={[-6.4, top + 0.88, -25.63]} s={[6.6, 0.05, 0.05]} c="#d9d2c0" />
       {[
-        [-9.2, -23.7],
-        [-3.6, -23.7],
+        [-9.2, -26.13],
+        [-3.6, -26.13],
       ].map(([x, z]) => (
         <group key={x} position={[x, top, z]}>
           <Box p={[0, 0.25, 0]} s={[0.6, 0.5, 0.6]} c="#cfc6b0" />
@@ -416,8 +416,8 @@ function RoofTerrace() {
           </mesh>
         </group>
       ))}
-      <Cyl p={[-6.4, top + 1, -24.4]} r={0.03} h={2} c="#e9e2cc" seg={6} />
-      <mesh position={[-6.4, top + 2.05, -24.4]} castShadow>
+      <Cyl p={[-6.4, top + 1, -26.83]} r={0.03} h={2} c="#e9e2cc" seg={6} />
+      <mesh position={[-6.4, top + 2.05, -26.83]} castShadow>
         <coneGeometry args={[1.3, 0.45, 10]} />
         <meshStandardMaterial color="#e8a27f" />
       </mesh>

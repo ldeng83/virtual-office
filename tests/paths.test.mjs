@@ -28,8 +28,8 @@ test('every route between places walks only on open ground, including between wa
 });
 
 test('open ground is crossed in a straight line, not a staircase', () => {
-  const start = [0, 7],
-    end = [3, 5.5];
+  const start = locations[0].point,
+    end = [start[0] + 3, start[1] - 1.5];
   assert.ok(clearLine(start, end));
   assert.deepEqual(findPath(start, end), [end]);
 });

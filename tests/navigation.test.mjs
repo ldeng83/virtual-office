@@ -23,7 +23,7 @@ import {
 
 test('island boundary, trees, desks, furniture and the pond block movement', () => {
   assert.equal(walkable(60, 0), false);
-  assert.equal(walkable(0, 12), false);
+  assert.equal(walkable(0, 17), false);
   for (const d of desks) assert.equal(walkable(d.x, d.z), false);
   for (const t of trees) assert.equal(walkable(...t), false);
   for (const p of ponds) assert.equal(walkable(p.x, p.z), false);
@@ -31,7 +31,7 @@ test('island boundary, trees, desks, furniture and the pond block movement', () 
   for (const t of [tables.pavM, tables.pavL, tables.counter, tables.reception, tables.atrium])
     assert.equal(walkable(t.x, t.z), false);
   for (const b of booths) assert.equal(walkable(b.x, b.z - 0.45), false);
-  assert.equal(walkable(0, 7), true);
+  assert.equal(walkable(...locations[0].point), true);
 });
 test('every place is connected by a collision-free route', () => {
   for (const start of locations)
@@ -47,7 +47,7 @@ test('seats are solid, and every seat has a free step-in spot reachable from the
   assert.equal(new Set(seats.map(s => s.id)).size, seats.length, 'seat ids are unique');
   for (const seat of seats) {
     assert.ok(walkable(...seat.approach), `${seat.id} step-in spot is blocked`);
-    assert.ok(findPath([0, 7], seat.approach).length, `${seat.id} unreachable`);
+    assert.ok(findPath(locations[0].point, seat.approach).length, `${seat.id} unreachable`);
     if (seat.y) continue; // rooftop seats are reached by the stair, above walkable ground
     assert.equal(walkable(...seat.point), false, `${seat.id} can be walked through`);
     assert.ok(
@@ -60,7 +60,7 @@ test('seats are solid, and every seat has a free step-in spot reachable from the
 test('fun spots: rooftop seats sit on the roof, the jetty is walkable over water, kayaks float', () => {
   for (const seat of seats.filter(s => s.id.startsWith('rt-'))) assert.equal(seat.y, ROOF_Y);
   assert.ok(walkable(jetty.x0 + 1, jetty.z), 'end of the jetty');
-  assert.ok(findPath([0, 7], [jetty.x0 + 1.4, jetty.z]).length, 'jetty reachable');
+  assert.ok(findPath(locations[0].point, [jetty.x0 + 1.4, jetty.z]).length, 'jetty reachable');
   assert.equal(walkable(jetty.x0 + 1, jetty.z + 2), false, 'water beside the jetty');
   for (const seat of seats.filter(s => s.kind === 'kayak')) assert.equal(walkable(...seat.point), false);
 });
@@ -68,8 +68,8 @@ test('lamp posts, flower beds and the lobby planter block walking', () => {
   for (const p of [...lampPosts, ...flowerBeds, lobbyPlanter]) assert.equal(walkable(...p), false, String(p));
 });
 test('invalid destinations return no path', () => {
-  assert.deepEqual(findPath([0, 7], [100, 100]), []);
-  assert.deepEqual(findPath([0, 7], [desks[0].x, desks[0].z]), []);
+  assert.deepEqual(findPath(locations[0].point, [100, 100]), []);
+  assert.deepEqual(findPath(locations[0].point, [desks[0].x, desks[0].z]), []);
 });
 test('campus is sized for the team: 14 desks, 20 meeting seats, 6 focus booths', () => {
   assert.equal(desks.length, 14);
