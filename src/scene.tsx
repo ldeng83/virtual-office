@@ -1,8 +1,8 @@
 import { Cat, Rain, Rainbow, Shells, type Shell } from './island-extras';
 import { FunSpots } from './fun';
 import { WaterSports } from './water-sports';
-import { EMOTE_ICONS, playerState, ride as rideState, type Emote } from './fun-state';
-import { PARASAIL_HEIGHT, ridePose, riderPose } from './rides';
+import { EMOTE_ICONS, playerState, riders, type Emote } from './fun-state';
+import { PARASAIL_HEIGHT, riderPose, riderSpot, startRide, stepRide } from './rides';
 import { seatPose, UPRIGHT } from './poses';
 import React, { useEffect, useRef, useState } from 'react';
 import { useFrame, useThree } from '@react-three/fiber';
@@ -225,7 +225,7 @@ export function World({
     const s = sittingIn.current;
     sittingIn.current = null;
     playerState.elevated = false;
-    rideState.seat = rideState.kind = rideState.boat = null;
+    if (s?.ride) delete riders[s.id];
     rideY.current = 0;
     // Rides (out on the water or up the bluff) and rooftop seats always return you to their step-in spot.
     if (s && (s.ride || s.y || Math.hypot(pos.current.x - s.point[0], pos.current.z - s.point[1]) < 0.3))
@@ -234,9 +234,12 @@ export function World({
   useEffect(() => {
     if (seat) {
       const s = seats.find(s => s.id === seat)!;
+      // Switching straight from one ride to another leaves the first vehicle behind.
+      if (sittingIn.current?.ride) delete riders[sittingIn.current.id];
+      rideY.current = 0;
       sittingIn.current = s;
       playerState.elevated = !!s.y;
-      if (s.ride) Object.assign(rideState, { seat: s.id, kind: s.ride.kind, t: 0, y: 0, heading: s.angle, boat: null });
+      if (s.ride) riders[s.id] = startRide(s, riders);
       path.current = [];
       setMarker(null);
       pos.current.set(s.point[0], 0, s.point[1]);
@@ -284,19 +287,15 @@ export function World({
     let dx = 0,
       dz = 0;
     const sat = seat ? sittingIn.current : null;
-    if (sat?.ride && !k.size) {
-      // Autopilot: follow the ride's path; the vehicle follows the shared ride state.
-      rideState.t += dt;
-      const p = ridePose(sat.ride.kind, sat.ride.launch, rideState.t);
-      if (!Number.isNaN(p.heading))
-        rideState.heading = turnToward(rideState.heading, p.heading, dt, sat.ride.kind === 'climb' ? 6 : 3);
-      Object.assign(rideState, { x: p.x, y: p.y, z: p.z, roll: p.roll, boat: p.boat ?? null });
-      // A second rider sits further along the boat.
-      const deck = sat.ride.deck ?? 0;
-      pos.current.set(p.x + Math.sin(rideState.heading) * deck, 0, p.z + Math.cos(rideState.heading) * deck);
-      rideY.current = p.y;
-      avatar.current.rotation.y = rideState.heading;
-      if (p.done) setSeat(null);
+    const view = sat?.ride ? riders[sat.id] : undefined;
+    if (sat && view && !k.size) {
+      // Autopilot: follow the ride's path; the vehicle follows your entry in `riders`.
+      const done = stepRide(sat, view, dt),
+        [x, z] = riderSpot(sat, view);
+      pos.current.set(x, 0, z);
+      rideY.current = view.y;
+      avatar.current.rotation.y = view.heading;
+      if (done) setSeat(null);
     }
     if (k.size) {
       if (viewMode !== 'follow') onExplore();

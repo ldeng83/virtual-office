@@ -1,12 +1,12 @@
 import { useMemo, useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
-import { ride } from './fun-state';
-import { climbFaceZ } from './rides';
+import { riders } from './fun-state';
+import { climbFaceZ, type RideView } from './rides';
 import { bluff, jetSkiMoorings, jetty, marina, reef, sailboatMooring, towBoatMooring, waterSportsHut } from './world';
 
 // Water sports dock (jet skis, sailboat, parasail tow boat), the climbing bluff and the dive reef.
-// Every vehicle sits at its mooring until you ride it, then follows the shared ride state.
+// Every vehicle sits at its mooring until someone rides it, then follows its rider (in `riders`).
 type V3 = [number, number, number];
 const ignore = () => {};
 const WATER = -0.4;
@@ -48,10 +48,11 @@ function moor(object: THREE.Object3D, x: number, z: number, heading: number, t: 
   object.position.set(x, WATER + 0.06 + Math.sin(t * 1.2 + seed) * 0.03, z);
   object.rotation.set(0, heading, Math.sin(t * 1.1 + seed) * 0.03);
 }
-function follow(object: THREE.Object3D, lift = 0) {
+function follow(object: THREE.Object3D, ride: RideView, lift = 0) {
   object.position.set(ride.x, WATER + 0.06 + lift, ride.z);
   object.rotation.set(0, ride.heading, ride.roll);
 }
+const sailor = () => riders['sb-0'] ?? riders['sb-1'];
 
 export function WaterSports({ motion }: { motion: boolean }) {
   return (
@@ -75,11 +76,13 @@ function Marina({ motion }: { motion: boolean }) {
   useFrame(({ clock }) => {
     const t = motion ? clock.elapsedTime : 0;
     skis.current?.children.forEach((ski, i) => {
-      if (ride.seat === `js-${i}`) follow(ski, ride.y);
+      const ride = riders[`js-${i}`];
+      if (ride) follow(ski, ride, ride.y);
       else moor(ski, ...jetSkiMoorings[i], 0, t, i);
     });
     if (sailboat.current) {
-      if (ride.kind === 'sailboat') follow(sailboat.current);
+      const ride = sailor();
+      if (ride) follow(sailboat.current, ride);
       else moor(sailboat.current, ...sailboatMooring, 0, t, 3);
       // The boom swings out to catch a westerly breeze.
       const heading = sailboat.current.rotation.y,
@@ -87,21 +90,22 @@ function Marina({ motion }: { motion: boolean }) {
       if (boom.current)
         boom.current.rotation.y = THREE.MathUtils.damp(
           boom.current.rotation.y,
-          ride.kind === 'sailboat' ? 0.55 * Math.sign(wind || 1) : 0,
+          ride ? 0.55 * Math.sign(wind || 1) : 0,
           2,
           1 / 60,
         );
     }
-    const towing = ride.kind === 'parasail' && ride.boat;
+    const ride = riders['pa-0'],
+      towing = ride?.boat;
     if (towBoat.current) {
       if (towing) {
-        towBoat.current.position.set(ride.boat!.x, WATER + 0.06, ride.boat!.z);
-        towBoat.current.rotation.set(0, ride.boat!.heading, Math.sin(t * 1.3) * 0.03);
+        towBoat.current.position.set(towing.x, WATER + 0.06, towing.z);
+        towBoat.current.rotation.set(0, towing.heading, Math.sin(t * 1.3) * 0.03);
       } else moor(towBoat.current, ...towBoatMooring, 0, t, 5);
     }
     if (chute.current && towLine.current) {
-      chute.current.visible = towLine.current.visible = !!towing && ride.y > 0.4;
-      if (towing) {
+      chute.current.visible = towLine.current.visible = !!ride && ride.y > 0.4;
+      if (ride && towing) {
         chute.current.position.set(ride.x, ride.y + 2.2, ride.z);
         chute.current.rotation.set(0, ride.heading, ride.roll);
         const boat = towBoat.current!;
@@ -213,21 +217,31 @@ function Marina({ motion }: { motion: boolean }) {
         <cylinderGeometry args={[0.015, 0.015, 1, 4]} />
         <meshBasicMaterial color="#f2efe6" />
       </mesh>
-      <Wake motion={motion} />
+      {['ky-0', 'ky-1', 'js-0', 'js-1', 'sb', 'pa-0'].map(id => (
+        <Wake key={id} motion={motion} rider={() => (id === 'sb' ? sailor() : riders[id])} />
+      ))}
     </group>
   );
 }
-// Foam trail behind whatever you're riding on the water: puffs dropped at the stern spread and fade.
+// Foam trail behind a boat while someone rides it: puffs dropped at the stern spread and fade.
 const PUFFS = 18;
-function Wake({ motion }: { motion: boolean }) {
+function Wake({ motion, rider }: { motion: boolean; rider: () => RideView | undefined }) {
+  const kind = useRef<RideView['kind']>('kayak');
   const puffs = useRef<THREE.Group>(null),
     trail = useRef(Array.from({ length: PUFFS }, () => ({ x: 0, z: 0, born: -10 }))),
     next = useRef(0),
     lastDrop = useRef(0);
   useFrame(({ clock }) => {
     const now = clock.elapsedTime,
-      water = ride.kind && ride.kind !== 'climb' && ride.kind !== 'scuba' && ride.t > 1.5 && ride.y < 0.3;
-    if (water && motion && now - lastDrop.current > (ride.kind === 'jetski' ? 0.07 : 0.14)) {
+      ride = rider();
+    if (ride) kind.current = ride.kind;
+    if (
+      ride &&
+      ride.t > 1.5 &&
+      ride.y < 0.3 &&
+      motion &&
+      now - lastDrop.current > (ride.kind === 'jetski' ? 0.07 : 0.14)
+    ) {
       lastDrop.current = now;
       const [x, z, heading] = ride.boat
         ? [ride.boat.x, ride.boat.z, ride.boat.heading]
@@ -239,11 +253,11 @@ function Wake({ motion }: { motion: boolean }) {
     puffs.current?.children.forEach((puff, i) => {
       const p = trail.current[i],
         age = now - p.born,
-        life = ride.kind === 'jetski' ? 1.3 : 2;
+        life = kind.current === 'jetski' ? 1.3 : 2;
       puff.visible = age < life;
       if (!puff.visible) return;
       puff.position.set(p.x, WATER + 0.04, p.z);
-      puff.scale.setScalar(0.25 + age * (ride.kind === 'kayak' ? 0.3 : 0.65));
+      puff.scale.setScalar(0.25 + age * (kind.current === 'kayak' ? 0.3 : 0.65));
       ((puff as THREE.Mesh).material as THREE.MeshBasicMaterial).opacity = 0.55 * (1 - age / life);
     });
   });
@@ -291,7 +305,8 @@ function ClimbingBluff({ motion }: { motion: boolean }) {
     if (!rope.current) return;
     // The belay rope runs from the anchor at the top to whoever is climbing (or hangs down the face).
     a.set(bluff.x + 0.5, bluff.h + 0.4, top - 0.2);
-    if (ride.kind === 'climb' && ride.y < bluff.h - 0.2) b.set(ride.x, ride.y + 0.9, ride.z - 0.15);
+    const ride = riders['cl-0'];
+    if (ride && ride.y < bluff.h - 0.2) b.set(ride.x, ride.y + 0.9, ride.z - 0.15);
     else b.set(bluff.x + 0.55, 0.3, bluff.faceZ + 0.15);
     placeLine(rope.current, a, b);
     void motion;
@@ -401,11 +416,13 @@ function DiveSite({ motion }: { motion: boolean }) {
       );
       turtle.current.rotation.y = -a + Math.PI;
     }
-    const diving = ride.kind === 'scuba' && ride.y < -0.3;
+    const ride = riders['dv-0'],
+      diving = !!ride && ride.y < -0.3;
     if (bubbles.current) {
       bubbles.current.visible = diving;
       bubbles.current.children.forEach((bubble, i) => {
         const age = (t * 0.7 + i / 6) % 1;
+        if (!ride) return;
         bubble.position.set(ride.x + Math.sin(i * 3 + t) * 0.1, ride.y + 0.6 + age * Math.max(0.5, -ride.y), ride.z);
         bubble.scale.setScalar(0.6 + age * 0.8);
       });

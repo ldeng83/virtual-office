@@ -3,7 +3,9 @@ import { useEffect, useRef, useState, type RefObject } from 'react';
 import { useFrame } from '@react-three/fiber';
 import { Label } from './label';
 import * as THREE from 'three';
-import { findPath, type Point } from './world';
+import { findPath, seats, type Point } from './world';
+import { riders } from './fun-state';
+import { riderPose, riderSpot, startRide, stepRide } from './rides';
 import { ARRIVAL_DOCK, peopleView, type DemoCoworker, type Target } from './people';
 import { stepAlongPath, turnToward, wrapAngle } from './steering';
 
@@ -135,6 +137,7 @@ export function Coworker({
   );
   const lastTarget = useRef<Target | null>(null),
     climbing = useRef(false),
+    rideOver = useRef(false),
     poseGroup = useRef<THREE.Group>(null);
   const mover = useRef({ speed: 0 }),
     path = useRef<Point[]>([]),
@@ -160,8 +163,16 @@ export function Coworker({
     }
     // Seats are solid: get up by stepping out to the seat's free side, then walk from there.
     const previous = lastTarget.current;
+    // Off a ride (out on the water or up the bluff): back to its step-in spot first.
+    const rode = previous?.seatId ? seats.find(s => s.id === previous.seatId)?.ride : undefined;
+    if (rode && previous) {
+      delete riders[previous.seatId!];
+      pos.current.set(previous.approach[0], 0, previous.approach[1]);
+    }
+    rideOver.current = false;
     const seated =
-      !!previous?.seatId && Math.hypot(pos.current.x - previous.point[0], pos.current.z - previous.point[1]) < 0.3;
+      !!rode ||
+      (!!previous?.seatId && Math.hypot(pos.current.x - previous.point[0], pos.current.z - previous.point[1]) < 0.3);
     const start: Point = seated ? previous!.approach : [pos.current.x, pos.current.z];
     const from = (route: Point[]) => (seated ? [start, ...route] : route);
     lastTarget.current = target;
@@ -191,6 +202,7 @@ export function Coworker({
   useEffect(
     () => () => {
       delete peopleView[person.id];
+      if (lastTarget.current?.seatId) delete riders[lastTarget.current.seatId];
     },
     [person.id],
   );
@@ -223,6 +235,29 @@ export function Coworker({
     } else if (target)
       // Settle into the seat / spot's facing smoothly after arriving.
       g.rotation.y = turnToward(g.rotation.y, target.angle, dt, 6);
+    // Rides: once aboard, follow the ride on autopilot; afterwards wait at the launch until it's time to go.
+    const rideSeat = !moving && target?.seatId ? seats.find(s => s.id === target.seatId) : undefined;
+    let view = rideSeat?.ride ? riders[rideSeat.id] : undefined;
+    if (
+      rideSeat?.ride &&
+      !view &&
+      !rideOver.current &&
+      Math.hypot(pos.current.x - rideSeat.point[0], pos.current.z - rideSeat.point[1]) < 0.3
+    )
+      view = riders[rideSeat.id] = startRide(rideSeat, riders);
+    if (rideSeat && view) {
+      if (stepRide(rideSeat, view, dt)) {
+        delete riders[rideSeat.id];
+        rideOver.current = true;
+        pos.current.set(rideSeat.point[0], 0, rideSeat.point[1]);
+        g.rotation.y = rideSeat.angle;
+      } else {
+        const [x, z] = riderSpot(rideSeat, view);
+        pos.current.set(x, 0, z);
+        g.rotation.y = view.heading;
+      }
+    }
+    const riding = rideSeat?.ride && riders[rideSeat.id];
     // Notice the player: look at them when close, wave once as they arrive (if not busy).
     const me = player.current,
       toPlayer = me ? Math.hypot(me.x - pos.current.x, me.z - pos.current.z) : Infinity;
@@ -263,9 +298,13 @@ export function Coworker({
     g.position.copy(pos.current);
     const seated =
       !moving && !!target?.seatId && Math.hypot(pos.current.x - target.point[0], pos.current.z - target.point[1]) < 0.3;
-    const sitting = seated
-      ? seatPose(target!.seatKind, target!.elevation, motion ? performance.now() / 1000 : 0)
-      : UPRIGHT;
+    const sitting = riding
+      ? (r => ({ ...r, y: riding.y + r.y }))(riderPose(riding.kind, clock.current, -riding.y))
+      : rideSeat?.ride && seated
+        ? riderPose(rideSeat.ride.kind, 0)
+        : seated
+          ? seatPose(target!.seatKind, target!.elevation, motion ? performance.now() / 1000 : 0)
+          : UPRIGHT;
     g.position.y = moving ? Math.sin(walk.current) * 0.045 : sitting.y + Math.sin(hop.current * Math.PI) * 0.18;
     if (poseGroup.current) {
       poseGroup.current.rotation.x = sitting.pitch;

@@ -1,5 +1,6 @@
 import { garden, locations, seats, WHITEBOARD, WHITEBOARD_SPOT, type Point, type Seat } from './world.ts';
 import type { Period } from './daylight.ts';
+import { RIDE_SECONDS, type RideKind } from './rides.ts';
 
 // One shape for everyone on the island. Today two demo coworkers are driven locally by a small
 // activity planner; later the same records will arrive from the shared presence server.
@@ -64,6 +65,25 @@ const coffee = (seatIds: string[], weight = 3): Activity => ({
   icon: '☕',
   pose: 'sip',
   dwell: [12, 22],
+  weight,
+  seats: seatIds,
+});
+
+// Rides last as long as the ride (they wait at the launch for a moment after) and leave them Available.
+const ride = (
+  kind: RideKind,
+  place: string,
+  activity: string,
+  icon: string,
+  seatIds: string[],
+  weight = 1,
+): Activity => ({
+  place,
+  status: 'Available',
+  activity,
+  icon,
+  pose: 'look',
+  dwell: [RIDE_SECONDS[kind] + 4, RIDE_SECONDS[kind] + 12],
   weight,
   seats: seatIds,
 });
@@ -135,6 +155,7 @@ export const demoCoworkers: DemoCoworker[] = [
           seats: ['pm-0', 'pm-1'],
         },
         errands: [
+          ride('sailboat', 'Water sports', 'Sailing at lunch', '⛵', ['sb-0', 'sb-1']),
           {
             place: 'Pavilion M',
             status: 'In a meeting',
@@ -170,6 +191,8 @@ export const demoCoworkers: DemoCoworker[] = [
           work: true,
         },
         errands: [
+          ride('parasail', 'Water sports', 'Parasailing', '🪂', ['pa-0']),
+          ride('climb', 'Climbing bluff', 'Climbing the bluff', '🧗', ['cl-0']),
           {
             place: 'Wellness garden',
             status: 'Available',
@@ -215,6 +238,7 @@ export const demoCoworkers: DemoCoworker[] = [
           seats: ['am1-2', 'am1-3'],
         },
         errands: [
+          ride('sailboat', 'Water sports', 'A sunset sail', '⛵', ['sb-0', 'sb-1']),
           {
             place: 'Firepit & hammocks',
             status: 'Available',
@@ -262,6 +286,7 @@ export const demoCoworkers: DemoCoworker[] = [
           work: true,
         },
         errands: [
+          ride('scuba', 'Fishing jetty', 'Diving on the reef', '🤿', ['dv-0']),
           { ...coffee(['cs-2', 'cs-1'], 2), activity: 'Morning coffee' },
           {
             place: 'Boardwalk',
@@ -296,6 +321,7 @@ export const demoCoworkers: DemoCoworker[] = [
           seats: ['pm-4', 'pm-3'],
         },
         errands: [
+          ride('jetski', 'Water sports', 'Out on a jet ski', '🚤', ['js-0', 'js-1']),
           {
             place: 'Pavilion M',
             status: 'In a meeting',
@@ -342,6 +368,8 @@ export const demoCoworkers: DemoCoworker[] = [
           work: true,
         },
         errands: [
+          ride('kayak', 'Fishing jetty', 'Kayaking round the island', '🛶', ['ky-0', 'ky-1']),
+          ride('climb', 'Climbing bluff', 'Climbing the bluff', '🧗', ['cl-0']),
           { ...coffee(['ts-0', 'ts-1'], 2), activity: 'Coffee on the terrace' },
           {
             place: 'Pavilion S',
@@ -386,6 +414,7 @@ export const demoCoworkers: DemoCoworker[] = [
           seats: ['fp-1', 'fp-3'],
         },
         errands: [
+          ride('sailboat', 'Water sports', 'A sunset sail', '⛵', ['sb-1', 'sb-0']),
           {
             place: 'Town hall',
             status: 'Available',

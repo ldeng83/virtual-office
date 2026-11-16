@@ -1,7 +1,16 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { shoreDistance } from '../src/shoreline.ts';
-import { CLIMB_SECONDS, DIVE_DEPTH, PARASAIL_HEIGHT, ridePose } from '../src/rides.ts';
+import {
+  CLIMB_SECONDS,
+  DIVE_DEPTH,
+  PARASAIL_HEIGHT,
+  RIDE_SECONDS,
+  ridePose,
+  startRide,
+  stepRide,
+} from '../src/rides.ts';
+import { demoCoworkers } from '../src/people.ts';
 import { bluff, findPath, locations, marina, onJetty, seats, segmentDistance, walkable } from '../src/world.ts';
 
 const rides = seats.filter(s => s.ride);
@@ -74,4 +83,33 @@ test('the dive goes down to the reef and comes back up at the ladder', () => {
   const last = samples.at(-1);
   assert.ok(last.done && last.y > -0.05);
   for (const p of samples.filter(p => p.y < -1)) assert.ok(shoreDistance(p.x, p.z) > 1, 'dives stay off the island');
+});
+
+test('Maya and Theo take rides, staying long enough to finish them', () => {
+  for (const person of demoCoworkers) {
+    const rideErrands = Object.values(person.schedule)
+      .flatMap(block => (block ? [block.home, ...block.errands] : []))
+      .filter(a => a.seats?.some(id => seats.find(s => s.id === id)?.ride));
+    assert.ok(rideErrands.length >= 3, `${person.name} has rides in their day`);
+    for (const a of rideErrands) {
+      const kind = seats.find(s => s.id === a.seats[0]).ride.kind;
+      assert.ok(a.dwell[0] >= RIDE_SECONDS[kind], `${person.name}'s ${kind} lasts the whole ride`);
+    }
+  }
+});
+
+test('a second sailor joins the boat on the trip already under way', () => {
+  const [helm, bow] = ['sb-0', 'sb-1'].map(id => seats.find(s => s.id === id));
+  const riders = { 'sb-0': startRide(helm, {}) };
+  for (let i = 0; i < 40; i++) stepRide(helm, riders['sb-0'], 0.25);
+  riders['sb-1'] = startRide(bow, riders);
+  assert.equal(riders['sb-1'].t, riders['sb-0'].t);
+  stepRide(helm, riders['sb-0'], 0.25);
+  stepRide(bow, riders['sb-1'], 0.25);
+  assert.ok(Math.hypot(riders['sb-0'].x - riders['sb-1'].x, riders['sb-0'].z - riders['sb-1'].z) < 1e-9);
+  // Jet skis don't share: each one starts its own lap.
+  const [a, b] = ['js-0', 'js-1'].map(id => seats.find(s => s.id === id));
+  const skis = { 'js-0': startRide(a, {}) };
+  skis['js-0'].t = 10;
+  assert.equal(startRide(b, skis).t, 0);
 });

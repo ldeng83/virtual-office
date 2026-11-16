@@ -1,5 +1,6 @@
 import { ISLAND_CENTER_Z, ISLAND_X_SCALE, shorePoint } from './shoreline.ts';
-import { bluff, jetty, marina, reef, type Point } from './world.ts';
+import { turnToward } from './steering.ts';
+import { bluff, jetty, marina, reef, type Point, type Seat } from './world.ts';
 
 // Autopilot rides: each one is a path over time, starting and ending at its launch spot.
 // The player controller follows the rider; the boats, skis and chute follow `ride` (in fun-state).
@@ -162,3 +163,45 @@ export function riderPose(kind: RideKind, t: number, depth = 0) {
       return { y: 0, pitch: (Math.PI / 2) * clamp01(depth / 1.2), z: 0, roll: Math.sin(t * 2.4) * 0.06 };
   }
 }
+
+// Someone on a ride right now (you or a coworker). Vehicles follow their rider; for parasailing
+// the tow boat follows `boat`.
+export type RideView = {
+  kind: RideKind;
+  t: number;
+  x: number;
+  y: number;
+  z: number;
+  heading: number;
+  roll: number;
+  boat: { x: number; z: number; heading: number } | null;
+};
+// Getting on. A second sailor joins the boat's trip already under way, so both ride together.
+export function startRide(seat: Seat, riders: Record<string, RideView>): RideView {
+  const { kind, launch } = seat.ride!;
+  const crew = Object.entries(riders).find(([id]) => id !== seat.id && id.split('-')[0] === seat.id.split('-')[0]);
+  const shared = kind === 'sailboat' && crew ? crew[1].t : 0;
+  return { kind, t: shared, x: launch[0], y: 0, z: launch[1], heading: seat.angle, roll: 0, boat: null };
+}
+// Move a rider along; returns true when the ride is over.
+export function stepRide(seat: Seat, view: RideView, dt: number) {
+  view.t += dt;
+  const p = ridePose(view.kind, seat.ride!.launch, view.t);
+  if (!Number.isNaN(p.heading)) view.heading = turnToward(view.heading, p.heading, dt, view.kind === 'climb' ? 6 : 3);
+  Object.assign(view, { x: p.x, y: p.y, z: p.z, roll: p.roll, boat: p.boat ?? null });
+  return p.done;
+}
+// Where the rider sits: a second seat further along the boat.
+export function riderSpot(seat: Seat, view: RideView): Point {
+  const deck = seat.ride?.deck ?? 0;
+  return [view.x + Math.sin(view.heading) * deck, view.z + Math.cos(view.heading) * deck];
+}
+// Roughly how long each ride takes (the climb: up, then a while at the lookout).
+export const RIDE_SECONDS: Record<RideKind, number> = {
+  kayak: (Math.PI * 2) / ROUTES.kayak.speed,
+  jetski: (Math.PI * 2) / ROUTES.jetski.speed,
+  sailboat: (Math.PI * 2) / -ROUTES.sailboat.speed,
+  parasail: (Math.PI * 2) / ROUTES.parasail.speed,
+  climb: CLIMB_SECONDS + 20,
+  scuba: DIVE_SECONDS,
+};

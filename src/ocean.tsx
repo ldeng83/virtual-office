@@ -3,7 +3,7 @@ import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 import type { IslandTime } from './atmosphere';
 import { periods } from './daylight';
-import { ride } from './fun-state';
+import { riders } from './fun-state';
 import { shorelineGLSL, ISLAND_CENTER_Z } from './shoreline';
 
 const palettes = {
@@ -159,8 +159,9 @@ export function Ocean({ motion, time }: { motion: boolean; time: IslandTime }) {
     if (!material.current) return;
     const values = material.current.uniforms;
     values.time.value = elapsed.current;
-    const diving = ride.kind === 'scuba' && ride.y < -0.2;
-    if (diving) values.diveCenter.value.set(ride.x, ride.z);
+    const diver = riders['dv-0'],
+      diving = !!diver && diver.y < -0.2;
+    if (diving) values.diveCenter.value.set(diver.x, diver.z);
     values.diveClear.value = THREE.MathUtils.damp(values.diveClear.value, diving ? 1 : 0, 2, Math.min(dt, 0.1));
     const alpha = motion ? 1 - Math.exp(-Math.min(dt, 0.1) * 2) : 1;
     values.lightDirection.value.lerp(direction, alpha).normalize();
