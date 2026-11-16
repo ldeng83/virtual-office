@@ -132,6 +132,7 @@ export function Coworker({
       ]),
     ),
   );
+  const lastTarget = useRef<Target | null>(null);
   const mover = useRef({ speed: 0 }),
     path = useRef<Point[]>([]),
     present = useRef(!!target),
@@ -151,19 +152,28 @@ export function Coworker({
       // On page load coworkers are already where their routine says, not walking in.
       first.current = false;
       if (group.current && target) group.current.rotation.y = target.angle;
+      lastTarget.current = target;
       return;
     }
+    // Seats are solid: get up by stepping out to the seat's free side, then walk from there.
+    const previous = lastTarget.current;
+    const seated =
+      !!previous?.seatId && Math.hypot(pos.current.x - previous.point[0], pos.current.z - previous.point[1]) < 0.3;
+    const start: Point = seated ? previous!.approach : [pos.current.x, pos.current.z];
+    const from = (route: Point[]) => (seated ? [start, ...route] : route);
+    lastTarget.current = target;
     if (target) {
       if (!present.current) {
         pos.current.set(ARRIVAL_DOCK[0], 0, ARRIVAL_DOCK[1]);
         present.current = true;
       }
       leaving.current = false;
-      path.current = findPath([pos.current.x, pos.current.z], target.point);
-      if (!path.current.length) pos.current.set(target.point[0], 0, target.point[1]);
+      const route = findPath(present.current && !seated ? [pos.current.x, pos.current.z] : start, target.approach);
+      path.current = route.length ? [...from(route), ...(target.seatId ? [target.point] : [])] : [];
+      if (!route.length) pos.current.set(target.point[0], 0, target.point[1]);
     } else if (present.current) {
       leaving.current = true;
-      path.current = findPath([pos.current.x, pos.current.z], ARRIVAL_DOCK);
+      path.current = from(findPath(start, ARRIVAL_DOCK));
     }
   }, [target]);
   useEffect(() => {

@@ -40,7 +40,15 @@ export type DemoCoworker = {
   tasks: Task[];
   schedule: Record<Period, Block | null>;
 };
-export type Target = { point: Point; angle: number; seatId: string | null; activity: Activity; dwell: number };
+// `point` is where they end up (the seat itself when sitting); `approach` is where they walk to first.
+export type Target = {
+  point: Point;
+  approach: Point;
+  angle: number;
+  seatId: string | null;
+  activity: Activity;
+  dwell: number;
+};
 
 export const ARRIVAL_DOCK: Point = locations[0].point;
 export { WHITEBOARD, WHITEBOARD_FACING, WHITEBOARD_SPOT } from './world.ts';
@@ -337,11 +345,18 @@ export function resolveTarget(
     const id = activity.seats.find(s => !taken.has(s)) ?? activity.seats[0];
     const seat = seats.find(s => s.id === id);
     if (!seat) throw new Error(`Unknown seat ${id}`);
-    return { point: seat.point, angle: seat.angle, seatId: seat.id, activity, dwell };
+    return { point: seat.point, approach: seat.approach, angle: seat.angle, seatId: seat.id, activity, dwell };
   }
   const point = activity.point!,
     face = activity.face ?? point;
-  return { point, angle: Math.atan2(face[0] - point[0], face[1] - point[1]), seatId: null, activity, dwell };
+  return {
+    point,
+    approach: point,
+    angle: Math.atan2(face[0] - point[0], face[1] - point[1]),
+    seatId: null,
+    activity,
+    dwell,
+  };
 }
 
 // Positions are written every frame by the scene and read by the map / proximity checks.

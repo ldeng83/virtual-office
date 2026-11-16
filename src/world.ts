@@ -76,6 +76,12 @@ for (const pad of pads) {
     piece(at, hi, walls);
   }
 }
+export const flowerBedsAround = (g: { x: number; z: number }): Point[] => [
+  [g.x + 5.2, g.z + 3.2],
+  [g.x - 4.6, g.z - 2.8],
+  [g.x + 4.4, g.z - 2.8],
+  [g.x - 4.8, g.z + 3.4],
+];
 export const plaza = { x: 0, z: -9, radius: 6, fountain: 1.6 };
 export const amphitheater = {
   x: -12,
@@ -86,6 +92,7 @@ export const amphitheater = {
   to: (300 * Math.PI) / 180,
 };
 export const garden = { x: -10.5, z: -33.5, loopX: 5.6, loopZ: 3 };
+export const flowerBeds = flowerBedsAround(garden);
 export const ponds = [{ x: garden.x, z: garden.z, rx: 2.6, rz: 1.5 }];
 export const boardwalk = { from: [24.8, -22] as Point, bend: [29.2, -12] as Point, to: [24.8, -2.5] as Point };
 export const newsScreen = { x: 0, z: -13.8, w: 3.6 };
@@ -126,6 +133,16 @@ export type Seat = {
   point: Point;
   angle: number;
   kind?: 'chair' | 'bench' | 'stool' | 'lounger' | 'armchair';
+  // Where people step in and out of the seat; the seat itself is solid.
+  approach: Point;
+};
+// Footprint of each seat kind (width across, depth front-to-back) in the seat's own frame.
+const seatFootprint: Record<NonNullable<Seat['kind']>, [number, number]> = {
+  chair: [0.7, 0.7],
+  bench: [0.9, 0.5],
+  stool: [0.5, 0.5],
+  lounger: [0.65, 1.55],
+  armchair: [0.85, 0.75],
 };
 const facing = (from: Point, to: Point) => Math.atan2(to[0] - from[0], to[1] - from[1]);
 const ring = (
@@ -140,9 +157,11 @@ const ring = (
 ): Seat[] =>
   angles.map((a, i) => {
     const point: Point = [cx + Math.cos(a) * r, cz + Math.sin(a) * rz];
-    return { id: `${id}-${i}`, name, point, angle: facing(point, [cx, cz]), kind };
+    // approach is filled in once collision is known (below)
+    return { id: `${id}-${i}`, name, point, angle: facing(point, [cx, cz]), kind, approach: point };
   });
-export const seats: Seat[] = [
+// Every seat's `approach` is a placeholder until the step-in spots are chosen below.
+export const seats = [
   ...desks.map((d, i) => ({
     id: d.id,
     name: `${d.team} desk ${(i % 7) + 1}`,
@@ -153,12 +172,11 @@ export const seats: Seat[] = [
     { id: `pm-${i}`, name: 'Pavilion M seat', point: [x, -15.3] as Point, angle: 0 },
     { id: `pm-${i + 3}`, name: 'Pavilion M seat', point: [x, -12.7] as Point, angle: Math.PI },
   ]),
-  ...[15, 16, 17, 18, 19].flatMap((x, i) => [
+  // Pavilion L: six a side along the long table; the ends stay open so people can get round it.
+  ...[14.9, 15.75, 16.6, 17.45, 18.3, 19.15].flatMap((x, i) => [
     { id: `pl-${i}`, name: 'Pavilion L seat', point: [x, -27] as Point, angle: 0 },
-    { id: `pl-${i + 5}`, name: 'Pavilion L seat', point: [x, -24] as Point, angle: Math.PI },
+    { id: `pl-${i + 6}`, name: 'Pavilion L seat', point: [x, -24] as Point, angle: Math.PI },
   ]),
-  { id: 'pl-10', name: 'Pavilion L seat', point: [13.6, -25.5], angle: Math.PI / 2 },
-  { id: 'pl-11', name: 'Pavilion L seat', point: [20.4, -25.5], angle: -Math.PI / 2 },
   { id: 'ps-0', name: 'Pavilion S armchair', point: [11.2, -6], angle: Math.PI / 2, kind: 'armchair' },
   { id: 'ps-1', name: 'Pavilion S armchair', point: [12.8, -6], angle: -Math.PI / 2, kind: 'armchair' },
   ...booths.map(b => ({ id: b.id, name: 'Library focus booth', point: [b.x, b.z + 0.5] as Point, angle: Math.PI })),
@@ -222,7 +240,7 @@ export const seats: Seat[] = [
     angle: Math.PI / 2,
     kind: 'lounger' as const,
   })),
-];
+].map(seat => ({ ...seat, approach: seat.point })) as Seat[];
 // Places in the sidebar and on the map.
 export const locations = [
   { id: 'arrival', name: 'Arrival pier', detail: 'Land here and say hello', point: [0, 7] as Point, color: '#c9a87e' },
@@ -336,7 +354,29 @@ export const walkways: Point[][] = [
     [8.5, -32.1],
   ],
 ];
+// Small fixed decor that also blocks walking.
+// Plaza lamp posts: evenly spaced round the edge, skipping spots where a walkway leaves the plaza.
+export const lampPosts: Point[] = Array.from({ length: 16 }, (_, i) => (i * Math.PI) / 8 + Math.PI / 16)
+  .map(a => [plaza.x + Math.cos(a) * (plaza.radius + 0.6), plaza.z + Math.sin(a) * (plaza.radius + 0.6)] as Point)
+  .filter(p => walkways.every(path => path.slice(1).every((q, i) => segmentDistance(p, path[i], q) > 1.2)))
+  .filter((_, i) => i % 2 === 0);
+export const lobbyPlanter: Point = [-3.4, 3.9];
+const seatBlocks: Block[] = seats.map(seat => {
+  const [w, d] = seatFootprint[seat.kind ?? 'chair'],
+    s = Math.abs(Math.sin(seat.angle)),
+    c = Math.abs(Math.cos(seat.angle));
+  // Axis-aligned seats get a tight box; seats on curves (benches round the plaza, the amphitheater) a circle.
+  if (s < 0.1 || c < 0.1) {
+    const [hx, hz] = s < 0.1 ? [w / 2, d / 2] : [d / 2, w / 2];
+    return { x: seat.point[0], z: seat.point[1], hx: hx + 0.08, hz: hz + 0.08 };
+  }
+  return { x: seat.point[0], z: seat.point[1], r: (Math.max(w, d) / 2) * 0.8 + 0.08 };
+});
 const blocks: Block[] = [
+  ...seatBlocks,
+  ...lampPosts.map(([x, z]) => ({ x, z, r: 0.22 })),
+  { x: lobbyPlanter[0], z: lobbyPlanter[1], r: 0.5 },
+  ...flowerBeds.map(([x, z]) => ({ x, z, r: 0.85 })),
   { x: plaza.x, z: plaza.z, r: plaza.fountain + 0.3 },
   { x: newsScreen.x, z: newsScreen.z, hx: newsScreen.w / 2 + 0.25, hz: 0.35 },
   ...[tables.pavM, tables.pavL, tables.counter, tables.reception, tables.atrium].map(t => ({
@@ -404,6 +444,17 @@ export function walkable(x: number, z: number) {
     return false;
   if (ponds.some(p => ((x - p.x) / (p.rx + 0.25)) ** 2 + ((z - p.z) / (p.rz + 0.25)) ** 2 < 1)) return false;
   return true;
+}
+// Pick each seat's step-in spot: in front if free, otherwise behind (desk and table chairs), otherwise beside.
+for (const seat of seats) {
+  const f: Point = [Math.sin(seat.angle), Math.cos(seat.angle)],
+    side: Point = [f[1], -f[0]];
+  const directions: Point[] = [f, [-f[0], -f[1]], side, [-side[0], -side[1]]];
+  const spot = [0.8, 1, 1.25]
+    .flatMap(d => directions.map(([dx, dz]) => [seat.point[0] + dx * d, seat.point[1] + dz * d] as Point))
+    .find(p => walkable(...p));
+  if (!spot) throw new Error(`No free space beside ${seat.id}`);
+  seat.approach = spot;
 }
 // Cells right next to a wall or furniture cost a little more, so routes keep a margin and straighten cleanly.
 const hugsObstacle = (p: Point) =>

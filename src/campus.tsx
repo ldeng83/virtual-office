@@ -11,6 +11,9 @@ import {
   ponds,
   tables,
   walkways,
+  flowerBeds,
+  lampPosts,
+  lobbyPlanter,
   type Point,
 } from './world';
 
@@ -223,17 +226,8 @@ export function Campus({ news, night }: { news: News; night: number }) {
           </mesh>
         </group>
       ))}
-      {Array.from({ length: 8 }, (_, i) => {
-        const a = (i * Math.PI) / 4 + Math.PI / 8;
-        return (
-          <Cyl
-            key={i}
-            p={[plaza.x + Math.cos(a) * (plaza.radius + 0.6), 1, plaza.z + Math.sin(a) * (plaza.radius + 0.6)]}
-            r={0.05}
-            h={2}
-            c="#6f7d6c"
-          />
-        );
+      {lampPosts.map(([x, z], i) => {
+        return <Cyl key={i} p={[x, 1, z]} r={0.05} h={2} c="#6f7d6c" />;
       })}
 
       {/* Building pads: concrete floors for buildings, pale floors for glass pavilions, a dashed border for the future plot */}
@@ -303,8 +297,8 @@ export function Campus({ news, night }: { news: News; night: number }) {
         s={[tables.reception.w + 0.1, 0.06, tables.reception.d + 0.1]}
         c={TIMBER}
       />
-      <Cyl p={[-3.4, 0.35, 3.9]} r={0.35} h={0.5} c="#cfc6b0" />
-      <mesh position={[-3.4, 0.95, 3.9]} castShadow>
+      <Cyl p={[lobbyPlanter[0], 0.35, lobbyPlanter[1]]} r={0.35} h={0.5} c="#cfc6b0" />
+      <mesh position={[lobbyPlanter[0], 0.95, lobbyPlanter[1]]} castShadow>
         <icosahedronGeometry args={[0.5, 1]} />
         <meshStandardMaterial color="#7b9c79" flatShading />
       </mesh>
@@ -430,12 +424,7 @@ export function Campus({ news, night }: { news: News; night: number }) {
           shadow={false}
         />
       ))}
-      {[
-        [garden.x + 5.2, garden.z + 3.2],
-        [garden.x - 4.6, garden.z - 2.8],
-        [garden.x + 4.4, garden.z - 2.8],
-        [garden.x - 4.8, garden.z + 3.4],
-      ].map(([x, z], i) => (
+      {flowerBeds.map(([x, z], i) => (
         <group key={i} position={[x, 0, z]}>
           <Disc x={0} z={0} r={0.75} c="#8eaa78" y={0.112} />
           {[0, 1, 2, 3, 4].map(n => (

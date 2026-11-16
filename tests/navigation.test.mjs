@@ -2,6 +2,9 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { shoreDistance, WALK_INSET } from '../src/shoreline.ts';
 import {
+  lampPosts,
+  flowerBeds,
+  lobbyPlanter,
   findPath,
   walkable,
   locations,
@@ -37,13 +40,21 @@ test('every place is connected by a collision-free route', () => {
       assert.deepEqual(route.at(-1), end.point);
     }
 });
-test('all seats have walkable access from the pier', () => {
+test('seats are solid, and every seat has a free step-in spot reachable from the pier', () => {
   assert.ok(seats.length >= 70);
   assert.equal(new Set(seats.map(s => s.id)).size, seats.length, 'seat ids are unique');
   for (const seat of seats) {
-    assert.ok(walkable(...seat.point), seat.name);
-    assert.ok(findPath([0, 7], seat.point).length, seat.id);
+    assert.equal(walkable(...seat.point), false, `${seat.id} can be walked through`);
+    assert.ok(walkable(...seat.approach), `${seat.id} step-in spot is blocked`);
+    assert.ok(
+      Math.hypot(seat.approach[0] - seat.point[0], seat.approach[1] - seat.point[1]) <= 1.3,
+      `${seat.id} step-in spot is too far`,
+    );
+    assert.ok(findPath([0, 7], seat.approach).length, `${seat.id} unreachable`);
   }
+});
+test('lamp posts, flower beds and the lobby planter block walking', () => {
+  for (const p of [...lampPosts, ...flowerBeds, lobbyPlanter]) assert.equal(walkable(...p), false, String(p));
 });
 test('invalid destinations return no path', () => {
   assert.deepEqual(findPath([0, 7], [100, 100]), []);

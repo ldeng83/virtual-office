@@ -21,8 +21,8 @@ test('every home and errand spot exists, is walkable, and reachable from the doc
           );
         for (const taken of [new Set(), new Set(a.seats ?? [])]) {
           const target = resolveTarget(a, taken);
-          assert.ok(walkable(...target.point), `${npc.name} ${a.activity}`);
-          assert.ok(findPath(ARRIVAL_DOCK, target.point).length, `${npc.name} ${a.activity} reachable`);
+          assert.ok(walkable(...target.approach), `${npc.name} ${a.activity}`);
+          assert.ok(findPath(ARRIVAL_DOCK, target.approach).length, `${npc.name} ${a.activity} reachable`);
           assert.ok(target.dwell >= a.dwell[0] && target.dwell <= a.dwell[1]);
         }
       }

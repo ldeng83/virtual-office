@@ -181,14 +181,23 @@ export function World({
       setMarker(null);
     }
   }, [go]);
+  // Seats are solid. Sitting places you in the seat; standing up steps you out to its free side.
+  const sittingIn = useRef<(typeof seats)[number] | null>(null);
+  const standUp = () => {
+    const s = sittingIn.current;
+    sittingIn.current = null;
+    if (s && Math.hypot(pos.current.x - s.point[0], pos.current.z - s.point[1]) < 0.3)
+      pos.current.set(s.approach[0], 0, s.approach[1]);
+  };
   useEffect(() => {
     if (seat) {
       const s = seats.find(s => s.id === seat)!;
+      sittingIn.current = s;
       path.current = [];
       setMarker(null);
       pos.current.set(s.point[0], 0, s.point[1]);
       if (avatar.current) avatar.current.rotation.y = s.angle;
-    }
+    } else standUp();
   }, [seat]);
   useEffect(() => {
     const down = (e: KeyboardEvent) => {
@@ -232,7 +241,10 @@ export function World({
       dz = 0;
     if (k.size) {
       if (viewMode !== 'follow') onExplore();
-      if (seat) setSeat(null);
+      if (seat) {
+        standUp();
+        setSeat(null);
+      }
       path.current = [];
       setMarker(null);
       const horizontal = Number(k.has('d') || k.has('arrowright')) - Number(k.has('a') || k.has('arrowleft'));
@@ -328,6 +340,7 @@ export function World({
         onWalk={(target, delta) => {
           if (delta >= 6) return;
           onExplore();
+          if (seat) standUp();
           const route = findPath([pos.current.x, pos.current.z], target);
           if (route.length) {
             setSeat(null);
