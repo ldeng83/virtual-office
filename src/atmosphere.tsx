@@ -13,7 +13,12 @@ const periodIcons = { dawn: Sunrise, morning: CloudSun, midday: Sun, golden: Sun
 export function useIslandTime(settings: Atmosphere) {
   const [now, setNow] = useState(() => new Date());
   useEffect(() => {
-    const refresh = () => setNow(new Date());
+    // Only a new minute changes anything on screen, so only then re-render (the light eases between).
+    const refresh = () =>
+      setNow(previous => {
+        const next = new Date();
+        return Math.floor(next.getTime() / 60000) === Math.floor(previous.getTime() / 60000) ? previous : next;
+      });
     const interval = window.setInterval(refresh, 1000);
     document.addEventListener('visibilitychange', refresh);
     window.addEventListener('focus', refresh);
@@ -23,18 +28,20 @@ export function useIslandTime(settings: Atmosphere) {
       window.removeEventListener('focus', refresh);
     };
   }, []);
-  const sample =
-    settings.mode === 'auto'
-      ? daylightAtHour(localHour(now))
-      : { period: settings.mood, from: settings.mood, to: settings.mood, progress: 0 };
-  return {
-    ...sample,
-    now,
-    name: periods[sample.period].name,
-    Icon: periodIcons[sample.period],
-    time: now.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }),
-    timezone: Intl.DateTimeFormat().resolvedOptions().timeZone.replaceAll('_', ' '),
-  };
+  return useMemo(() => {
+    const sample =
+      settings.mode === 'auto'
+        ? daylightAtHour(localHour(now))
+        : { period: settings.mood, from: settings.mood, to: settings.mood, progress: 0 };
+    return {
+      ...sample,
+      now,
+      name: periods[sample.period].name,
+      Icon: periodIcons[sample.period],
+      time: now.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }),
+      timezone: Intl.DateTimeFormat().resolvedOptions().timeZone.replaceAll('_', ' '),
+    };
+  }, [now, settings.mode, settings.mood]);
 }
 export type IslandTime = ReturnType<typeof useIslandTime>;
 export function readAtmosphere(): Atmosphere {

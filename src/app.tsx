@@ -1,5 +1,5 @@
 import { seatMessage, useFun } from './use-fun';
-import React, { Suspense, useEffect, useRef, useState } from 'react';
+import React, { Suspense, useEffect, useMemo, useRef, useState } from 'react';
 import { Canvas } from '@react-three/fiber';
 import {
   Check,
@@ -20,7 +20,7 @@ import { locations, type Point } from './world';
 import { readAtmosphere, useOcean, useIslandTime, type Atmosphere } from './atmosphere';
 import { type News } from './campus';
 import { IslandMap } from './island-map';
-import { type ViewMode } from './camera-view';
+import { cameraView, type ViewMode } from './camera-view';
 import { World, SceneBoundary, MIN_ZOOM, MAX_ZOOM } from './scene';
 import { readProfile, type Profile } from './profile';
 import { useCoworkers } from './use-coworkers';
@@ -50,7 +50,6 @@ export function App() {
       seq: number;
     } | null>(null),
     [position, setPosition] = useState<Point>([0, 7]),
-    [zoom, setZoom] = useState(30),
     [reset, setReset] = useState(0),
     [toast, setToast] = useState(''),
     [loaded, setLoaded] = useState(false);
@@ -89,11 +88,14 @@ export function App() {
     travel: point => travel(point),
     openTelescope: () => setModal('telescope'),
   });
-  const news: News = {
-    time: mood.time,
-    period: mood.name,
-    items: showDemo ? feed.slice(0, 4).map(item => `${item.who} ${item.text}`) : [],
-  };
+  const news: News = useMemo(
+    () => ({
+      time: mood.time,
+      period: mood.name,
+      items: showDemo ? feed.slice(0, 4).map(item => `${item.who} ${item.text}`) : [],
+    }),
+    [mood.time, mood.name, feed, showDemo],
+  );
   // Sitting in a library booth switches you to Focused; standing up restores your status.
   const focusRestore = useRef<string | null>(null);
   useEffect(() => {
@@ -121,7 +123,7 @@ export function App() {
       if ((e.target as HTMLElement).closest('.island-map')) return;
       e.preventDefault();
       const delta = e.deltaY * (e.deltaMode === 1 ? 16 : e.deltaMode === 2 ? 400 : 1);
-      setZoom(v => Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, v * Math.exp(-delta * 0.0015))));
+      cameraView.zoom = Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, cameraView.zoom * Math.exp(-delta * 0.0015)));
     };
     el.addEventListener('wheel', wheel, { passive: false });
     return () => el.removeEventListener('wheel', wheel);
@@ -263,7 +265,6 @@ export function App() {
                   seat={seat}
                   setSeat={setSeat}
                   onPosition={setPosition}
-                  zoom={zoom}
                   reset={reset}
                   atmosphere={atmosphere}
                   time={mood}
@@ -311,10 +312,10 @@ export function App() {
             </div>
           )}
           <div className="map-controls">
-            <button aria-label="Zoom in" onClick={() => setZoom(v => Math.min(MAX_ZOOM, v + 5))}>
+            <button aria-label="Zoom in" onClick={() => (cameraView.zoom = Math.min(MAX_ZOOM, cameraView.zoom + 5))}>
               <Plus size={18} />
             </button>
-            <button aria-label="Zoom out" onClick={() => setZoom(v => Math.max(MIN_ZOOM, v - 5))}>
+            <button aria-label="Zoom out" onClick={() => (cameraView.zoom = Math.max(MIN_ZOOM, cameraView.zoom - 5))}>
               <Minus size={18} />
             </button>
             <div />
@@ -322,7 +323,7 @@ export function App() {
               aria-label="Reset view"
               onClick={() => {
                 setReset(v => v + 1);
-                setZoom(30);
+                cameraView.zoom = 30;
                 setViewMode(v => (v === 'free' ? 'follow' : v));
               }}
             >

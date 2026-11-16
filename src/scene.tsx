@@ -37,6 +37,12 @@ import { stepAlongPath, turnToward } from './steering';
 import { Box, Cylinder, Palm, Seat, ZoneLabel } from './scene-parts';
 import type { Profile } from './profile';
 
+// Parts of the scene that only change with their own props skip the scene's frequent re-renders.
+const Atmosphere3D = React.memo(AtmosphereScene),
+  CampusScene = React.memo(Campus),
+  BuildingShells = React.memo(Buildings),
+  WaterSportsScene = React.memo(WaterSports),
+  Terrain = React.memo(IslandTerrain);
 export const MIN_ZOOM = 10,
   MAX_ZOOM = 65;
 const occlusionRay = new THREE.Raycaster(),
@@ -68,7 +74,6 @@ export function World({
   seat,
   setSeat,
   onPosition,
-  zoom,
   reset,
   atmosphere,
   time,
@@ -117,7 +122,6 @@ export function World({
   seat: string | null;
   setSeat: (s: string | null) => void;
   onPosition: (p: Point) => void;
-  zoom: number;
   reset: number;
   atmosphere: Atmosphere;
   time: IslandTime;
@@ -220,7 +224,8 @@ export function World({
     return () => window.clearTimeout(t);
   }, [emote]);
   const rideY = useRef(0),
-    baseZoom = useRef(0);
+    snapZoom = useRef(true),
+    reported = useRef<Point>([Infinity, Infinity]);
   const standUp = () => {
     const s = sittingIn.current;
     sittingIn.current = null;
@@ -271,15 +276,9 @@ export function World({
     }
   }, [reset]);
   useEffect(() => {
-    if (controls.current) {
-      const fit =
-        fitMode === 'overview'
-          ? Math.min(16, size.width / 104, size.height / 80)
-          : Math.min(36, size.width / 20, size.height / 17);
-      controls.current.object.zoom = baseZoom.current = (fit * zoom) / 30;
-      controls.current.object.updateProjectionMatrix();
-    }
-  }, [zoom, reset, size.width, size.height, viewMode]);
+    // A reset, resize or new view mode frames the island straight away rather than easing there.
+    snapZoom.current = true;
+  }, [reset, size.width, size.height, viewMode]);
   useFrame((state, dt) => {
     if (!avatar.current) return;
     dt = Math.min(dt, 0.05);
@@ -331,14 +330,20 @@ export function World({
       walk.current += dt * 12;
     }
     if (controls.current) {
-      // Parasailing pulls the camera back as you rise, to take in the whole island.
-      const lift = sat?.ride?.kind === 'parasail' ? Math.min(1, rideY.current / PARASAIL_HEIGHT) : 0,
+      // Zoom eases toward what the UI asks for, fitted to the view; parasailing pulls the camera
+      // back as you rise, to take in the whole island.
+      const fit =
+          fitMode === 'overview'
+            ? Math.min(16, size.width / 104, size.height / 80)
+            : Math.min(36, size.width / 20, size.height / 17),
+        lift = sat?.ride?.kind === 'parasail' ? Math.min(1, rideY.current / PARASAIL_HEIGHT) : 0,
         view = controls.current.object,
-        wantZoom = baseZoom.current * (1 - 0.5 * lift);
-      if (baseZoom.current && Math.abs(view.zoom - wantZoom) > 1e-3) {
-        view.zoom = THREE.MathUtils.damp(view.zoom, wantZoom, 3, dt);
+        wantZoom = ((fit * cameraView.zoom) / 30) * (1 - 0.5 * lift);
+      if (Math.abs(view.zoom - wantZoom) > wantZoom * 1e-4) {
+        view.zoom = snapZoom.current ? wantZoom : THREE.MathUtils.damp(view.zoom, wantZoom, lift ? 3 : 10, dt);
         view.updateProjectionMatrix();
       }
+      snapZoom.current = false;
       const target = controls.current.target;
       if (cameraView.look) {
         const [x, z] = clampFocus(...cameraView.look);
@@ -420,11 +425,21 @@ export function World({
       findMe.current.position.set(pos.current.x, 0.14, pos.current.z);
       findMe.current.scale.setScalar(1 + Math.sin(state.clock.elapsedTime * 3) * 0.06);
     }
+    // Report where you are a few times a second, but only when you've moved (each report re-renders the app).
     if (state.clock.elapsedTime - last.current > 0.4) {
-      onPosition([pos.current.x, pos.current.z]);
       last.current = state.clock.elapsedTime;
+      if (Math.hypot(pos.current.x - reported.current[0], pos.current.z - reported.current[1]) > 0.05) {
+        reported.current = [pos.current.x, pos.current.z];
+        onPosition(reported.current);
+      }
     }
   });
+  // Stable handlers for the memoized scenery, always calling the latest version.
+  const latest = useRef({ walkTo: (_: Point) => {}, onPickSeat });
+  const pickSeat = React.useCallback((id: string) => latest.current.onPickSeat(id), []);
+  const walkOnGround = React.useCallback((target: Point, delta: number) => {
+    if (delta < 6) latest.current.walkTo(target);
+  }, []);
   const walkTo = (target: Point) => {
     onExplore();
     if (seat) standUp();
@@ -435,14 +450,11 @@ export function World({
       setMarker(target);
     }
   };
+  latest.current = { walkTo, onPickSeat };
   return (
     <>
-      <AtmosphereScene settings={atmosphere} time={time} rain={raining} />
-      <IslandTerrain
-        onWalk={(target, delta) => {
-          if (delta < 6) walkTo(target);
-        }}
-      />
+      <Atmosphere3D settings={atmosphere} time={time} rain={raining} />
+      <Terrain onWalk={walkOnGround} />
       <FunSpots
         playerSeat={seat}
         radioOn={radioOn}
@@ -452,28 +464,14 @@ export function World({
         night={night}
         motion={motionOn}
       />
-      <WaterSports motion={motionOn} />
+      <WaterSportsScene motion={motionOn} />
       <Cat player={pos} motion={motionOn} onPet={onPetCat} />
       <Shells shells={shells} player={pos} onCollect={onShell} onWalk={walkTo} />
       <Rain raining={raining} motion={motionOn} />
       <Rainbow visible={rainbow} />
-      <Campus news={news} night={night} />
-      <Buildings player={pos} night={night} />
-      {desks.map((d, i) => (
-        <group key={d.id} position={[d.x, 0, d.z]}>
-          <Box p={[0, 0.85, 0]} s={[1.35, 0.12, 0.8]} c="#e6cda8" />
-          {[-0.5, 0.5].map(x => (
-            <Box key={x} p={[x, 0.43, 0]} s={[0.07, 0.8, 0.6]} c="#7d8271" />
-          ))}
-          <Box p={[0, 1.17, -0.1]} s={[0.55, 0.35, 0.05]} c="#485f5b" />
-          <Box p={[0, 0.96, 0]} s={[0.08, 0.15, 0.08]} c="#485f5b" />
-          <Box p={[0, 0.93, 0.18]} s={[0.4, 0.025, 0.15]} c="#ece9da" />
-          <Cylinder p={[0.46, 0.99, 0]} r={0.09} h={0.18} c={i % 2 ? '#c17c5e' : '#8b9d7b'} />
-        </group>
-      ))}
-      {seats.map(s => (
-        <Seat key={s.id} seat={s} onSelect={onPickSeat} />
-      ))}
+      <CampusScene news={news} night={night} />
+      <BuildingShells player={pos} night={night} />
+      <Scenery onPickSeat={pickSeat} />
       {coworkers.map(({ person, target }) => (
         <Coworker
           key={person.id}
@@ -515,13 +513,6 @@ export function World({
         spot={WHITEBOARD_SPOT}
         active={coworkers.some(c => c.target?.activity.place === 'Pavilion M')}
       />
-      {trees.map(([x, z], i) => (
-        <Palm key={i} x={x} z={z} i={i} />
-      ))}
-      <Box p={[0, -0.03, 13.95]} s={[2, 0.2, 3]} c="#b39a78" />
-      {Array.from({ length: 9 }, (_, i) => (
-        <Box key={i} p={[0, 0.08, 12.65 + i * 0.3]} s={[2.05, 0.04, 0.22]} c="#d5ba92" />
-      ))}
       {districts
         .filter(d => d.id !== 'arrival')
         .map(d => (
@@ -583,6 +574,35 @@ export function World({
     </>
   );
 }
+// Static scenery (desks, seats, palms, the pier): memoized so the scene's frequent re-renders skip it.
+const Scenery = React.memo(function Scenery({ onPickSeat }: { onPickSeat: (id: string) => void }) {
+  return (
+    <>
+      {desks.map((d, i) => (
+        <group key={d.id} position={[d.x, 0, d.z]}>
+          <Box p={[0, 0.85, 0]} s={[1.35, 0.12, 0.8]} c="#e6cda8" />
+          {[-0.5, 0.5].map(x => (
+            <Box key={x} p={[x, 0.43, 0]} s={[0.07, 0.8, 0.6]} c="#7d8271" />
+          ))}
+          <Box p={[0, 1.17, -0.1]} s={[0.55, 0.35, 0.05]} c="#485f5b" />
+          <Box p={[0, 0.96, 0]} s={[0.08, 0.15, 0.08]} c="#485f5b" />
+          <Box p={[0, 0.93, 0.18]} s={[0.4, 0.025, 0.15]} c="#ece9da" />
+          <Cylinder p={[0.46, 0.99, 0]} r={0.09} h={0.18} c={i % 2 ? '#c17c5e' : '#8b9d7b'} />
+        </group>
+      ))}
+      {seats.map(s => (
+        <Seat key={s.id} seat={s} onSelect={onPickSeat} />
+      ))}
+      {trees.map(([x, z], i) => (
+        <Palm key={i} x={x} z={z} i={i} />
+      ))}
+      <Box p={[0, -0.03, 13.95]} s={[2, 0.2, 3]} c="#b39a78" />
+      {Array.from({ length: 9 }, (_, i) => (
+        <Box key={i} p={[0, 0.08, 12.65 + i * 0.3]} s={[2.05, 0.04, 0.22]} c="#d5ba92" />
+      ))}
+    </>
+  );
+});
 export class SceneBoundary extends React.Component<
   {
     children: React.ReactNode;

@@ -8,6 +8,9 @@ export const cameraView = {
   focus: [0, 7] as Point,
   corners: [] as Point[],
   look: null as Point | null,
+  // Zoom level the UI asks for (30 = default framing); the scene eases the camera toward it
+  // every frame, so scrolling never re-renders React.
+  zoom: 30,
 };
 
 // Keep free-look focus over the island and a wide band of surrounding sea.
