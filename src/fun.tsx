@@ -5,6 +5,7 @@ import type { Period } from './daylight';
 import { cameraView } from './camera-view';
 import { riders } from './fun-state';
 import { Label } from './label';
+import { StaticBatch } from './static-batch';
 import { peopleView } from './people';
 import { hammockSway } from './poses';
 import {
@@ -100,7 +101,7 @@ function GamesLawn({ playerSeat, motion }: { playerSeat: string | null; motion: 
           />
         )),
       )}
-      <mesh ref={ball} castShadow>
+      <mesh ref={ball} castShadow userData={{ dynamic: true }}>
         <sphereGeometry args={[0.05, 10, 8]} />
         <meshStandardMaterial color="#fff6e0" emissive="#ffb24d" emissiveIntensity={0.2} />
       </mesh>
@@ -157,7 +158,7 @@ function Firepit({ night, motion }: { night: number; motion: boolean }) {
       {[0, 1, 2].map(i => (
         <Box key={i} p={[0, 0.2 + i * 0.05, 0]} s={[0.75, 0.11, 0.11]} c="#7a5c42" r={i * 1.05} />
       ))}
-      <group ref={flames} position={[0, 0.32, 0]}>
+      <group ref={flames} userData={{ dynamic: true }} position={[0, 0.32, 0]}>
         {[0, 1, 2].map(i => (
           <mesh
             key={i}
@@ -199,7 +200,7 @@ function Hammock({ x, z, motion }: { x: number; z: number; motion: boolean }) {
       {[-1.15, 1.15].map(dz => (
         <Cyl key={dz} p={[0, 0.65, dz]} r={0.06} h={1.3} c="#9c7f5c" />
       ))}
-      <group ref={swing} position={[0, 1.25, 0]}>
+      <group ref={swing} userData={{ dynamic: true }} position={[0, 1.25, 0]}>
         {slats.map((s, i) => (
           <mesh key={i} position={[0, s.y - 1.25, s.z]} castShadow>
             <boxGeometry args={[0.75, 0.03, 0.26]} />
@@ -258,7 +259,7 @@ function Jetty({ playerSeat, motion }: { playerSeat: string | null; motion: bool
           />
         )),
       )}
-      <group ref={bobbers}>
+      <group ref={bobbers} userData={{ dynamic: true }}>
         {[-0.45, 0.45].map((dz, i) => (
           <group key={i} position={[jetty.x0 + 0.35, 0.55, jetty.z + dz]} rotation={[0, 0, 0.5]}>
             <Cyl p={[-0.6, 0.35, 0]} r={0.015} h={1.6} c="#5a4632" seg={5} />
@@ -273,7 +274,7 @@ function Jetty({ playerSeat, motion }: { playerSeat: string | null; motion: bool
           </group>
         ))}
       </group>
-      <group ref={kayaks}>
+      <group ref={kayaks} userData={{ dynamic: true }}>
         {kayakMoorings.map((_, i) => (
           <group key={i}>
             <mesh scale={[0.32, 0.16, 1.25]} castShadow>
@@ -333,6 +334,7 @@ function Radio({ on, onToggle }: { on: boolean; onToggle: () => void }) {
   return (
     <group
       name="radio"
+      userData={{ dynamic: true }}
       position={[radio[0], 1.03, radio[1]]}
       onClick={e => {
         e.stopPropagation();
@@ -593,7 +595,7 @@ export function FunSpots({
       p => p.present && Math.hypot(p.x - seatPoint('pn-0')[0], p.z - seatPoint('pn-0')[1]) < 0.3,
     );
   return (
-    <group name="fun-spots">
+    <StaticBatch name="fun-spots">
       <GamesLawn playerSeat={playerSeat} motion={motion} />
       <Firepit night={night} motion={motion} />
       {hammocks.map(([x, z]: Point) => (
@@ -605,6 +607,6 @@ export function FunSpots({
       <Telescope onLook={onTelescope} />
       <RoofTerrace />
       <TownHallScreen period={period} motion={motion} />
-    </group>
+    </StaticBatch>
   );
 }

@@ -3,6 +3,7 @@ import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 import { riders } from './fun-state';
 import { climbFaceZ, type RideView } from './rides';
+import { StaticBatch } from './static-batch';
 import { bluff, jetSkiMoorings, jetty, marina, reef, sailboatMooring, towBoatMooring, waterSportsHut } from './world';
 
 // Water sports dock (jet skis, sailboat, parasail tow boat), the climbing bluff and the dive reef.
@@ -118,7 +119,7 @@ function Marina({ motion }: { motion: boolean }) {
   const length = marina.z1 - marina.z0,
     mid = (marina.z0 + marina.z1) / 2;
   return (
-    <group name="water-sports">
+    <StaticBatch name="water-sports">
       {/* Dock */}
       <Box p={[marina.x, 0.08, mid]} s={[marina.w, 0.12, length]} c="#b8946a" />
       {Array.from({ length: Math.floor(length / 0.45) }, (_, i) => (
@@ -165,7 +166,7 @@ function Marina({ motion }: { motion: boolean }) {
         ))}
       </group>
       {/* Jet skis */}
-      <group ref={skis}>
+      <group ref={skis} userData={{ dynamic: true }}>
         {jetSkiMoorings.map((_, i) => (
           <group key={i}>
             <Blob p={[0, 0.05, 0]} s={[0.42, 0.2, 1.05]} c={i ? '#f2c14e' : '#e2563b'} rough={0.4} />
@@ -177,7 +178,7 @@ function Marina({ motion }: { motion: boolean }) {
         ))}
       </group>
       {/* Sailboat */}
-      <group ref={sailboat}>
+      <group ref={sailboat} userData={{ dynamic: true }}>
         <Blob p={[0, 0, 0]} s={[0.75, 0.3, 1.9]} c="#f6f1e4" rough={0.5} />
         <Box p={[0, 0.2, -0.1]} s={[1.05, 0.06, 2.6]} c="#c8a374" />
         <Box p={[0, 0.32, -0.9]} s={[0.9, 0.18, 0.12]} c="#3c94b4" />
@@ -189,7 +190,7 @@ function Marina({ motion }: { motion: boolean }) {
         <Sail jib />
       </group>
       {/* Parasail tow boat, its chute and line */}
-      <group ref={towBoat}>
+      <group ref={towBoat} userData={{ dynamic: true }}>
         <Blob p={[0, 0, 0]} s={[0.7, 0.28, 1.6]} c="#f6f1e4" rough={0.5} />
         <Box p={[0, 0.2, -0.2]} s={[1, 0.06, 2.2]} c="#e9e4d6" />
         <Box p={[0, 0.5, 0.3]} s={[0.8, 0.5, 0.5]} c="#3d5a62" />
@@ -197,7 +198,7 @@ function Marina({ motion }: { motion: boolean }) {
         <Cyl p={[0, 0.55, -1.25]} r={0.05} h={0.7} c="#8d8473" />
         <Box p={[0, 0.25, 1.1]} s={[0.5, 0.06, 0.3]} c="#e2563b" />
       </group>
-      <group ref={chute} visible={false}>
+      <group ref={chute} userData={{ dynamic: true }} visible={false}>
         <mesh position={[0, 0.35, 0]} scale={[1.8, 0.85, 1.3]} raycast={ignore}>
           <sphereGeometry args={[1, 18, 8, 0, Math.PI * 2, 0, Math.PI / 2]} />
           <meshStandardMaterial color="#e2563b" side={THREE.DoubleSide} roughness={0.7} />
@@ -213,14 +214,14 @@ function Marina({ motion }: { motion: boolean }) {
           </mesh>
         ))}
       </group>
-      <mesh ref={towLine} visible={false} raycast={ignore}>
+      <mesh ref={towLine} userData={{ dynamic: true }} visible={false} raycast={ignore}>
         <cylinderGeometry args={[0.015, 0.015, 1, 4]} />
         <meshBasicMaterial color="#f2efe6" />
       </mesh>
       {['ky-0', 'ky-1', 'js-0', 'js-1', 'sb', 'pa-0'].map(id => (
         <Wake key={id} motion={motion} rider={() => (id === 'sb' ? sailor() : riders[id])} />
       ))}
-    </group>
+    </StaticBatch>
   );
 }
 // Foam trail behind a boat while someone rides it: puffs dropped at the stern spread and fade.
@@ -324,7 +325,7 @@ function ClimbingBluff({ motion }: { motion: boolean }) {
   );
   const lean = Math.atan2(bluff.lean, bluff.h);
   return (
-    <group name="climbing-bluff">
+    <StaticBatch name="climbing-bluff">
       {/* Rock mass */}
       {(
         [
@@ -365,13 +366,13 @@ function ClimbingBluff({ motion }: { motion: boolean }) {
       <Box p={[bluff.x, bluff.h + 0.78, top - 2.28]} s={[3, 0.06, 0.06]} c="#7d6447" />
       <Box p={[bluff.x - 0.9, bluff.h + 0.4, top - 1.9]} s={[0.9, 0.08, 0.35]} c="#c7a57c" />
       <Cyl p={[bluff.x + 0.5, bluff.h + 0.25, top - 0.2]} r={0.06} h={0.4} c="#4a4a44" />
-      <mesh ref={rope} raycast={ignore}>
+      <mesh ref={rope} userData={{ dynamic: true }} raycast={ignore}>
         <cylinderGeometry args={[0.02, 0.02, 1, 4]} />
         <meshStandardMaterial color="#e2785b" />
       </mesh>
       {/* Crash mat at the foot of the wall */}
       <Box p={[bluff.x, 0.12, bluff.faceZ + 0.75]} s={[2.6, 0.12, 1]} c="#3c94b4" />
-    </group>
+    </StaticBatch>
   );
 }
 
@@ -435,7 +436,7 @@ function DiveSite({ motion }: { motion: boolean }) {
     if (buoy.current) buoy.current.position.y = WATER + Math.sin(t * 1.4) * 0.05;
   });
   return (
-    <group name="dive-site">
+    <StaticBatch name="dive-site">
       {/* Dive ladder off the jetty */}
       <group position={[jetty.x0 + 2, 0, jetty.z + 0.95]}>
         {[-0.25, 0.25].map(x => (
@@ -446,7 +447,7 @@ function DiveSite({ motion }: { motion: boolean }) {
         ))}
       </group>
       {/* Dive buoy with a diver-down flag over the reef */}
-      <group ref={buoy} position={[reef.x + 2.5, WATER, reef.z - 2.5]}>
+      <group ref={buoy} userData={{ dynamic: true }} position={[reef.x + 2.5, WATER, reef.z - 2.5]}>
         <Cyl p={[0, 0.1, 0]} r={0.3} h={0.3} c="#e2563b" r2={0.36} />
         <Cyl p={[0, 0.65, 0]} r={0.03} h={1} c="#e8e2d2" />
         <Box p={[0.22, 0.95, 0]} s={[0.42, 0.3, 0.02]} c="#d63a2f" />
@@ -495,7 +496,7 @@ function DiveSite({ motion }: { motion: boolean }) {
         <Box p={[0, 0.18, -0.06]} s={[0.5, 0.08, 0.3]} r={[-0.5, 0, 0]} c="#9c6a35" />
         <Blob p={[0, 0.12, 0.02]} s={[0.18, 0.06, 0.1]} c="#f2c14e" rough={0.3} />
       </group>
-      <group ref={fish}>
+      <group ref={fish} userData={{ dynamic: true }}>
         {Array.from({ length: 14 }, (_, i) => (
           <mesh key={i} rotation={[0, 0, 0]} raycast={ignore}>
             <coneGeometry args={[0.07, 0.28, 6]} />
@@ -503,7 +504,7 @@ function DiveSite({ motion }: { motion: boolean }) {
           </mesh>
         ))}
       </group>
-      <group ref={turtle} scale={0.9}>
+      <group ref={turtle} userData={{ dynamic: true }} scale={0.9}>
         <Blob p={[0, 0, 0]} s={[0.43, 0.2, 0.57]} c="#718a50" />
         <Blob p={[0, 0.1, 0]} s={[0.33, 0.16, 0.45]} c="#a2ad69" />
         <Blob p={[0, 0, 0.67]} s={[0.17, 0.12, 0.21]} c="#8ba878" />
@@ -511,7 +512,7 @@ function DiveSite({ motion }: { motion: boolean }) {
           <Blob key={side} p={[side * 0.5, -0.06, 0.15]} s={[0.36, 0.045, 0.17]} c="#8ba878" />
         ))}
       </group>
-      <group ref={bubbles} visible={false}>
+      <group ref={bubbles} userData={{ dynamic: true }} visible={false}>
         {Array.from({ length: 6 }, (_, i) => (
           <mesh key={i} raycast={ignore}>
             <sphereGeometry args={[0.06, 8, 6]} />
@@ -520,7 +521,7 @@ function DiveSite({ motion }: { motion: boolean }) {
         ))}
       </group>
       {/* Shafts of sunlight while you're down there */}
-      <group ref={rays}>
+      <group ref={rays} userData={{ dynamic: true }}>
         {[-3, -1, 1.5, 3.5].map((dx, i) => (
           <mesh
             key={i}
@@ -541,6 +542,6 @@ function DiveSite({ motion }: { motion: boolean }) {
           </mesh>
         ))}
       </group>
-    </group>
+    </StaticBatch>
   );
 }

@@ -59,6 +59,7 @@ Check-in, name, color, status, and atmosphere preferences persist in browser loc
 - `src/terrain.tsx`: shaped sand and grass terrain plus click-to-walk surface.
 - `src/world.ts`: campus layout (building pads, furniture, seats, walkways, places), collision rules, and A\* navigation (8 directions, no corner cutting) with cached grid checks, straightened into clean lines by line-of-sight smoothing.
 - `src/buildings.tsx`: building and pavilion shells (walls between doorways, glass, roofs) that open up when you're inside.
+- `src/batch.ts`, `src/static-batch.tsx`: merges scenery that never moves (seats, desks, palms, campus decor, fun spots, the dock, bluff and reef) into one draw per material; the originals stay for clicks. Mark a moving part inside with `userData={{ dynamic: true }}`.
 - `src/rides.ts`, `src/water-sports.tsx`: ride paths over time (shared by the player and the vehicles), and the dock, jet skis, sailboat, tow boat and chute, climbing bluff and dive reef.
 - `src/fun.tsx`: games lawn, firepit and hammocks, jetty and kayaks, piano, café radio, telescope, rooftop terrace and the town hall screen.
 - `src/island-extras.tsx`: Mochi the cat, the daily seashells, rain and the rainbow.

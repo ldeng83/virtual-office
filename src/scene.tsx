@@ -1,6 +1,7 @@
 import { Cat, Rain, Rainbow, Shells, type Shell } from './island-extras';
 import { FunSpots } from './fun';
 import { WaterSports } from './water-sports';
+import { StaticBatch } from './static-batch';
 import { EMOTE_ICONS, playerState, riders, type Emote } from './fun-state';
 import { PARASAIL_HEIGHT, riderPose, riderSpot, startRide, stepRide } from './rides';
 import { seatPose, UPRIGHT } from './poses';
@@ -469,7 +470,9 @@ export function World({
       <Shells shells={shells} player={pos} onCollect={onShell} onWalk={walkTo} />
       <Rain raining={raining} motion={motionOn} />
       <Rainbow visible={rainbow} />
-      <CampusScene news={news} night={night} />
+      <StaticBatch name="campus-batch">
+        <CampusScene news={news} night={night} />
+      </StaticBatch>
       <BuildingShells player={pos} night={night} />
       <Scenery onPickSeat={pickSeat} />
       {coworkers.map(({ person, target }) => (
@@ -577,7 +580,7 @@ export function World({
 // Static scenery (desks, seats, palms, the pier): memoized so the scene's frequent re-renders skip it.
 const Scenery = React.memo(function Scenery({ onPickSeat }: { onPickSeat: (id: string) => void }) {
   return (
-    <>
+    <StaticBatch name="scenery">
       {desks.map((d, i) => (
         <group key={d.id} position={[d.x, 0, d.z]}>
           <Box p={[0, 0.85, 0]} s={[1.35, 0.12, 0.8]} c="#e6cda8" />
@@ -600,7 +603,7 @@ const Scenery = React.memo(function Scenery({ onPickSeat }: { onPickSeat: (id: s
       {Array.from({ length: 9 }, (_, i) => (
         <Box key={i} p={[0, 0.08, 12.65 + i * 0.3]} s={[2.05, 0.04, 0.22]} c="#d5ba92" />
       ))}
-    </>
+    </StaticBatch>
   );
 });
 export class SceneBoundary extends React.Component<
