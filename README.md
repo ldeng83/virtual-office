@@ -19,7 +19,7 @@ Open the local URL printed by Vite. Production build: `npm run build`. Preview t
 - Use WASD or arrow keys to move relative to the camera.
 - The camera follows your avatar by default. Choose **Island overview** to see the full island, or **Follow me** to return. Right-drag to orbit; use the on-screen + / − buttons to zoom. Reset view restores the camera orientation and zoom for the selected mode.
 - Click a chair to sit; walk or select **Stand up** to leave.
-- Select any of nine places in the scrollable sidebar to travel there. The collapsible mini-map shows your position, walkways, building footprints, the pond, and place markers; select a marker to travel there. Travelling or starting to walk restores Follow me.
+- Select any of nine places in the scrollable sidebar to travel there. A round mini-map in the corner stays centred on you (north up) with an arrow for the way you face, the place icons, coworkers and the route you're walking. Click it or press **M** for the full map: both islands with place names, trails, the bridge and the water-taxi route, and where Maya and Theo are. On the full map, click to walk there (the route is drawn), double-click to jump, drag and scroll to look around, and use Office / Highlands / Both to frame it. Its side panel lists the trails (with length, difficulty and a ✓ once done, plus a Hike button) and people (Find). Esc closes it. Travelling or starting to walk restores Follow me.
 - Check in or out, change availability, and edit your name and avatar color.
 - You never lose yourself behind scenery: when trees, roofs, or canopies cover your avatar, a tinted silhouette shows through them, and a soft ring in your color pulses at your feet (also shown when zoomed far out). Coworkers get a fainter silhouette. Scenery itself never fades or changes.
 - Take a break: ping-pong (with rallies) and cornhole on the games lawn; hammocks that sway and a firepit with log seats by the east beach; a fishing jetty off the west coast where something bites every so often, with kayaks that paddle a loop around the island; a piano that plays a soft improvisation while you sit at it; a lo-fi radio on the café counter you hear louder the closer you are; loungers on the workspace's rooftop terrace (up the outdoor stair); a team quiz at golden hour and movie night at dusk on the town hall screen; and a telescope by the yoga deck that shows a constellation after dusk.
@@ -71,7 +71,7 @@ Check-in, name, color, status, and atmosphere preferences persist in browser loc
 - `src/work-props.tsx`: live desk monitor screens and the meeting whiteboard.
 - `src/coworkers.tsx`: shared avatar body and the demo coworker's walking, idle animation, and reactions to you.
 - `src/steering.ts`: smooth path following (corner rounding, ease in/out, gradual turning) shared by you and coworkers.
-- `src/island-map.tsx`: collapsible mini-map with walkways, building footprints, position marker, and place travel.
+- `src/island-map.tsx`: the round mini-map (centred on you) and the full map (both islands, names, trails, people; click to walk, double-click to jump). Both move markers every frame without re-rendering React.
 - `src/style.css`: responsive layout and visual styling.
 - `tests/navigation.test.mjs`: boundary, obstacle, destination, and seating accessibility checks.
 

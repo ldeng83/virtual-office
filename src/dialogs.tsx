@@ -1,5 +1,17 @@
 import { useState } from 'react';
-import { Armchair, ArrowUpRight, Check, Compass, Mountain, Navigation, Palmtree, Sun, Users, X } from 'lucide-react';
+import {
+  Armchair,
+  ArrowUpRight,
+  Check,
+  Compass,
+  Mountain,
+  Navigation,
+  Palmtree,
+  Sun,
+  Users,
+  X,
+  Map as MapIcon,
+} from 'lucide-react';
 import { AtmosphereControls, useOcean, type IslandTime, type Atmosphere } from './atmosphere';
 import { colors, type Profile } from './profile';
 
@@ -226,6 +238,17 @@ export function Dialog({
                     to a wild island with a mountain, a lake, a waterfall and forest. Pick a trail on the trailhead
                     board to hike it: Lakeside Loop, Waterfall Trail or Summit Ridge. Finish a trail for its badge, and
                     look out for deer, the crystal cave and fireflies at night.
+                  </p>
+                </div>
+              </li>
+              <li>
+                <MapIcon />
+                <div>
+                  <strong>Find your way</strong>
+                  <p>
+                    The round map in the corner follows you; the arrow shows which way you face. Click it or press M for
+                    the full map of both islands: click to walk somewhere, double-click to jump there, and start a hike
+                    or find a coworker from the side panel.
                   </p>
                 </div>
               </li>

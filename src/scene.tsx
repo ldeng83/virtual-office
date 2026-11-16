@@ -100,6 +100,9 @@ export function World({
   raining,
   rainbow,
   onHike,
+  walkRequest,
+  hikeRequest,
+  onNoRoute,
 }: {
   news: News;
   radioOn: boolean;
@@ -112,6 +115,10 @@ export function World({
   raining: boolean;
   rainbow: boolean;
   onHike: (trail: Trail) => void;
+  // Requests from the map: walk to a point, or hike a trail.
+  walkRequest: { point: Point; seq: number } | null;
+  hikeRequest: { id: Trail['id']; seq: number } | null;
+  onNoRoute: () => void;
   coworkers: { person: DemoCoworker; target: Target | null }[];
   work: Record<string, WorkState>;
   shipped: Record<string, string>;
@@ -396,6 +403,12 @@ export function World({
       });
     }
     avatar.current.position.copy(pos.current);
+    Object.assign(playerState, {
+      x: pos.current.x,
+      z: pos.current.z,
+      heading: avatar.current.rotation.y,
+      route: path.current,
+    });
     const now = performance.now() / 1000,
       rider = sat?.ride && riderPose(sat.ride.kind, now, -rideY.current),
       pose = rider
@@ -471,6 +484,7 @@ export function World({
       path.current = route;
       setMarker(target);
     }
+    return route.length > 0;
   };
   // Autopilot hike: walk to the start of the trail, then follow it to the end (any key stops).
   const startHike = (id: Trail['id']) => {
@@ -486,6 +500,12 @@ export function World({
     onHike(trail);
   };
   latest.current = { walkTo, onPickSeat, hike: startHike };
+  useEffect(() => {
+    if (walkRequest && !walkTo(walkRequest.point)) onNoRoute();
+  }, [walkRequest]);
+  useEffect(() => {
+    if (hikeRequest) startHike(hikeRequest.id);
+  }, [hikeRequest]);
   return (
     <>
       <Atmosphere3D settings={atmosphere} time={time} rain={raining} />

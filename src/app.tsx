@@ -17,9 +17,10 @@ import {
   Hand,
 } from 'lucide-react';
 import { locations, type Point } from './world';
+import type { Trail } from './highlands';
 import { readAtmosphere, useOcean, useIslandTime, type Atmosphere } from './atmosphere';
 import { type News } from './campus';
-import { IslandMap } from './island-map';
+import { FullMap, MiniMap } from './island-map';
 import { cameraView, type ViewMode } from './camera-view';
 import { World, SceneBoundary, MIN_ZOOM, MAX_ZOOM } from './scene';
 import { readProfile, type Profile } from './profile';
@@ -50,6 +51,9 @@ export function App() {
       seq: number;
     } | null>(null),
     [position, setPosition] = useState<Point>([0, 7]),
+    [mapOpen, setMapOpen] = useState(false),
+    [walkRequest, setWalkRequest] = useState<{ point: Point; seq: number } | null>(null),
+    [hikeRequest, setHikeRequest] = useState<{ id: Trail['id']; seq: number } | null>(null),
     [reset, setReset] = useState(0),
     [toast, setToast] = useState(''),
     [loaded, setLoaded] = useState(false);
@@ -120,7 +124,7 @@ export function App() {
     const el = panel.current;
     if (!el) return;
     const wheel = (e: WheelEvent) => {
-      if ((e.target as HTMLElement).closest('.island-map')) return;
+      if ((e.target as HTMLElement).closest('.full-map, .mini-map')) return;
       e.preventDefault();
       const delta = e.deltaY * (e.deltaMode === 1 ? 16 : e.deltaMode === 2 ? 400 : 1);
       cameraView.zoom = Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, cameraView.zoom * Math.exp(-delta * 0.0015)));
@@ -164,6 +168,22 @@ export function App() {
       return () => clearTimeout(t);
     }
   }, [toast]);
+  const mapPeople = coworkers.map(c => ({
+    id: c.person.id,
+    name: c.person.name,
+    color: c.person.color,
+    activity: c.target?.activity.activity,
+  }));
+  // M opens and closes the full map (not while typing or with a dialog open).
+  useEffect(() => {
+    const key = (e: KeyboardEvent) => {
+      if (e.key.toLowerCase() !== 'm' || e.metaKey || e.ctrlKey || e.altKey) return;
+      if ((e.target as HTMLElement).closest('input,textarea,select,[contenteditable=true],.modal')) return;
+      setMapOpen(open => !open);
+    };
+    window.addEventListener('keydown', key);
+    return () => window.removeEventListener('keydown', key);
+  }, []);
   const travel = (point: Point) => {
       setViewMode('follow');
       setGo({ point, seq: Date.now() });
@@ -291,16 +311,28 @@ export function App() {
                       `🥾 Hiking the ${trail.name} (${trail.level.toLowerCase()}). Press a movement key to stop.`,
                     )
                   }
+                  walkRequest={walkRequest}
+                  hikeRequest={hikeRequest}
+                  onNoRoute={() => setToast('There’s no way to walk there. Try a path or a place nearby.')}
                 />
               </Canvas>
             </Suspense>
           </SceneBoundary>
-          <IslandMap
-            position={position}
-            travel={travel}
-            onLook={freeLook}
-            people={coworkers.map(c => ({ id: c.person.id, name: c.person.name, color: c.person.color }))}
-          />
+          <MiniMap people={mapPeople} onOpen={() => setMapOpen(true)} />
+          {mapOpen && (
+            <FullMap
+              people={mapPeople}
+              trailsDone={Object.keys(fun.stats.trails)}
+              onWalk={point => {
+                setViewMode('follow');
+                setWalkRequest({ point, seq: Date.now() });
+              }}
+              onJump={travel}
+              onHike={id => setHikeRequest({ id, seq: Date.now() })}
+              onFindPerson={findPerson}
+              onClose={() => setMapOpen(false)}
+            />
+          )}
           <div className="view-modes" role="group" aria-label="Camera mode">
             <button aria-pressed={viewMode === 'follow'} onClick={() => setViewMode('follow')}>
               <Navigation size={14} /> {viewMode === 'free' ? 'Back to me' : 'Follow me'}
