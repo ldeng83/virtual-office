@@ -119,7 +119,7 @@ export function Campus() {
         </group>)}
         <Box p={[-17.6, 0.16, -31.5]} s={[2.6, 0.12, 2.2]} c={TIMBER}/>
         {[-0.6, 0.6].map(x => <Box key={x} p={[-17.6 + x, 0.23, -31.5]} s={[0.6, 0.02, 1.5]} c={x < 0 ? '#9cc0b3' : '#e0a8b4'} shadow={false}/>)}
-        {[[-5, -30], [-15, -36.2], [-5.4, -36.2], [-14.8, -29.6]].map(([x, z], i) => <group key={i} position={[x, 0, z]}><Disc x={0} z={0} r={0.75} c="#8eaa78" y={0.112}/>{[0, 1, 2, 3, 4].map(n => <mesh key={n} position={[Math.sin(n * 2.4) * 0.45, 0.3, Math.cos(n * 2.4) * 0.45]} raycast={ignore}><icosahedronGeometry args={[0.16, 0]}/><meshStandardMaterial color={['#e4a7b8', '#efd27e', '#f2ede0', '#c9a7e0'][(i + n) % 4]}/></mesh>)}</group>)}
+        {[[garden.x + 5.2, garden.z + 3.2], [garden.x - 4.6, garden.z - 2.8], [garden.x + 4.4, garden.z - 2.8], [garden.x - 4.8, garden.z + 3.4]].map(([x, z], i) => <group key={i} position={[x, 0, z]}><Disc x={0} z={0} r={0.75} c="#8eaa78" y={0.112}/>{[0, 1, 2, 3, 4].map(n => <mesh key={n} position={[Math.sin(n * 2.4) * 0.45, 0.3, Math.cos(n * 2.4) * 0.45]} raycast={ignore}><icosahedronGeometry args={[0.16, 0]}/><meshStandardMaterial color={['#e4a7b8', '#efd27e', '#f2ede0', '#c9a7e0'][(i + n) % 4]}/></mesh>)}</group>)}
 
         {/* Boardwalk along the east beach (loungers render as seats) */}
         {boardwalkPoints.slice(1).map((b, i) => <group key={i}>

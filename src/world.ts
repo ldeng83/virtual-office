@@ -16,9 +16,46 @@ export const pads: Pad[] = [
     { id: 'cafe', name: 'Café', x: 11, z: 0, w: 6.5, d: 4.5, style: 'building' },
     { id: 'future', name: 'Future plot', x: 7.5, z: -34.2, w: 7, d: 4.2, style: 'plot' },
 ];
+// Building shells: walls on every side except open ones, with doorways (centres in world x for
+// north/south walls, world z for east/west walls) where the walkways arrive.
+export type Side = 'north' | 'south' | 'east' | 'west';
+export const DOOR_WIDTH = 1.8, WALL_THICKNESS = 0.16, WALL_HEIGHT = 2.4;
+export const shells: Record<string, { doors: Partial<Record<Side, number[]>>; open?: Side[] }> = {
+    lobby: { doors: { south: [0], north: [0] } },
+    hq: { doors: { south: [0], north: [-6] } },
+    'pav-s': { doors: { west: [-6], east: [-6] } },
+    'pav-m': { doors: { south: [17], east: [-14] } },
+    'pav-l': { doors: { south: [14] } },
+    library: { doors: { east: [-15.2], south: [-17] } },
+    cafe: { doors: { east: [-0.5] }, open: ['south', 'west'] },
+};
+export type Wall = { pad: string; side: Side; x: number; z: number; w: number; d: number };
+// Wall pieces between doorways, plus the empty spans over each doorway (for door headers).
+export const walls: Wall[] = [], doorways: Wall[] = [];
+for (const pad of pads) {
+    const shell = shells[pad.id];
+    if (!shell)
+        continue;
+    for (const side of ['north', 'south', 'east', 'west'] as Side[]) {
+        if (shell.open?.includes(side))
+            continue;
+        const horizontal = side === 'north' || side === 'south';
+        const lo = horizontal ? pad.x - pad.w / 2 : pad.z - pad.d / 2, hi = horizontal ? pad.x + pad.w / 2 : pad.z + pad.d / 2;
+        const fixed = side === 'north' ? pad.z - pad.d / 2 : side === 'south' ? pad.z + pad.d / 2 : side === 'west' ? pad.x - pad.w / 2 : pad.x + pad.w / 2;
+        const gaps = (shell.doors[side] ?? []).map(c => [c - DOOR_WIDTH / 2, c + DOOR_WIDTH / 2]).sort((a, b) => a[0] - b[0]);
+        const piece = (a: number, b: number, list: Wall[]) => { if (b - a > 0.05) list.push(horizontal ? { pad: pad.id, side, x: (a + b) / 2, z: fixed, w: b - a, d: WALL_THICKNESS } : { pad: pad.id, side, x: fixed, z: (a + b) / 2, w: WALL_THICKNESS, d: b - a }); };
+        let at = lo;
+        for (const [a, b] of gaps) {
+            piece(at, a, walls);
+            piece(a, b, doorways);
+            at = b;
+        }
+        piece(at, hi, walls);
+    }
+}
 export const plaza = { x: 0, z: -9, radius: 6, fountain: 1.6 };
 export const amphitheater = { x: -12, z: -2, stage: 1.5, tiers: [2.8, 4.3, 5.8], from: 150 * Math.PI / 180, to: 300 * Math.PI / 180 };
-export const garden = { x: -10, z: -33, loopX: 5.8, loopZ: 3.4 };
+export const garden = { x: -10.5, z: -33.5, loopX: 5.6, loopZ: 3 };
 export const ponds = [{ x: garden.x, z: garden.z, rx: 2.6, rz: 1.5 }];
 export const boardwalk = { from: [24.8, -22] as Point, bend: [29.2, -12] as Point, to: [24.8, -2.5] as Point };
 export const newsScreen = { x: 0, z: -13.8, w: 3.6 };
@@ -75,7 +112,7 @@ export const seats: Seat[] = [
         const count = [5, 6, 5][tier];
         return ring(amphitheater.x, amphitheater.z, r, Array.from({ length: count }, (_, i) => amphitheater.from + (i + 0.5) / count * (amphitheater.to - amphitheater.from)), 'Town hall seat', `am${tier}`, 'bench');
     }),
-    ...ring(garden.x, garden.z, garden.loopX, [160, 20, 270].map(d => d * Math.PI / 180), 'Garden bench', 'gb', 'bench', garden.loopZ),
+    ...ring(garden.x, garden.z, garden.loopX, [160, 20, 300].map(d => d * Math.PI / 180), 'Garden bench', 'gb', 'bench', garden.loopZ),
     ...Array.from({ length: 5 }, (_, i) => ({ id: `bw-${i}`, name: 'Boardwalk lounger', point: [27.4 - Math.abs(i - 2) * 0.55, -18.5 + i * 3.2] as Point, angle: Math.PI / 2, kind: 'lounger' as const })),
 ];
 // Places in the sidebar and on the map.
@@ -93,8 +130,8 @@ export const locations = [
 export const districts = locations;
 // Walkways: spokes from the plaza to every zone.
 export const walkways: Point[][] = [
-    [[0, 7], [0, 4.75]], [[0, 0.25], [0, -3]], [[0, -15], [0, -20.5]], [[4.5, -7], [10, -6]], [[14, -6], [16, -11.3]], [[5, -12], [12.8, -22.3]],
-    [[-5.2, -11], [-12, -14]], [[4.3, -5], [8, -2.3]], [[-4.6, -6], [-8.8, -4]], [[-6, -29.5], [-8.6, -29.9]], [[14.3, -0.5], [24.8, -3.5]], [[22.3, -14], [26, -13.5]], [[10.5, -28.8], [8.5, -32.1]],
+    [[0, 7], [0, 4.75]], [[0, 0.25], [0, -3]], [[0, -15], [0, -20.5]], [[4.5, -7], [10, -6]], [[14, -6], [15, -6], [17, -11.3]], [[5, -12], [14, -22.3]],
+    [[-5.2, -11], [-12, -15.2]], [[4.3, -5], [7.4, -1.2]], [[-4.6, -6], [-8.8, -4]], [[-6, -29.5], [-6.2, -30.4], [-8.4, -30.55]], [[14.3, -0.5], [24.8, -3.5]], [[22.3, -14], [26, -13.5]], [[11.4, -28.6], [11.4, -30.4], [8.5, -32.1]],
 ];
 const blocks: Block[] = [
     { x: plaza.x, z: plaza.z, r: plaza.fountain + 0.3 },
@@ -103,6 +140,7 @@ const blocks: Block[] = [
     { x: tables.pavS.x, z: tables.pavS.z, r: tables.pavS.r + 0.25 },
     ...tables.terrace.map(([x, z]) => ({ x, z, r: 0.7 })),
     { x: WHITEBOARD[0], z: WHITEBOARD[1], hx: 0.45, hz: 0.95 },
+    ...walls.map(w => ({ x: w.x, z: w.z, hx: w.w / 2 + 0.3, hz: w.d / 2 + 0.3 })),
     ...booths.flatMap(b => [{ x: b.x, z: b.z - 0.45, hx: 0.8, hz: 0.45 }, { x: b.x - 1.1, z: b.z - 0.2, hx: 0.25, hz: 0.8 }, { x: b.x + 1.1, z: b.z - 0.2, hx: 0.25, hz: 0.8 }]),
 ];
 export function segmentDistance(point: Point, a: Point, b: Point) {
@@ -142,6 +180,8 @@ export function walkable(x: number, z: number) {
         return false;
     return true;
 }
+// Cells right next to a wall or furniture cost a little more, so routes keep a margin and straighten cleanly.
+const hugsObstacle = (p: Point) => !(gridWalkable(p[0] + 1, p[1]) && gridWalkable(p[0] - 1, p[1]) && gridWalkable(p[0], p[1] + 1) && gridWalkable(p[0], p[1] - 1));
 const STEPS = [[1, 0], [-1, 0], [0, 1], [0, -1], [1, 1], [1, -1], [-1, 1], [-1, -1]];
 const octile = (a: Point, b: Point) => { const dx = Math.abs(a[0] - b[0]), dz = Math.abs(a[1] - b[1]); return Math.max(dx, dz) + (Math.SQRT2 - 1) * Math.min(dx, dz); };
 // A straight segment is clear when the centre line and a little either side stay walkable.
@@ -199,7 +239,7 @@ function gridPath(start: Point, end: Point): Point[] {
         for (const [dx, dz] of STEPS) {
             // Diagonals only when both side cells are open, so routes never clip an obstacle's corner.
             if (dx && dz && !(gridWalkable(p[0] + dx, p[1]) && gridWalkable(p[0], p[1] + dz))) continue;
-            const n: Point = [p[0] + dx, p[1] + dz], nextCost = cost + (dx && dz ? Math.SQRT2 : 1);
+            const n: Point = [p[0] + dx, p[1] + dz], nextCost = cost + (dx && dz ? Math.SQRT2 : 1) + (hugsObstacle(n) ? 0.6 : 0);
             if (gridWalkable(...n) && nextCost < (costs.get(key(n)) ?? Infinity)) { costs.set(key(n), nextCost); prev.set(key(n), p); push({ point: n, cost: nextCost, score: nextCost + octile(n, e) }); }
         }
     }

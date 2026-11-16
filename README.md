@@ -15,7 +15,7 @@ Open the local URL printed by Vite. Production build: `npm run build`. Preview t
 
 ## Explore
 
-- Click the ground to walk around obstacles. The island is a compact office park on the water: an arrival pier and glass lobby on the south shore, a central plaza with a fountain and team-news screen, a main workspace with 14 desks in Design and Engineering areas around a planted atrium, Pavilions S, M and L (2, 6 and 12 seats), a focus library with six booths, a café with a sea-view terrace, a town hall amphitheater, a wellness garden with a walking loop around the pond, a boardwalk with loungers on the east beach, and a marked future plot. This is the layout phase: floors, furniture and walkways are in place; building walls, glass and roofs come next.
+- Click the ground to walk around obstacles. The island is a compact office park on the water: an arrival pier and glass lobby on the south shore, a central plaza with a fountain and team-news screen, a main workspace with 14 desks in Design and Engineering areas around a planted atrium, Pavilions S, M and L (2, 6 and 12 seats), a focus library with six booths, a café with a sea-view terrace, a town hall amphitheater, a wellness garden with a walking loop around the pond, a boardwalk with loungers on the east beach, and a marked future plot. Buildings have a solid base, a glass window band and roofs (a green roof on the workspace); the lobby and pavilions are glass between timber posts with translucent roofs. Walls block walking, so enter through the doorways where the walkways arrive. When you step inside, or pan the camera onto a building, its roof fades away and the camera-facing walls turn see-through, so you can see the people at their desks.
 - Use WASD or arrow keys to move relative to the camera.
 - The camera follows your avatar by default. Choose **Island overview** to see the full island, or **Follow me** to return. Right-drag to orbit; use the on-screen + / − buttons to zoom. Reset view restores the camera orientation and zoom for the selected mode.
 - Click a chair to sit; walk or select **Stand up** to leave.
@@ -47,6 +47,7 @@ Check-in, name, color, status, and atmosphere preferences persist in browser loc
 - `src/shoreline.ts`: shared coastal contour for terrain, collision, ocean effects, and animal routes.
 - `src/terrain.tsx`: shaped sand and grass terrain plus click-to-walk surface.
 - `src/world.ts`: campus layout (building pads, furniture, seats, walkways, places), collision rules, and A* navigation (8 directions, no corner cutting) with cached grid checks, straightened into clean lines by line-of-sight smoothing.
+- `src/buildings.tsx`: building and pavilion shells (walls between doorways, glass, roofs) that open up when you're inside.
 - `src/campus.tsx`: campus ground plan: plaza and fountain, building floors, furniture, screens, amphitheater, wellness garden, and boardwalk.
 - `src/people.ts`: shared person model, demo coworker routines, the home/errand activity planner, and seat/target resolution.
 - `src/work-props.tsx`: live desk monitor screens and the meeting whiteboard.

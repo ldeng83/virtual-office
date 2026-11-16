@@ -8,6 +8,7 @@ import { desks, findPath, locations, seats, trees, walkable, districts, WHITEBOA
 import { AtmosphereControls, AtmosphereScene, readAtmosphere, useOcean, useIslandTime, type IslandTime, type Atmosphere } from './atmosphere';
 import { IslandTerrain } from './terrain';
 import { Campus } from './campus';
+import { Buildings } from './buildings';
 import { IslandMap } from './island-map';
 import { OVERVIEW_CENTER } from './shoreline';
 import { cameraView, clampFocus, type ViewMode } from './camera-view';
@@ -89,6 +90,8 @@ function ZoneLabel({ position, title }: {
 // Zoom multiplier range (30 = default framing). Low values reveal more open sea around the island.
 const MIN_ZOOM = 10, MAX_ZOOM = 65;
 const occlusionRay = new THREE.Raycaster(), lookDir = new THREE.Vector3(), lookPoint = new THREE.Vector3();
+// Glass and faded roofs don't count as hiding you.
+const seeThrough = (object: THREE.Object3D) => { const material = (object as THREE.Mesh).material as THREE.Material | THREE.Material[] | undefined; const m = Array.isArray(material) ? material[0] : material; return m && m.transparent ? m.opacity : 1; };
 const isInside = (object: THREE.Object3D, parent: THREE.Object3D) => { for (let o: THREE.Object3D | null = object; o; o = o.parent) if (o === parent) return true; return false; };
 const viewCorners = [[-1, -1], [1, -1], [1, 1], [-1, 1]], viewNdc = new THREE.Vector2(), viewRay = new THREE.Raycaster(), viewHit = new THREE.Vector3(), groundPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
 function World({ profile, go, seat, setSeat, onPosition, zoom, reset, atmosphere, time, viewMode, onExplore, onFreeLook, coworkers, greeting, onPickSeat, work, shipped }: {
@@ -272,7 +275,7 @@ function World({ profile, go, seat, setSeat, onPosition, zoom, reset, atmosphere
                 lookPoint.set(pos.current.x, avatar.current!.position.y + height, pos.current.z);
                 occlusionRay.set(lookPoint.clone().addScaledVector(lookDir, -60), lookDir);
                 occlusionRay.far = 59.7;
-                return occlusionRay.intersectObjects(state.scene.children, true).some(hit => hit.object.visible && !isInside(hit.object, avatar.current!));
+                return occlusionRay.intersectObjects(state.scene.children, true).some(hit => hit.object.visible && !isInside(hit.object, avatar.current!) && seeThrough(hit.object) > 0.5);
             });
         }
         if (findMe.current && findMeMaterial.current) {
@@ -290,6 +293,7 @@ function World({ profile, go, seat, setSeat, onPosition, zoom, reset, atmosphere
     return <><AtmosphereScene settings={atmosphere} time={time}/>
  <IslandTerrain onWalk={(target, delta) => { if (delta >= 6) return; onExplore(); const route = findPath([pos.current.x, pos.current.z], target); if (route.length) { setSeat(null); path.current = route; setMarker(target); } }}/>
  <Campus/>
+ <Buildings player={pos}/>
  {desks.map((d, i) => <group key={d.id} position={[d.x, 0, d.z]}><Box p={[0, 0.85, 0]} s={[1.35, 0.12, 0.8]} c="#e6cda8"/>{[-0.5, 0.5].map(x => <Box key={x} p={[x, 0.43, 0]} s={[0.07, 0.8, 0.6]} c="#7d8271"/>)}<Box p={[0, 1.17, -0.1]} s={[0.55, 0.35, 0.05]} c="#485f5b"/><Box p={[0, 0.96, 0]} s={[0.08, 0.15, 0.08]} c="#485f5b"/><Box p={[0, 0.93, 0.18]} s={[0.4, 0.025, 0.15]} c="#ece9da"/><Cylinder p={[0.46, 0.99, 0]} r={0.09} h={0.18} c={i % 2 ? '#c17c5e' : '#8b9d7b'}/></group>)}
  {seats.map(s => <Seat key={s.id} seat={s} onSelect={onPickSeat}/>)}
  {coworkers.map(({ person, target }) => <Coworker key={person.id} person={person} target={target} greeting={greeting?.id === person.id ? greeting.text : null} player={pos} motion={atmosphere.motion} task={target?.activity.work ? { ...currentTask(person, work[person.id]), progress: work[person.id].progress } : null} shipped={shipped[person.id] ?? null}/>)}
