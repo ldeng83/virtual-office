@@ -7,7 +7,8 @@ import { ArrowUpRight, Check, ChevronDown, Compass, DoorOpen, HelpCircle, MapPin
 import { desks, findPath, locations, seats, trees, walkable, districts, WHITEBOARD, WHITEBOARD_FACING, WHITEBOARD_SPOT, type Point } from './world';
 import { AtmosphereControls, AtmosphereScene, readAtmosphere, useOcean, useIslandTime, type IslandTime, type Atmosphere } from './atmosphere';
 import { IslandTerrain } from './terrain';
-import { Campus } from './campus';
+import { Campus, type News } from './campus';
+import { periods } from './daylight';
 import { Buildings } from './buildings';
 import { IslandMap } from './island-map';
 import { OVERVIEW_CENTER } from './shoreline';
@@ -94,7 +95,8 @@ const occlusionRay = new THREE.Raycaster(), lookDir = new THREE.Vector3(), lookP
 const seeThrough = (object: THREE.Object3D) => { const material = (object as THREE.Mesh).material as THREE.Material | THREE.Material[] | undefined; const m = Array.isArray(material) ? material[0] : material; return m && m.transparent ? m.opacity : 1; };
 const isInside = (object: THREE.Object3D, parent: THREE.Object3D) => { for (let o: THREE.Object3D | null = object; o; o = o.parent) if (o === parent) return true; return false; };
 const viewCorners = [[-1, -1], [1, -1], [1, 1], [-1, 1]], viewNdc = new THREE.Vector2(), viewRay = new THREE.Raycaster(), viewHit = new THREE.Vector3(), groundPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
-function World({ profile, go, seat, setSeat, onPosition, zoom, reset, atmosphere, time, viewMode, onExplore, onFreeLook, coworkers, greeting, onPickSeat, work, shipped }: {
+function World({ profile, go, seat, setSeat, onPosition, zoom, reset, atmosphere, time, viewMode, onExplore, onFreeLook, coworkers, greeting, onPickSeat, work, shipped, news }: {
+    news: News;
     coworkers: { person: DemoCoworker; target: Target | null }[];
     work: Record<string, WorkState>;
     shipped: Record<string, string>;
@@ -117,6 +119,7 @@ function World({ profile, go, seat, setSeat, onPosition, zoom, reset, atmosphere
     time: IslandTime;
 }) {
     const { size, camera, gl } = useThree();
+    const night = THREE.MathUtils.lerp(periods[time.from].darkness, periods[time.to].darkness, time.progress);
     const freeFocus = useRef(new THREE.Vector3()), dragging = useRef(false), baseMode = useRef<'follow' | 'overview'>('follow');
     if (viewMode !== 'free')
         baseMode.current = viewMode;
@@ -292,8 +295,8 @@ function World({ profile, go, seat, setSeat, onPosition, zoom, reset, atmosphere
     });
     return <><AtmosphereScene settings={atmosphere} time={time}/>
  <IslandTerrain onWalk={(target, delta) => { if (delta >= 6) return; onExplore(); const route = findPath([pos.current.x, pos.current.z], target); if (route.length) { setSeat(null); path.current = route; setMarker(target); } }}/>
- <Campus/>
- <Buildings player={pos}/>
+ <Campus news={news} night={night}/>
+ <Buildings player={pos} night={night}/>
  {desks.map((d, i) => <group key={d.id} position={[d.x, 0, d.z]}><Box p={[0, 0.85, 0]} s={[1.35, 0.12, 0.8]} c="#e6cda8"/>{[-0.5, 0.5].map(x => <Box key={x} p={[x, 0.43, 0]} s={[0.07, 0.8, 0.6]} c="#7d8271"/>)}<Box p={[0, 1.17, -0.1]} s={[0.55, 0.35, 0.05]} c="#485f5b"/><Box p={[0, 0.96, 0]} s={[0.08, 0.15, 0.08]} c="#485f5b"/><Box p={[0, 0.93, 0.18]} s={[0.4, 0.025, 0.15]} c="#ece9da"/><Cylinder p={[0.46, 0.99, 0]} r={0.09} h={0.18} c={i % 2 ? '#c17c5e' : '#8b9d7b'}/></group>)}
  {seats.map(s => <Seat key={s.id} seat={s} onSelect={onPickSeat}/>)}
  {coworkers.map(({ person, target }) => <Coworker key={person.id} person={person} target={target} greeting={greeting?.id === person.id ? greeting.text : null} player={pos} motion={atmosphere.motion} task={target?.activity.work ? { ...currentTask(person, work[person.id]), progress: work[person.id].progress } : null} shipped={shipped[person.id] ?? null}/>)}
@@ -442,6 +445,25 @@ function App() {
                 post(person, task.icon, `is back on ${task.title}`);
             }
         } }, [plans]);
+    const news: News = { time: mood.time, period: mood.name, items: showDemo ? feed.slice(0, 4).map(item => `${item.who} ${item.text}`) : [] };
+    // Sitting in a library booth switches you to Focused; standing up restores your status.
+    const focusRestore = useRef<string | null>(null);
+    useEffect(() => {
+        const inBooth = !!seat?.startsWith('booth-');
+        if (inBooth && focusRestore.current === null) {
+            focusRestore.current = profile.status;
+            if (profile.status !== 'Focused') {
+                update({ status: 'Focused' });
+                setToast('Focus mode on. You’re Focused while you’re in the library.');
+            }
+        }
+        else if (!inBooth && focusRestore.current !== null) {
+            const previous = focusRestore.current;
+            focusRestore.current = null;
+            if (profile.status === 'Focused' && previous !== 'Focused')
+                update({ status: previous });
+        }
+    }, [seat]);
     const [seenFeed, setSeenFeed] = useState(0);
     const unseen = showDemo ? feed.filter(item => item.id > seenFeed).length : 0;
     const occupied = new Map(coworkers.flatMap(c => c.target?.seatId ? [[c.target.seatId, c.person.name] as const] : []));
@@ -497,7 +519,7 @@ function App() {
  {tab === 'activity' ? <div className="feed" aria-live="polite">{showDemo && feed.length ? feed.map(item => <button key={item.id} className="feed-item" onClick={() => findPerson(item.personId)}><span className="feed-icon">{item.icon}</span><span><strong>{item.who}</strong> {item.text}<small>{item.at.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}</small></span></button>) : <p className="feed-empty">Team updates will appear here as people work.</p>}</div> : tab === 'places' ? <nav className="places" aria-label="Island locations">{locations.map((l, i) => { const Icon = icons[i] ?? Compass; return <button key={l.id} className={nearest.id === l.id ? 'place selected' : 'place'} onClick={() => travel(l.point)}><span className={`place-icon place-${i}`}><Icon size={19}/></span><span><strong>{l.name}</strong><small>{l.detail}</small></span><ArrowUpRight className="place-arrow" size={16}/></button>; })}</nav> : <div className="people"><div className="person"><span className="person-avatar" style={{ background: profile.color }}>{profile.name.slice(0, 1)}</span><div><strong>{profile.name} <small>(you)</small></strong><p>{profile.checked ? profile.status : 'Not checked in'}</p></div><span className={profile.checked ? 'online-dot' : 'offline-dot'}/></div>{coworkers.map(({ person, target }) => <div key={person.id} className="person"><span className="person-avatar" style={{ background: person.color }}>{person.name.slice(0, 1)}</span><div><strong>{person.name} <small className="demo-tag">demo</small></strong><p>{target ? `${target.activity.status} · ${target.activity.activity}` : 'Off the island'}</p>{target && (() => { const task = currentTask(person, work[person.id]); return <p className="person-task" title={`${Math.round(work[person.id].progress * 100)}% done`}>{task.icon} {task.title}<span className="mini-bar"><span style={{ width: `${work[person.id].progress * 100}%` }}/></span></p>; })()}</div>{target && <button className="icon-button find-person" aria-label={`Find ${person.name}`} title={`Find ${person.name}`} onClick={() => findPerson(person.id)}><LocateFixed size={15}/></button>}<span className={!target ? 'offline-dot' : target.activity.status === 'Available' ? 'online-dot' : 'busy-dot'}/></div>)}<div className="empty-people"><Users size={25}/><strong>A space for the whole team</strong><p>{showDemo ? 'Maya and Theo are demo coworkers on a daily routine. Real teammates arrive with shared presence.' : 'This first prototype runs locally. Shared employee presence is the next milestone.'}</p></div></div>}
  <div className="sidebar-footer"><div><span className="tiny-island">✦</span><strong>A little island. A better workday.</strong></div><p>Built for a team of 10.</p></div></aside>
  <section ref={panel} data-view-mode={viewMode} data-mood={mood.period} className="island-panel" aria-label="Interactive 3D island"><div className="scene-top"><div className="location-chip"><span className="online-dot"/>{mood.name}<span className="chip-divider"/><time dateTime={mood.now.toISOString()} title={`${mood.timezone}${atmosphere.mode === 'manual' ? ' · Manual atmosphere' : ' · Following real time'}`}>{mood.time}</time>{atmosphere.mode === 'manual' && <span className="manual-chip">Manual</span>}</div><button className="scene-settings" aria-label="Island atmosphere" onClick={() => setModal('atmosphere')}><Settings2 size={18}/></button></div>
- <SceneBoundary><Suspense fallback={<div className="loading">Finding your little corner of the world…</div>}><Canvas shadows orthographic gl={{ stencil: true }} camera={{ position: [21, 25, 36], zoom: 30, near: 0.1, far: 1000 }} dpr={[1, 1.7]} onCreated={() => setLoaded(true)}><World profile={profile} go={go} seat={seat} setSeat={setSeat} onPosition={setPosition} zoom={zoom} reset={reset} atmosphere={atmosphere} time={mood} viewMode={viewMode} onExplore={() => setViewMode('follow')} onFreeLook={freeLook} coworkers={coworkers} greeting={greeting} onPickSeat={pickSeat} work={work} shipped={shipped}/></Canvas></Suspense></SceneBoundary>
+ <SceneBoundary><Suspense fallback={<div className="loading">Finding your little corner of the world…</div>}><Canvas shadows orthographic gl={{ stencil: true }} camera={{ position: [21, 25, 36], zoom: 30, near: 0.1, far: 1000 }} dpr={[1, 1.7]} onCreated={() => setLoaded(true)}><World profile={profile} go={go} seat={seat} setSeat={setSeat} onPosition={setPosition} zoom={zoom} reset={reset} atmosphere={atmosphere} time={mood} viewMode={viewMode} onExplore={() => setViewMode('follow')} onFreeLook={freeLook} coworkers={coworkers} greeting={greeting} onPickSeat={pickSeat} work={work} shipped={shipped} news={news}/></Canvas></Suspense></SceneBoundary>
  <IslandMap position={position} travel={travel} onLook={freeLook} people={coworkers.map(c => ({ id: c.person.id, name: c.person.name, color: c.person.color }))}/>
  <div className="view-modes" role="group" aria-label="Camera mode"><button aria-pressed={viewMode === 'follow'} onClick={() => setViewMode('follow')}><Navigation size={14}/> {viewMode === 'free' ? 'Back to me' : 'Follow me'}</button><button aria-pressed={viewMode === 'overview'} onClick={() => setViewMode('overview')}><Compass size={14}/> Island overview</button></div>
  {loaded && viewMode === 'overview' && <div className="island-caption"><span>YOUR EVERYDAY GETAWAY</span><h2>Good work happens here.</h2><p>Find your spot. Make a connection.</p></div>}

@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useEffect, useMemo } from 'react';
 import * as THREE from 'three';
 import { amphitheater, boardwalk, booths, garden, newsScreen, pads, plaza, ponds, tables, walkways, type Point } from './world';
 
@@ -31,7 +31,67 @@ function Screen({ x, z, w, h, y, facing }: { x: number; z: number; w: number; h:
     </group>;
 }
 
-export function Campus() {
+// The plaza screen shows the clock and the latest team news.
+export type News = { time: string; period: string; items: string[] };
+function NewsScreen({ news }: { news: News }) {
+    const { canvas, texture } = useMemo(() => {
+        const canvas = document.createElement('canvas');
+        canvas.width = 640;
+        canvas.height = 320;
+        const texture = new THREE.CanvasTexture(canvas);
+        texture.colorSpace = THREE.SRGBColorSpace;
+        texture.anisotropy = 4;
+        return { canvas, texture };
+    }, []);
+    const key = `${news.time}|${news.period}|${news.items.join('|')}`;
+    useEffect(() => {
+        const ctx = canvas.getContext('2d')!;
+        ctx.fillStyle = '#21352f';
+        ctx.fillRect(0, 0, 640, 320);
+        ctx.fillStyle = '#9fd3c0';
+        ctx.font = '700 30px Manrope, "DM Sans", system-ui, sans-serif';
+        ctx.fillText('ATOLL · TEAM NEWS', 32, 52);
+        ctx.textAlign = 'right';
+        ctx.fillStyle = '#f2efe4';
+        ctx.fillText(news.time, 608, 52);
+        ctx.textAlign = 'left';
+        ctx.fillStyle = '#7fa597';
+        ctx.font = '500 22px "DM Sans", system-ui, sans-serif';
+        ctx.fillText(news.period, 32, 86);
+        ctx.fillStyle = '#3c5a50';
+        ctx.fillRect(32, 102, 576, 2);
+        ctx.font = '500 25px "DM Sans", system-ui, sans-serif';
+        (news.items.length ? news.items : ['Welcome to the island']).slice(0, 4).forEach((line, i) => {
+            ctx.fillStyle = i ? '#cfdcd5' : '#ffffff';
+            ctx.fillText(line, 32, 148 + i * 44, 576);
+        });
+        texture.needsUpdate = true;
+    }, [key, canvas, texture]);
+    useEffect(() => () => texture.dispose(), [texture]);
+    return <group position={[newsScreen.x, 0, newsScreen.z]}>
+        {[-newsScreen.w / 2 + 0.1, newsScreen.w / 2 - 0.1].map(px => <Box key={px} p={[px, 0.8, -0.05]} s={[0.07, 1.6, 0.07]} c="#7f8b75"/>)}
+        <Box p={[0, 2.25, -0.05]} s={[newsScreen.w, 1.9, 0.08]} c={DARK}/>
+        <mesh position={[0, 2.25, 0]}><planeGeometry args={[newsScreen.w - 0.16, 1.74]}/><meshBasicMaterial map={texture} toneMapped={false}/></mesh>
+    </group>;
+}
+// Low path lights along every walkway; they glow from dusk.
+function pathLights(): Point[] {
+    const out: Point[] = [];
+    for (const path of walkways) for (let i = 1; i < path.length; i++) {
+        const [a, b] = [path[i - 1], path[i]], length = Math.hypot(b[0] - a[0], b[1] - a[1]);
+        if (length < 3)
+            continue;
+        const nx = -(b[1] - a[1]) / length, nz = (b[0] - a[0]) / length;
+        for (let t = 1.4; t < length - 1.2; t += 3.2)
+            out.push([a[0] + (b[0] - a[0]) * t / length + nx * 0.95, a[1] + (b[1] - a[1]) * t / length + nz * 0.95]);
+    }
+    return out;
+}
+
+export function Campus({ news, night }: { news: News; night: number }) {
+    const lights = useMemo(pathLights, []);
+    const glow = useMemo(() => new THREE.MeshStandardMaterial({ color: '#fff3d6', emissive: '#ffd08a', emissiveIntensity: 0 }), []);
+    useEffect(() => { glow.emissiveIntensity = night * 2.2; }, [night, glow]);
     const boardwalkPoints = useMemo(() => new THREE.QuadraticBezierCurve(new THREE.Vector2(...boardwalk.from), new THREE.Vector2(...boardwalk.bend), new THREE.Vector2(...boardwalk.to)).getPoints(12).map(v => [v.x, v.y] as Point), []);
     return <group name="campus">
         {/* Walkways */}
@@ -46,7 +106,8 @@ export function Campus() {
         <Cyl p={[plaza.x, 0.7, plaza.z]} r={0.12} h={0.6} c="#d9d2bf"/>
         <Cyl p={[plaza.x, 1.02, plaza.z]} r={0.45} r2={0.2} h={0.12} c="#d9d2bf"/>
         <mesh position={[plaza.x, 1.2, plaza.z]} raycast={ignore}><sphereGeometry args={[0.22, 12, 8]}/><meshStandardMaterial color="#c9ecef" transparent opacity={0.55}/></mesh>
-        <Screen x={newsScreen.x} z={newsScreen.z} w={newsScreen.w} h={1.7} y={1.6} facing={0}/>
+        <NewsScreen news={news}/>
+        {lights.map(([x, z], i) => <group key={i} position={[x, 0, z]}><Cyl p={[0, 0.25, 0]} r={0.06} h={0.5} c="#6f7d6c" seg={8}/><mesh position={[0, 0.52, 0]} material={glow}><cylinderGeometry args={[0.09, 0.09, 0.08, 10]}/></mesh></group>)}
         {Array.from({ length: 8 }, (_, i) => { const a = i * Math.PI / 4 + Math.PI / 8; return <Cyl key={i} p={[plaza.x + Math.cos(a) * (plaza.radius + 0.6), 1, plaza.z + Math.sin(a) * (plaza.radius + 0.6)]} r={0.05} h={2} c="#6f7d6c"/>; })}
 
         {/* Building pads: concrete floors for buildings, pale floors for glass pavilions, a dashed border for the future plot */}

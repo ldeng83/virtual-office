@@ -2,7 +2,7 @@ import { useMemo, useRef, type RefObject } from 'react';
 import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 import { cameraView } from './camera-view';
-import { doorways, pads, walls, WALL_HEIGHT, type Pad, type Wall } from './world';
+import { doorways, pads, shells, walls, WALL_HEIGHT, type Pad, type Wall } from './world';
 
 // Building shells on top of the campus floors. Buildings have a solid base, a glass window band
 // and a header; pavilions are glass between timber posts. The roof and the camera-facing walls
@@ -51,7 +51,41 @@ function posts(pad: Pad) {
     return out.filter((p, i) => out.findIndex(q => Math.hypot(q[0] - p[0], q[1] - p[1]) < 0.05) === i);
 }
 
-function Shell({ pad, player }: { pad: Pad; player: RefObject<THREE.Vector3> }) {
+// Name boards over each building's main entrance, drawn once to a small canvas texture.
+const signSpots: Record<string, { side: 'south' | 'east'; at?: number; top?: boolean }> = {
+    lobby: { side: 'south' }, hq: { side: 'south' }, 'pav-s': { side: 'east' }, 'pav-m': { side: 'south' }, 'pav-l': { side: 'south' }, library: { side: 'south' }, cafe: { side: 'south', at: 11, top: true },
+};
+function Sign({ pad }: { pad: Pad }) {
+    const spot = signSpots[pad.id];
+    const texture = useMemo(() => {
+        const canvas = document.createElement('canvas'), ctx = canvas.getContext('2d')!;
+        canvas.width = 512;
+        canvas.height = 96;
+        ctx.fillStyle = '#f6f2e6';
+        ctx.fillRect(0, 0, 512, 96);
+        ctx.fillStyle = '#2f4a3f';
+        ctx.font = '700 46px Manrope, "DM Sans", system-ui, sans-serif';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(pad.name.toUpperCase(), 256, 52, 480);
+        const t = new THREE.CanvasTexture(canvas);
+        t.colorSpace = THREE.SRGBColorSpace;
+        t.anisotropy = 4;
+        return t;
+    }, [pad.name]);
+    if (!spot)
+        return null;
+    const door = shells[pad.id]?.doors[spot.side]?.[0] ?? (spot.side === 'south' ? pad.x : pad.z), along = spot.at ?? door;
+    const width = Math.min(4.2, Math.max(2.4, pad.name.length * 0.3)), y = spot.top ? FLOOR + WALL_HEIGHT + 0.45 : FLOOR + WALL_HEIGHT + 0.42;
+    const out = spot.top ? 0.36 : 0.12;
+    const [x, z, angle] = spot.side === 'south' ? [along, pad.z + pad.d / 2 + out, 0] : [pad.x + pad.w / 2 + out, along, Math.PI / 2];
+    return <group position={[x, y, z]} rotation={[0, angle, 0]} name={`sign-${pad.id}`}>
+        <mesh position={[0, 0, -0.04]}><boxGeometry args={[width + 0.12, 0.74, 0.06]}/><meshStandardMaterial color="#2f4a3f"/></mesh>
+        <mesh position={[0, 0, 0.012]}><planeGeometry args={[width, 0.62]}/><meshBasicMaterial map={texture} toneMapped={false}/></mesh>
+    </group>;
+}
+
+function Shell({ pad, player, night }: { pad: Pad; player: RefObject<THREE.Vector3>; night: RefObject<number> }) {
     const back = useMemo(() => materials(pad, false), [pad]), frontMats = useMemo(() => materials(pad, true), [pad]);
     const roof = useRef<THREE.Group>(null), opacity = useRef(1);
     const own = walls.filter(w => w.pad === pad.id), doors = doorways.filter(w => w.pad === pad.id);
@@ -61,6 +95,12 @@ function Shell({ pad, player }: { pad: Pad; player: RefObject<THREE.Vector3> }) 
         const open = (!!p && inside(p.x, p.z, 0.4)) || inside(fx, fz, 0.8);
         opacity.current = THREE.MathUtils.damp(opacity.current, open ? 0.08 : 1, 7, Math.min(dt, 0.1));
         const o = opacity.current;
+        // Windows glow warm after dark.
+        for (const m of [back.glass, frontMats.glass]) {
+            m.emissive.set('#ffd28a');
+            m.emissiveIntensity = (night.current ?? 0) * (pad.style === 'glass' ? 0.9 : 1.8);
+        }
+        back.glass.opacity = (pad.style === 'glass' ? 0.26 : 0.38) + (night.current ?? 0) * 0.35;
         // Glass pavilions keep a translucent roof so meetings inside stay visible from outside.
         frontMats.roof.opacity = frontMats.roofTop.opacity = pad.style === 'glass' ? o * 0.45 : o;
         frontMats.solid.opacity = frontMats.frame.opacity = 0.25 + o * 0.75;
@@ -78,6 +118,7 @@ function Shell({ pad, player }: { pad: Pad; player: RefObject<THREE.Vector3> }) 
         {/* Header beam over each doorway */}
         {doors.map((w, i) => <Piece key={`d${i}`} x={w.x} y={FLOOR + HEADER + (WALL_HEIGHT - HEADER) / 2} z={w.z} w={w.w} h={WALL_HEIGHT - HEADER} d={w.d} material={front(w) ? (glassy ? frontMats.frame : frontMats.solid) : (glassy ? back.frame : back.solid)}/>)}
         {posts(pad).map(([x, z], i) => { const isFront = z > pad.z + pad.d / 2 - 0.1 || x > pad.x + pad.w / 2 - 0.1; return <Piece key={`p${i}`} x={x} y={FLOOR + WALL_HEIGHT / 2} z={z} w={0.14} h={WALL_HEIGHT} d={0.14} material={isFront ? frontMats.frame : back.frame}/>; })}
+        <Sign pad={pad}/>
         <group ref={roof}>
             <Piece x={pad.x} y={top + 0.08} z={pad.z} w={pad.w + (glassy ? 0.3 : 0.6)} h={glassy ? 0.1 : 0.16} d={pad.d + (glassy ? 0.3 : 0.6)} material={frontMats.roof}/>
             {!glassy && <Piece x={pad.x} y={top + 0.19} z={pad.z} w={pad.w - 0.8} h={0.06} d={pad.d - 0.8} material={frontMats.roofTop} shadow={false}/>}
@@ -85,6 +126,8 @@ function Shell({ pad, player }: { pad: Pad; player: RefObject<THREE.Vector3> }) 
     </group>;
 }
 
-export function Buildings({ player }: { player: RefObject<THREE.Vector3> }) {
-    return <group name="buildings">{pads.filter(p => p.style !== 'plot').map(pad => <Shell key={pad.id} pad={pad} player={player}/>)}</group>;
+export function Buildings({ player, night }: { player: RefObject<THREE.Vector3>; night: number }) {
+    const nightRef = useRef(night);
+    nightRef.current = night;
+    return <group name="buildings">{pads.filter(p => p.style !== 'plot').map(pad => <Shell key={pad.id} pad={pad} player={player} night={nightRef}/>)}</group>;
 }
