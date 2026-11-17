@@ -77,7 +77,7 @@ function Fish({ index }: { index: number }) {
     </group>
   );
 }
-function Manta() {
+export function Manta() {
   return (
     <>
       <Blob scale={[0.32, 0.09, 0.6]} color="#527d85" />

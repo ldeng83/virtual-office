@@ -287,7 +287,7 @@ const RIDE_STARTS: Record<RideKind, string> = {
   sailboat: '⛵ Sails up. A slow, calm lap of the island.',
   parasail: '🪂 Hold on: the boat lifts you up for the best view of the island.',
   climb: '🧗 Climbing the bluff. There’s a lookout at the top.',
-  scuba: '🤿 Diving down to the reef. Look out for the turtle and the wreck.',
+  scuba: '🤿 Down the ladder for a guided dive: the reef first, then the shipwreck.',
   ferry: '⛴️ All aboard the water taxi. Sit back for the trip round the coast.',
 };
 const RIDE_MESSAGES: Record<RideKind, { text: string; action: string }> = {

@@ -1,4 +1,6 @@
 import { seatMessage, useFun } from './use-fun';
+import { useDive } from './use-dive';
+import { SPECIES } from './dive';
 import React, { Suspense, useEffect, useMemo, useRef, useState } from 'react';
 import { Canvas } from '@react-three/fiber';
 import {
@@ -113,6 +115,7 @@ export function App() {
       freeLook();
     },
   });
+  const dive = useDive({ seat, setSeat, notify: setToast });
   const news: News = useMemo(
     () => ({
       time: mood.time,
@@ -426,7 +429,38 @@ export function App() {
               to zoom
             </span>
           </div>
-          {seat && (
+          {dive.hud.under && <div className="dive-tint" />}
+          {dive.splash > 0 && <div key={dive.splash} className="dive-splash" />}
+          {seat && dive.diving && (
+            <div className="seat-message dive-hud">
+              <span aria-hidden="true">🤿</span>
+              <span
+                className="air-gauge"
+                role="meter"
+                aria-label="Air left"
+                aria-valuenow={Math.round(dive.hud.air * 100)}
+              >
+                <i className={dive.hud.air < 1 / 6 ? 'low' : ''} style={{ width: `${dive.hud.air * 100}%` }} />
+              </span>
+              <b>
+                {Math.floor((dive.hud.air * 180) / 60)}:{String(Math.round(dive.hud.air * 180) % 60).padStart(2, '0')}
+              </b>
+              <span className="dive-hint">
+                {dive.hud.returning
+                  ? 'Heading back to the ladder'
+                  : dive.hud.free
+                    ? 'W A S D to swim'
+                    : dive.hud.under
+                      ? 'Guided tour · W A S D to swim it yourself'
+                      : 'Down the ladder…'}
+              </span>
+              <button className="dive-log-button" title="Your dive log" onClick={() => setModal('divelog')}>
+                📖 {dive.found}/{SPECIES.length}
+              </button>
+              <button onClick={dive.surface}>{dive.hud.under && !dive.hud.returning ? 'Surface' : 'Climb out'}</button>
+            </div>
+          )}
+          {seat && !dive.diving && (
             <div className="seat-message">
               <Armchair size={17} />
               <span>{seatMessage(seat).text}</span>
@@ -534,11 +568,17 @@ export function App() {
             </button>
           ))}
         </div>
-        <div className="fun-stats" title="Today’s seashells, fish caught, trails completed and summits this week">
+        <div
+          className="fun-stats"
+          title="Today’s seashells, fish caught, trails completed, summits this week and your dive log"
+        >
           <span>🐚 {5 - fun.shells.length}/5 today</span>
           <span>🐟 {fun.stats.fish}</span>
           <span>🥾 {fun.trailsDone}/3</span>
           <span>⛰️ {fun.summitsThisWeek}</span>
+          <button title="Open your dive log" onClick={() => setModal('divelog')}>
+            🤿 {dive.found}/{SPECIES.length}
+          </button>
         </div>
         <button className="help-button" onClick={() => setModal('help')}>
           <HelpCircle size={16} /> How to explore
@@ -558,6 +598,7 @@ export function App() {
           setShowDemo={setShowDemo}
           autopilot={autopilotSettings}
           updateAutopilot={updateAutopilot}
+          diveLog={dive.log}
           onRain={fun.startRain}
           raining={fun.raining}
         />

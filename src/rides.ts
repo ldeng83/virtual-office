@@ -1,7 +1,8 @@
 import { ISLAND_CENTER_Z, ISLAND_X_SCALE, shorePoint } from './shoreline.ts';
 import { turnToward } from './steering.ts';
 import { highlandsDistance } from './highlands.ts';
-import { bluff, jetty, marina, reef, type Point, type Seat } from './world.ts';
+import { DIVE_DEPTH, tourPose, tourSeconds } from './dive.ts';
+import { bluff, jetty, marina, seats, type Point, type Seat } from './world.ts';
 
 // Autopilot rides: each one is a path over time, starting and ending at its launch spot.
 // The player controller follows the rider; the boats, skis and chute follow `ride` (in fun-state).
@@ -59,7 +60,7 @@ export const CLIMB_SECONDS = 22;
 export function ridePose(kind: RideKind, launch: Point, t: number, route?: Point[]): RidePose {
   if (kind === 'ferry') return withHeading(t => ferryPose(route ?? [launch], t), t);
   if (kind === 'climb') return climbPose(launch, t);
-  if (kind === 'scuba') return withHeading(t => divePose(launch, t), t);
+  if (kind === 'scuba') return withHeading(t => tourPose(launch, t), t);
   if (kind === 'parasail') return parasailPose(launch, t);
   const lap = ROUTES[kind];
   const at = (t: number) => {
@@ -132,23 +133,9 @@ function climbPose(launch: Point, t: number): RidePose {
   };
 }
 
-// Down the ladder, out over the reef in a lazy figure of eight, then back up.
-export const DIVE_DEPTH = 2.5;
-const DIVE_SWIM = 0.11;
-export const DIVE_SECONDS = 5 + (Math.PI * 2) / DIVE_SWIM + 5;
-function divePose(launch: Point, t: number) {
-  const u = Math.max(0, t - 5) * DIVE_SWIM,
-    out = smooth((t - 2) / 5) * smooth((DIVE_SECONDS - t - 2) / 5),
-    loopX = reef.x + Math.sin(u) * 4.2,
-    loopZ = reef.z + Math.sin(u * 2) * 2.4;
-  const depth = smooth(t / 4) * smooth((DIVE_SECONDS - t) / 4);
-  return {
-    x: launch[0] + (loopX - launch[0]) * out,
-    y: -DIVE_DEPTH * depth + Math.sin(t * 1.3) * 0.08 * depth,
-    z: launch[1] + (loopZ - launch[1]) * out,
-    done: t >= DIVE_SECONDS,
-  };
-}
+// The dive: a guided tour of the reef and the wreck (dive.ts).
+export { DIVE_DEPTH };
+export const DIVE_SECONDS = tourSeconds(seats.find(s => s.ride?.kind === 'scuba')!.ride!.launch);
 
 // How the rider sits in each ride (in the avatar's own frame, like seatPose).
 export function riderPose(kind: RideKind, t: number, depth = 0) {
@@ -182,6 +169,8 @@ export type RideView = {
   heading: number;
   roll: number;
   boat: { x: number; z: number; heading: number } | null;
+  // Diving only: you've taken over from the guided tour, or you're on your way back up.
+  mode?: 'free' | 'return';
 };
 // Getting on. A second sailor joins the boat's trip already under way, so both ride together.
 export function startRide(seat: Seat, riders: Record<string, RideView>): RideView {

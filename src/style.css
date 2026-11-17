@@ -2212,3 +2212,155 @@ main {
     display: none;
   }
 }
+
+/* Scuba diving: the air gauge, the wash as you go under, and the logbook. */
+.dive-hud {
+  background: #103f52ee;
+  color: #e9fbff;
+}
+.dive-hud b {
+  font-variant-numeric: tabular-nums;
+  min-width: 2.4em;
+}
+.air-gauge {
+  width: 90px;
+  height: 8px;
+  border-radius: 4px;
+  background: #ffffff2e;
+  overflow: hidden;
+}
+.air-gauge i {
+  display: block;
+  height: 100%;
+  border-radius: 4px;
+  background: #7fe3d2;
+  transition: width 0.3s linear;
+}
+.air-gauge i.low {
+  background: #ffb35c;
+}
+.dive-hint {
+  font-size: 11px;
+  opacity: 0.8;
+}
+.dive-hud button {
+  color: #173f4c;
+}
+.seat-message .dive-log-button {
+  background: #ffffff24;
+  color: inherit;
+}
+.dive-tint {
+  position: absolute;
+  inset: 0;
+  z-index: 22;
+  pointer-events: none;
+  background: radial-gradient(ellipse at 50% 45%, #0000 45%, #05293ca6 100%),
+    linear-gradient(#bff3ff26, #0000 30%, #052b4030);
+}
+.dive-splash {
+  position: absolute;
+  inset: 0;
+  z-index: 30;
+  pointer-events: none;
+  opacity: 0;
+  background: radial-gradient(circle at 20% 70%, #ffffffb0 0 6px, #0000 7px),
+    radial-gradient(circle at 62% 40%, #ffffff90 0 9px, #0000 10px),
+    radial-gradient(circle at 80% 78%, #ffffffa0 0 5px, #0000 6px),
+    radial-gradient(circle at 38% 22%, #ffffff80 0 7px, #0000 8px), linear-gradient(#c9f2f7, #58b3cc 55%, #2f8fb0);
+  background-size:
+    230px 260px,
+    310px 290px,
+    190px 210px,
+    270px 240px,
+    100% 100%;
+  animation: dive-splash 1.7s ease-out forwards;
+}
+@keyframes dive-splash {
+  0% {
+    opacity: 0;
+    background-position:
+      0 0,
+      0 0,
+      0 0,
+      0 0,
+      0 0;
+  }
+  18%,
+  58% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    background-position:
+      0 -260px,
+      0 -290px,
+      0 -420px,
+      0 -240px,
+      0 0;
+  }
+}
+.dive-log p {
+  margin: 14px 0;
+  font-size: 12px;
+  line-height: 1.7;
+  color: #6c7a66;
+}
+.dive-log ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+.dive-log li {
+  display: grid;
+  grid-template-columns: 30px 1fr;
+  align-items: center;
+  column-gap: 8px;
+  border-radius: 9px;
+  padding: 9px 10px;
+  background: #f1efe4;
+  opacity: 0.55;
+}
+.dive-log li.found {
+  background: #dff1ee;
+  opacity: 1;
+}
+.dive-log li span {
+  grid-row: span 2;
+  font-size: 22px;
+  filter: grayscale(1);
+}
+.dive-log li.found span {
+  filter: none;
+}
+.dive-log li strong {
+  font-size: 12px;
+}
+.dive-log li small {
+  font-size: 10px;
+  color: #6c7a66;
+}
+.fun-stats button {
+  border: 0;
+  background: none;
+  padding: 0;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+}
+@media (max-width: 720px) {
+  .dive-hint {
+    display: none;
+  }
+  .dive-log ul {
+    grid-template-columns: 1fr;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .dive-splash {
+    animation-duration: 0.9s;
+  }
+}

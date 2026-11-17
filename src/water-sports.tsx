@@ -1,7 +1,7 @@
 import { useMemo, useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
-import { riders } from './fun-state';
+import { riders, spot } from './fun-state';
 import { climbFaceZ, type RideView } from './rides';
 import { StaticBatch } from './static-batch';
 import {
@@ -441,6 +441,7 @@ function DiveSite({ motion }: { motion: boolean }) {
       f.position.set(reef.x + Math.cos(a) * r * 1.3, -2.1 + Math.sin(a * 2 + i) * 0.25, reef.z + Math.sin(a) * r);
       f.rotation.y = -a;
     });
+    spot('reef-fish', reef.x, reef.z);
     if (turtle.current) {
       const a = -t * 0.12;
       turtle.current.position.set(
@@ -449,6 +450,7 @@ function DiveSite({ motion }: { motion: boolean }) {
         reef.z + Math.sin(a) * 3.2,
       );
       turtle.current.rotation.y = -a + Math.PI;
+      spot('turtle', turtle.current.position.x, turtle.current.position.z);
     }
     const ride = riders['dv-0'],
       diving = !!ride && ride.y < -0.3;
@@ -517,18 +519,6 @@ function DiveSite({ motion }: { motion: boolean }) {
           </mesh>
         ),
       )}
-      {/* A small sunken wreck */}
-      <group position={[reef.x - 3.6, floor + 0.35, reef.z + 2]} rotation={[0.15, 0.7, 0.35]}>
-        <Blob p={[0, 0, 0]} s={[0.8, 0.4, 2]} c="#6c5847" />
-        <Box p={[0, 0.3, 0]} s={[1.3, 0.06, 3]} c="#7f6a55" />
-        <Cyl p={[0, 1, 0.3]} r={0.06} h={1.6} c="#5b4a3b" rot={[0.4, 0, 0]} />
-      </group>
-      {/* Treasure chest by the wreck */}
-      <group position={[reef.x - 2.2, floor + 0.15, reef.z + 3]} rotation={[0, 0.5, 0.1]}>
-        <Box p={[0, 0, 0]} s={[0.5, 0.3, 0.35]} c="#8b5a2b" />
-        <Box p={[0, 0.18, -0.06]} s={[0.5, 0.08, 0.3]} r={[-0.5, 0, 0]} c="#9c6a35" />
-        <Blob p={[0, 0.12, 0.02]} s={[0.18, 0.06, 0.1]} c="#f2c14e" rough={0.3} />
-      </group>
       <group ref={fish} userData={{ dynamic: true }}>
         {Array.from({ length: 14 }, (_, i) => (
           <mesh key={i} rotation={[0, 0, 0]} raycast={ignore}>

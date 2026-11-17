@@ -1,5 +1,6 @@
 import { lampPosts } from './world';
 import { cameraView } from './camera-view';
+import { diveState } from './fun-state';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useFrame } from '@react-three/fiber';
 import { Moon, Sun, Sunrise, Sunset, CloudSun, Volume2, VolumeX, Waves } from 'lucide-react';
@@ -55,6 +56,9 @@ export function readAtmosphere(): Atmosphere {
   }
 }
 
+const water = new THREE.Color(),
+  deepWater = new THREE.Color('#2f93b3'),
+  nightWater = new THREE.Color('#0a2c42');
 export function AtmosphereScene({
   settings,
   time,
@@ -105,13 +109,16 @@ export function AtmosphereScene({
     // A passing shower greys the sky and softens the light.
     wet.current = THREE.MathUtils.damp(wet.current, rain ? 1 : 0, 0.8, Math.min(dt, 0.1));
     if (wet.current > 0.001) c.sky.lerp(grey, wet.current * 0.45 * alpha);
-    (scene.background as THREE.Color)?.copy(c.sky);
+    // Underwater everything fades into blue a little way off.
+    const backdrop = diveState.under ? water.copy(deepWater).lerp(nightWater, c.darkness) : c.sky;
+    (scene.background as THREE.Color)?.copy(backdrop);
     if (scene.fog) {
       const fog = scene.fog as THREE.Fog;
-      fog.color.copy(c.sky);
-      const focus = (controls as unknown as { target?: THREE.Vector3 })?.target;
-      fog.near = Math.max(55, (focus ? camera.position.distanceTo(focus) : 44) + 35);
-      fog.far = fog.near + 100;
+      fog.color.copy(backdrop);
+      const focus = (controls as unknown as { target?: THREE.Vector3 })?.target,
+        away = focus ? camera.position.distanceTo(focus) : 44;
+      fog.near = diveState.under ? away - 6 : Math.max(55, away + 35);
+      fog.far = diveState.under ? away + 13 : fog.near + 100;
     }
     if (ambient.current) {
       ambient.current.color.copy(c.ambientColor);

@@ -2,7 +2,9 @@ import { Cat, Rain, Rainbow, Shells, type Shell } from './island-extras';
 import { FunSpots } from './fun';
 import { WaterSports } from './water-sports';
 import { StaticBatch } from './static-batch';
-import { EMOTE_ICONS, playerControl, playerState, riders, type Emote } from './fun-state';
+import { diveState, EMOTE_ICONS, playerControl, playerState, riders, type Emote } from './fun-state';
+import { airLeft, stepSwim } from './dive';
+import { DiveScene } from './dive-scene';
 import type { AutopilotCommand } from './use-autopilot';
 import { PARASAIL_HEIGHT, riderPose, riderSpot, startRide, stepRide } from './rides';
 import { seatPose, UPRIGHT } from './poses';
@@ -36,7 +38,7 @@ import { OVERVIEW_CENTER } from './shoreline';
 import { groundHeight, HIGHLANDS_OVERVIEW, inHighlands, trailById, type Trail } from './highlands';
 import { HighlandsScene } from './highlands-scene';
 import { DeskScreen, Whiteboard } from './work-props';
-import { AvatarBody, Coworker } from './coworkers';
+import { AvatarBody, Coworker, DiveGear } from './coworkers';
 import { stepAlongPath, turnToward } from './steering';
 import { Box, Cylinder, Palm, Seat, ZoneLabel } from './scene-parts';
 import type { Profile } from './profile';
@@ -50,6 +52,8 @@ const Atmosphere3D = React.memo(AtmosphereScene),
   Highlands3D = React.memo(HighlandsScene);
 export const MIN_ZOOM = 10,
   MAX_ZOOM = 65;
+// How far the camera tips over underwater (from straight down), to look along the seabed.
+const DIVE_TILT = 1.34;
 const occlusionRay = new THREE.Raycaster(),
   lookDir = new THREE.Vector3(),
   lookPoint = new THREE.Vector3();
@@ -249,6 +253,11 @@ export function World({
   const rideY = useRef(0),
     snapZoom = useRef(true),
     reported = useRef<Point>([Infinity, Infinity]);
+  // Diving: how far the camera has settled into its underwater framing, and the tilt to go back to.
+  const immersion = useRef(0),
+    washing = useRef(false),
+    surfaceTilt = useRef(1),
+    torch = useRef<THREE.PointLight>(null);
   const standUp = () => {
     const s = sittingIn.current;
     sittingIn.current = null;
@@ -272,6 +281,10 @@ export function World({
       sittingIn.current = s;
       playerState.elevated = !!s.y;
       if (s.ride) riders[s.id] = startRide(s, riders);
+      if (s.ride?.kind === 'scuba') {
+        diveState.seen.clear();
+        diveState.surface = false;
+      }
       path.current = [];
       setMarker(null);
       pos.current.set(s.point[0], 0, s.point[1]);
@@ -314,9 +327,28 @@ export function World({
       dz = 0;
     const sat = seat ? sittingIn.current : null;
     const view = sat?.ride ? riders[sat.id] : undefined;
-    if (sat && view && !k.size) {
+    // Which way the movement keys point, relative to the camera.
+    let steer: Point | null = null;
+    if (k.size) {
+      const horizontal = Number(k.has('d') || k.has('arrowright')) - Number(k.has('a') || k.has('arrowleft'));
+      const vertical = Number(k.has('s') || k.has('arrowdown')) - Number(k.has('w') || k.has('arrowup'));
+      const az = controls.current?.getAzimuthalAngle() ?? Math.PI / 4;
+      steer = [
+        horizontal * Math.cos(az) + vertical * Math.sin(az),
+        -horizontal * Math.sin(az) + vertical * Math.cos(az),
+      ];
+    }
+    // Diving: the movement keys take over from the guided tour and steer you, instead of ending the ride.
+    const dive = sat && view?.kind === 'scuba' ? view : undefined;
+    if (dive) {
+      if (diveState.surface) dive.mode = 'return';
+      else if (!dive.mode && steer && dive.y < -1) dive.mode = 'free';
+      if (steer && viewMode !== 'follow') onExplore();
+    }
+    diveState.surface = false;
+    if (sat && view && (!k.size || dive)) {
       // Autopilot: follow the ride's path; the vehicle follows your entry in `riders`.
-      const done = stepRide(sat, view, dt),
+      const done = dive?.mode ? stepSwim(sat.ride!.launch, dive, steer, dt) : stepRide(sat, view, dt),
         [x, z] = riderSpot(sat, view);
       pos.current.set(x, 0, z);
       rideY.current = view.y;
@@ -326,7 +358,29 @@ export function World({
         setSeat(null);
       }
     }
-    if (k.size) {
+    // Going under and coming back up: the view changes behind a wash of bubbles.
+    const depth = dive ? dive.y : 0,
+      wasUnder = diveState.under;
+    if (!wasUnder && depth < -1) {
+      diveState.under = true;
+      surfaceTilt.current = controls.current?.getPolarAngle() ?? 1;
+    } else if (wasUnder && depth > -0.45) diveState.under = false;
+    const wash = dive ? (diveState.under ? depth > -1 : depth < -0.45) : wasUnder;
+    if (wash && !washing.current) diveState.onSplash();
+    washing.current = wash;
+    if (dive)
+      Object.assign(diveState, {
+        x: dive.x,
+        y: dive.y,
+        z: dive.z,
+        air: airLeft(dive.t),
+        free: dive.mode === 'free',
+        returning: dive.mode === 'return',
+      });
+    immersion.current = THREE.MathUtils.damp(immersion.current, diveState.under ? 1 : 0, 3, dt);
+    if (torch.current) torch.current.intensity = diveState.under ? 1 + night * 7 : 0;
+    const walking = steer && !dive;
+    if (walking) {
       if (viewMode !== 'follow') onExplore();
       if (seat) {
         standUp();
@@ -334,11 +388,7 @@ export function World({
       }
       path.current = [];
       setMarker(null);
-      const horizontal = Number(k.has('d') || k.has('arrowright')) - Number(k.has('a') || k.has('arrowleft'));
-      const vertical = Number(k.has('s') || k.has('arrowdown')) - Number(k.has('w') || k.has('arrowup'));
-      const az = controls.current?.getAzimuthalAngle() ?? Math.PI / 4;
-      dx = horizontal * Math.cos(az) + vertical * Math.sin(az);
-      dz = -horizontal * Math.sin(az) + vertical * Math.cos(az);
+      [dx, dz] = steer!;
     } else if (path.current.length) {
       const step = stepAlongPath(pos.current, path.current, mover.current, dt, 3);
       if (step) {
@@ -353,7 +403,7 @@ export function World({
       if (!goal.seatId) avatar.current.rotation.y = goal.angle;
       latest.current.arrive();
     }
-    if (k.size) {
+    if (walking) {
       const length = Math.hypot(dx, dz);
       dx = length > 0.03 ? (dx / length) * dt * 3 : 0;
       dz = length > 0.03 ? (dz / length) * dt * 3 : 0;
@@ -374,7 +424,7 @@ export function World({
             : Math.min(36, size.width / 20, size.height / 17),
         lift = sat?.ride?.kind === 'parasail' ? Math.min(1, rideY.current / PARASAIL_HEIGHT) : 0,
         view = controls.current.object,
-        wantZoom = ((fit * cameraView.zoom) / 30) * (1 - 0.5 * lift);
+        wantZoom = ((fit * cameraView.zoom) / 30) * (1 - 0.5 * lift) * (1 + 0.7 * immersion.current);
       if (Math.abs(view.zoom - wantZoom) > wantZoom * 1e-4) {
         view.zoom = snapZoom.current ? wantZoom : THREE.MathUtils.damp(view.zoom, wantZoom, lift ? 3 : 10, dt);
         view.updateProjectionMatrix();
@@ -408,6 +458,16 @@ export function World({
       const distance = viewMode !== 'follow' ? Math.max(100, reach) : Math.max(44, reach);
       cameraDelta.current.copy(controls.current.object.position).sub(target).setLength(distance);
       controls.current.object.position.copy(target).add(cameraDelta.current);
+      // Underwater the camera drops to look along the seabed, and cuts away whatever is in front of you.
+      const sunk = immersion.current > 0.002,
+        tilt = THREE.MathUtils.lerp(surfaceTilt.current, DIVE_TILT, immersion.current);
+      controls.current.minPolarAngle = sunk ? tilt : 0.3;
+      controls.current.maxPolarAngle = sunk ? tilt : Math.PI / 2.7;
+      const near = diveState.under ? distance - 16 : 0.1;
+      if (camera.near !== near) {
+        camera.near = near;
+        camera.updateProjectionMatrix();
+      }
       controls.current.update();
       cameraView.focus = [target.x, target.z];
       cameraView.corners = viewCorners.map(([x, y]) => {
@@ -564,6 +624,7 @@ export function World({
         motion={motionOn}
       />
       <WaterSportsScene motion={motionOn} />
+      <DiveScene motion={motionOn} night={night} />
       <Highlands3D
         onWalk={walkOnGround}
         onHike={hike}
@@ -654,7 +715,9 @@ export function World({
       <group ref={avatar} name="player-avatar">
         <group ref={poseRef}>
           <AvatarBody color={profile.color} xray={0.55} />
+          {seats.find(s => s.id === seat)?.ride?.kind === 'scuba' && <DiveGear />}
         </group>
+        <pointLight ref={torch} position={[0, 0.6, 0.4]} intensity={0} distance={11} decay={1.4} color="#fff1cf" />
         {bubble && (
           <Label position={[0, 2.45, 0]} zIndex={21}>
             <div className="emote-bubble">{bubble}</div>

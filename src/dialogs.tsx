@@ -16,8 +16,10 @@ import {
 } from 'lucide-react';
 import { AtmosphereControls, useOcean, type IslandTime, type Atmosphere } from './atmosphere';
 import { colors, DEFAULT_NAME, type Profile } from './profile';
+import { SPECIES } from './dive';
+import type { DiveLog } from './use-dive';
 
-export type DialogKind = 'help' | 'settings' | 'atmosphere' | 'telescope';
+export type DialogKind = 'help' | 'settings' | 'atmosphere' | 'telescope' | 'divelog';
 // Real constellations for the telescope, with star positions on a 100×70 chart.
 const constellations: { name: string; fact: string; stars: [number, number][]; lines: [number, number][] }[] = [
   {
@@ -134,6 +136,32 @@ function StarChart() {
     </div>
   );
 }
+// The dive log: everything there is to meet on a dive, ticked off as you find it.
+function DiveLogbook({ log }: { log: DiveLog }) {
+  const found = Object.keys(log.seen).length;
+  return (
+    <div className="dive-log">
+      <p>
+        {log.dives
+          ? `${log.dives} dive${log.dives === 1 ? '' : 's'} so far, ${found} of ${SPECIES.length} logged.`
+          : 'Nothing logged yet. Take the dive ladder off the fishing jetty to get started.'}{' '}
+        Swim close to something and it goes in the log.
+      </p>
+      <ul>
+        {SPECIES.map(species => {
+          const date = log.seen[species.id];
+          return (
+            <li key={species.id} className={date ? 'found' : ''}>
+              <span aria-hidden="true">{species.icon}</span>
+              <strong>{species.name}</strong>
+              <small>{date ? `First seen ${date}` : 'Not seen yet'}</small>
+            </li>
+          );
+        })}
+      </ul>
+    </div>
+  );
+}
 export function Dialog({
   modal,
   setModal,
@@ -149,6 +177,7 @@ export function Dialog({
   raining,
   autopilot,
   updateAutopilot,
+  diveLog,
 }: DialogProps) {
   return (
     <div className="modal-overlay" onClick={() => setModal(null)}>
@@ -173,10 +202,14 @@ export function Dialog({
               ? 'A change of atmosphere'
               : modal === 'telescope'
                 ? 'Tonight’s sky'
-                : 'Your little corner'}
+                : modal === 'divelog'
+                  ? 'Your dive log'
+                  : 'Your little corner'}
         </h2>
         {modal === 'telescope' ? (
           <StarChart />
+        ) : modal === 'divelog' ? (
+          <DiveLogbook log={diveLog} />
         ) : modal === 'atmosphere' ? (
           <>
             <AtmosphereControls settings={atmosphere} update={updateAtmosphere} sound={sound} time={mood} />
@@ -226,10 +259,11 @@ export function Dialog({
                   <strong>Take a break</strong>
                   <p>
                     Play ping-pong or cornhole on the games lawn, swing in a hammock by the firepit, fish, kayak or go
-                    scuba diving from the jetty, ride a jet ski, sail or go parasailing from the water sports dock,
-                    climb the bluff on the north shore, play the piano, turn on the café radio, relax on the rooftop,
-                    catch the quiz or a movie at the town hall, and look through the telescope at night. Pet Mochi the
-                    cat, hunt for today’s five seashells, and use the emotes at the bottom.
+                    scuba diving from the jetty (a guided dive over the reef and out to the shipwreck; W A S D swims it
+                    yourself, and what you meet goes in your dive log), ride a jet ski, sail or go parasailing from the
+                    water sports dock, climb the bluff on the north shore, play the piano, turn on the café radio, relax
+                    on the rooftop, catch the quiz or a movie at the town hall, and look through the telescope at night.
+                    Pet Mochi the cat, hunt for today’s five seashells, and use the emotes at the bottom.
                   </p>
                 </div>
               </li>
@@ -350,6 +384,7 @@ export function Dialog({
   );
 }
 export type DialogProps = {
+  diveLog: DiveLog;
   onRain: () => void;
   raining: boolean;
   modal: DialogKind;

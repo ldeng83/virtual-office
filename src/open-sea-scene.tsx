@@ -2,7 +2,7 @@ import { useMemo, useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 import type { Period } from './daylight';
-import { riders, seaState, type SeaSight } from './fun-state';
+import { riders, seaState, spot, type SeaSight } from './fun-state';
 import type { RideView } from './rides';
 import { reef } from './world';
 import { Turtle } from './sea-life';
@@ -213,7 +213,7 @@ export function OpenSea({ motion, period, darkness }: { motion: boolean; period:
       x: 0,
       z: 0,
     })),
-    escort: { id: null as string | null, presence: 0, x: 0, z: 0, heading: 0, announced: false },
+    escort: { id: null as string | null, presence: 0, x: 0, z: 0, heading: 0, depth: 0, announced: false },
     shark: false,
     posted: {} as Record<string, number>,
     lastPost: -1e9,
@@ -295,6 +295,7 @@ export function OpenSea({ motion, period, darkness }: { motion: boolean; period:
       if (up !== !!s.leaping[key]) ring(p.x, p.z, 0.7);
       s.leaping[key] = up;
       if (p.presence > 0.9) wake(p.x, p.z, 0.9);
+      if (p.presence > 0.5) spot('dolphin', p.x, p.z);
     };
 
     // Dolphin pods.
@@ -306,23 +307,43 @@ export function OpenSea({ motion, period, darkness }: { motion: boolean; period:
     });
 
     // Now and then a pair comes over to ride the bow wave of a boat that's out on the water.
+    // Divers get a visit every time: the pair circles them for as long as they're down.
     const e = s.escort,
-      rideable = (r?: RideView) => !!r && r.kind in BOW_RIDES && landDistance(r.x, r.z) > 5;
+      diver = (r?: RideView) => r?.kind === 'scuba' && r.y < -1.5 && r.t > 22,
+      rideable = (r?: RideView) => !!r && (r.kind in BOW_RIDES || diver(r)) && landDistance(r.x, r.z) > 5;
     let boat = e.id ? riders[e.id] : undefined;
     if (!rideable(boat)) {
       boat = undefined;
       if (e.presence < 0.05) {
         const keen = rand(Math.floor(t / 70), 5) < 0.65;
-        e.id = (keen && Object.keys(riders).find(id => rideable(riders[id]))) || null;
+        e.id = Object.keys(riders).find(id => rideable(riders[id]) && (keen || diver(riders[id]))) || null;
         e.announced = false;
       }
-    } else Object.assign(e, { x: boat!.x, z: boat!.z, heading: boat!.heading });
+    } else Object.assign(e, { x: boat!.x, z: boat!.z, heading: boat!.heading, depth: diver(boat) ? boat!.y : 0 });
     e.presence = THREE.MathUtils.damp(e.presence, boat ? 1 : 0, 1.5, dt);
     escortGroup.current?.children.forEach((object, k) => {
       const side = k ? 1.5 : -1.5,
         ahead = 2 - k * 1.2,
         phase = (t + k * 2.7) % 6,
-        leap = phase < 1.8 && e.presence > 0.95 ? Math.sin((phase / 1.8) * Math.PI) : 0;
+        leap = phase < 1.8 && e.presence > 0.95 ? Math.sin((phase / 1.8) * Math.PI) : 0,
+        // Round a diver: in from the blue, then circling close.
+        around = t * 0.75 + k * Math.PI,
+        reach = 2.3 + Math.sin(t * 0.4 + k) * 0.5 + (1 - e.presence) * 20;
+      if (e.depth < 0)
+        return dolphin(
+          object,
+          `e${k}`,
+          {
+            x: e.x + Math.cos(around) * reach,
+            z: e.z + Math.sin(around) * reach,
+            y: Math.min(-0.95, e.depth + 0.45 + Math.sin(t * 1.1 + k * 2) * 0.4),
+            heading: Math.atan2(-Math.sin(around), Math.cos(around)),
+            pitch: Math.cos(t * 1.1 + k * 2) * 0.15,
+            leap: 0,
+            presence: e.presence,
+          },
+          k,
+        );
       dolphin(
         object,
         `e${k}`,
@@ -340,7 +361,10 @@ export function OpenSea({ motion, period, darkness }: { motion: boolean; period:
     });
     if (boat && e.presence > 0.6 && !e.announced) {
       e.announced = true;
-      sight('escort', 300, '🐬', 'Dolphins', `are riding the bow wave of ${BOW_RIDES[boat.kind]}`, () => [e.x, e.z]);
+      const doing = diver(boat)
+        ? 'came to play with a diver off the jetty'
+        : `are riding the bow wave of ${BOW_RIDES[boat.kind]}`;
+      sight('escort', 300, '🐬', 'Dolphins', doing, () => [e.x, e.z]);
     }
     // Boats leave a glowing wake at night too.
     for (const r of Object.values(riders))
@@ -354,6 +378,7 @@ export function OpenSea({ motion, period, darkness }: { motion: boolean; period:
         gulls = gullGroup.current?.children[i];
       if (school) {
         place(school, p);
+        if (p.presence > 0.5) spot('school', p.x, p.z);
         school.children.forEach((fish, n) => (fish.rotation.y = Math.sin(t * 7 + n * 1.3) * 0.3));
       }
       if (glints) {
@@ -402,6 +427,7 @@ export function OpenSea({ motion, period, darkness }: { motion: boolean; period:
         w = s.whales[i],
         [, flukes, left, right, ...puffs] = whale.children;
       place(whale, p, p.roll);
+      if (p.presence > 0.5) spot('whale', p.x, p.z);
       Object.assign(w, { x: p.x, z: p.z });
       flukes.rotation.x = Math.sin(t * 1.1 + i) * 0.2 - p.pitch * 0.4;
       left.rotation.z = -0.25 + Math.sin(t * 0.6 + i) * 0.12;
@@ -452,6 +478,7 @@ export function OpenSea({ motion, period, darkness }: { motion: boolean; period:
       const p = sharkPose(t),
         present = p.presence > 0.5;
       place(shark.current, p);
+      if (present) spot('shark', p.x, p.z);
       shark.current.children[0].rotation.y = Math.sin(t * 1.6) * 0.08;
       if (present && !s.shark)
         sight('shark', 900, '🦈', 'A reef shark', `is cruising ${seaRegion(p.x, p.z)} (it's friendly)`, () => {
@@ -462,7 +489,9 @@ export function OpenSea({ motion, period, darkness }: { motion: boolean; period:
       sights.push({ kind: 'shark', x: p.x, z: p.z, present });
     }
     if (turtle.current) {
-      place(turtle.current, straitTurtle(t));
+      const p = straitTurtle(t);
+      place(turtle.current, p);
+      if (p.presence > 0.5) spot('turtle', p.x, p.z);
       turtle.current.traverse(part => {
         if (part.name === 'flipper') part.rotation.z = Math.sin(t * 2.2) * 0.3 * Math.sign(part.position.x);
       });
@@ -471,6 +500,7 @@ export function OpenSea({ motion, period, darkness }: { motion: boolean; period:
     jellyGroup.current?.children.forEach((jelly, i) => {
       const p = jellyPose(reef, i, t);
       jelly.position.set(p.x, p.y, p.z);
+      spot('jellyfish', p.x, p.z);
       jelly.scale.set(1.15 - p.pulse * 0.25, 0.85 + p.pulse * 0.3, 1.15 - p.pulse * 0.25);
     });
     seaState.sights = sights;

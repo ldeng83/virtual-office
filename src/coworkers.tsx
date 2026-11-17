@@ -110,6 +110,34 @@ export function AvatarBody({
   );
 }
 
+// Scuba kit, worn while diving: tank, mask, regulator and fins.
+export function DiveGear() {
+  const piece = (p: [number, number, number], size: [number, number, number], color: string) => (
+    <mesh position={p} castShadow>
+      <boxGeometry args={size} />
+      <meshStandardMaterial color={color} roughness={0.6} />
+    </mesh>
+  );
+  return (
+    <group name="dive-gear">
+      <mesh position={[0, 0.74, -0.21]} castShadow>
+        <capsuleGeometry args={[0.085, 0.3, 4, 10]} />
+        <meshStandardMaterial color="#f0c63c" roughness={0.45} metalness={0.2} />
+      </mesh>
+      {piece([0, 0.98, -0.21], [0.07, 0.07, 0.07], '#4a5257')}
+      {piece([0, 0.74, -0.12], [0.3, 0.07, 0.06], '#2c3438')}
+      {piece([0, 1.2, 0.19], [0.27, 0.11, 0.07], '#22303a')}
+      {piece([0, 1.2, 0.225], [0.21, 0.07, 0.02], '#9fe3ee')}
+      {piece([0, 1.07, 0.2], [0.08, 0.06, 0.07], '#2c3438')}
+      {[-0.13, 0.13].map(x => (
+        <group key={x} name="fin" position={[x, 0.02, 0]}>
+          {piece([0, -0.2, 0.02], [0.14, 0.44, 0.035], '#2d7fb8')}
+        </group>
+      ))}
+    </group>
+  );
+}
+
 const SPEED = 2.4,
   NOTICE = 4,
   WAVE = 2.6;
@@ -133,7 +161,8 @@ export function Coworker({
 }) {
   const group = useRef<THREE.Group>(null),
     head = useRef<THREE.Group>(null),
-    torso = useRef<THREE.Group>(null);
+    torso = useRef<THREE.Group>(null),
+    gear = useRef<THREE.Group>(null);
   const pos = useRef(
     new THREE.Vector3(
       ...((target ? [target.point[0], 0, target.point[1]] : [ARRIVAL_DOCK[0], 0, ARRIVAL_DOCK[1]]) as [
@@ -270,6 +299,7 @@ export function Coworker({
       }
     }
     const riding = rideSeat?.ride && riders[rideSeat.id];
+    if (gear.current) gear.current.visible = !!riding && riding.kind === 'scuba';
     // Notice the player: look at them when close, wave once as they arrive (if not busy).
     const me = player.current,
       toPlayer = me ? Math.hypot(me.x - pos.current.x, me.z - pos.current.z) : Infinity;
@@ -339,6 +369,9 @@ export function Coworker({
           torso={torso}
           xray={0.3}
         />
+        <group ref={gear} visible={false}>
+          <DiveGear />
+        </group>
       </group>
       {/* At a desk the tag floats higher so it doesn't cover their glowing monitor from the default camera. */}
       <Label position={[0, target?.activity.pose === 'desk' && target.seatId ? 2.55 : 1.85, 0]} zIndex={20}>

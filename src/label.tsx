@@ -2,6 +2,7 @@ import { useLayoutEffect, useRef, useState, type ReactNode } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { useFrame, useThree } from '@react-three/fiber';
 import * as THREE from 'three';
+import { diveState } from './fun-state';
 
 // A DOM label pinned to a point in the 3D scene (name tags, place labels).
 //
@@ -53,8 +54,12 @@ export function Label({
   useFrame(() => {
     const group = anchor.current;
     if (!group) return;
-    projected.setFromMatrixPosition(group.matrixWorld).project(camera);
-    const visible = isShown(group) && projected.z < 1 && Math.abs(projected.x) < 1.2 && Math.abs(projected.y) < 1.2;
+    projected.setFromMatrixPosition(group.matrixWorld);
+    // Underwater you can't see the name tags of people up on the surface.
+    const above = diveState.under && projected.y > -0.3;
+    projected.project(camera);
+    const visible =
+      !above && isShown(group) && projected.z < 1 && Math.abs(projected.x) < 1.2 && Math.abs(projected.y) < 1.2;
     el.style.display = visible ? '' : 'none';
     if (!visible) return;
     const x = ((projected.x + 1) / 2) * size.width,
