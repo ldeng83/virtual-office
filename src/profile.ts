@@ -4,14 +4,27 @@ export type Profile = {
   status: string;
   checked: boolean;
 };
+export const DEFAULT_NAME = 'Le Deng';
+// Two-letter initials for avatar badges (Bin Yang → BY, so the two Bins differ).
+export const initials = (name: string) =>
+  name
+    .split(/\s+/)
+    .filter(Boolean)
+    .map(w => w[0])
+    .join('')
+    .slice(0, 2)
+    .toUpperCase();
 export function readProfile(): Profile {
   try {
+    const saved = JSON.parse(localStorage.getItem('atoll-profile') || '{}');
+    // Profiles saved before names were set default to the old placeholder.
+    if (saved.name === 'You') delete saved.name;
     return {
-      ...{ name: 'You', color: '#d9815f', status: 'Available', checked: false },
-      ...JSON.parse(localStorage.getItem('atoll-profile') || '{}'),
+      ...{ name: DEFAULT_NAME, color: '#d9815f', status: 'Available', checked: false },
+      ...saved,
     };
   } catch {
-    return { name: 'You', color: '#d9815f', status: 'Available', checked: false };
+    return { name: DEFAULT_NAME, color: '#d9815f', status: 'Available', checked: false };
   }
 }
 export const colors = ['#d9815f', '#7b9c79', '#7193b5', '#a88bb9', '#d4ae55'];

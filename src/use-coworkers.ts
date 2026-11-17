@@ -86,7 +86,10 @@ export function useCoworkers({
               ...(seatRef.current ? [seatRef.current] : []),
               ...Object.entries(all).flatMap(([id, t]) => (id !== person.id && t?.seatId ? [t.seatId] : [])),
             ]);
-            return { ...all, [person.id]: resolveTarget(nextActivity(block, current.activity), taken) };
+            return {
+              ...all,
+              [person.id]: resolveTarget(nextActivity(block, current.activity, Math.random, taken), taken),
+            };
           }),
         Math.max(0, deadlines.current.get(current)! - Date.now()),
       );

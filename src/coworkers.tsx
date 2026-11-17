@@ -20,6 +20,8 @@ const parts = {
   torso: new THREE.CylinderGeometry(0.22, 0.26, 0.6, 12),
   face: new THREE.SphereGeometry(0.22, 16, 12),
   hair: new THREE.SphereGeometry(0.22, 12, 8),
+  // Falls behind the head to the shoulders; the face hides its front.
+  longHair: new THREE.CapsuleGeometry(0.19, 0.24, 4, 12),
   leg: new THREE.BoxGeometry(0.17, 0.4, 0.19),
 };
 const stencilMark = {
@@ -76,12 +78,14 @@ function Part({
 export function AvatarBody({
   color,
   hair = '#5b5147',
+  hairStyle = 'short',
   head,
   torso,
   xray = 0,
 }: {
   color: string;
   hair?: string;
+  hairStyle?: 'short' | 'long';
   head?: RefObject<THREE.Group | null>;
   torso?: RefObject<THREE.Group | null>;
   xray?: number;
@@ -95,6 +99,9 @@ export function AvatarBody({
       <group ref={head} position={[0, 1.17, 0]}>
         <Part geometry={parts.face} color="#e8bc98" xray={ghost} />
         <Part geometry={parts.hair} position={[0, 0.12, -0.03]} color={hair} shadow={false} xray={ghost} />
+        {hairStyle === 'long' && (
+          <Part geometry={parts.longHair} position={[0, -0.1, -0.09]} color={hair} shadow={false} xray={ghost} />
+        )}
       </group>
       {[-0.13, 0.13].map(x => (
         <Part key={x} geometry={parts.leg} position={[x, 0.22, 0]} color="#495b60" roughness={0.85} xray={ghost} />
@@ -324,7 +331,14 @@ export function Coworker({
   return (
     <group ref={group} name={`coworker-${person.id}`}>
       <group ref={poseGroup}>
-        <AvatarBody color={person.color} hair={person.hair} head={head} torso={torso} xray={0.3} />
+        <AvatarBody
+          color={person.color}
+          hair={person.hair}
+          hairStyle={person.hairStyle}
+          head={head}
+          torso={torso}
+          xray={0.3}
+        />
       </group>
       {/* At a desk the tag floats higher so it doesn't cover their glowing monitor from the default camera. */}
       <Label position={[0, target?.activity.pose === 'desk' && target.seatId ? 2.55 : 1.85, 0]} zIndex={20}>

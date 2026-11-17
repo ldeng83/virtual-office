@@ -156,6 +156,9 @@ const youArrow = (scale: number) => (
   </g>
 );
 
+// Baselines for a person's name relative to their dot: above, below, then further out.
+const NAME_SLOTS = [-2.4, 3.9, -4.8, 6.3];
+
 // Every frame: move you, your route and your coworkers on a map (no React re-render).
 function useLiveLayer(
   svg: React.RefObject<SVGSVGElement | null>,
@@ -182,12 +185,24 @@ function useLiveLayer(
             if (end) pin.setAttribute('transform', `translate(${end[0]} ${end[1]})`);
           }
         }
+        // Names go above the dot, or below / further out when a neighbour's name is already there.
+        const placed: { x: number; y: number; half: number }[] = [];
         for (const person of people) {
           const dot = root.querySelector(`[data-person="${person.id}"]`),
             p = peopleView[person.id];
           if (!dot) continue;
           dot.setAttribute('visibility', p?.present ? 'visible' : 'hidden');
-          if (p?.present) dot.setAttribute('transform', `translate(${p.x} ${p.z})`);
+          if (!p?.present) continue;
+          dot.setAttribute('transform', `translate(${p.x} ${p.z})`);
+          const name = dot.querySelector('.map-person-name');
+          if (!name) continue;
+          const half = person.name.length * 0.56,
+            y =
+              NAME_SLOTS.find(dy =>
+                placed.every(o => Math.abs(o.x - p.x) > o.half + half || Math.abs(o.y - (p.z + dy)) > 2.3),
+              ) ?? NAME_SLOTS[0];
+          placed.push({ x: p.x, y: p.z + y, half });
+          name.setAttribute('y', String(y));
         }
         onFrame?.(x, z);
       }

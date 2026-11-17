@@ -87,7 +87,7 @@ test('the dive goes down to the reef and comes back up at the ladder', () => {
   for (const p of samples.filter(p => p.y < -1)) assert.ok(shoreDistance(p.x, p.z) > 1, 'dives stay off the island');
 });
 
-test('Maya and Theo take rides, staying long enough to finish them', () => {
+test('everyone on the team takes rides, staying long enough to finish them', () => {
   for (const person of demoCoworkers) {
     const rideErrands = Object.values(person.schedule)
       .flatMap(block => (block ? [block.home, ...block.errands] : []))

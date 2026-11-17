@@ -19,7 +19,7 @@ import {
 } from 'lucide-react';
 import { locations, type Point } from './world';
 import { currentTask, type WorkState } from './people';
-import type { Profile } from './profile';
+import { initials, type Profile } from './profile';
 import type { CoworkerView, FeedItem } from './use-coworkers';
 
 const icons = [
@@ -137,7 +137,7 @@ export function Sidebar({
         <div className="people">
           <div className="person">
             <span className="person-avatar" style={{ background: profile.color }}>
-              {profile.name.slice(0, 1)}
+              {initials(profile.name)}
             </span>
             <div>
               <strong>
@@ -150,7 +150,7 @@ export function Sidebar({
           {coworkers.map(({ person, target }) => (
             <div key={person.id} className="person">
               <span className="person-avatar" style={{ background: person.color }}>
-                {person.name.slice(0, 1)}
+                {initials(person.name)}
               </span>
               <div>
                 <strong>
@@ -190,7 +190,7 @@ export function Sidebar({
             <strong>A space for the whole team</strong>
             <p>
               {showDemo
-                ? 'Maya and Theo are demo coworkers on a daily routine. Real teammates arrive with shared presence.'
+                ? 'Your teammates follow a demo daily routine for now. Live presence arrives with the shared server.'
                 : 'This first prototype runs locally. Shared employee presence is the next milestone.'}
             </p>
           </div>
@@ -201,7 +201,7 @@ export function Sidebar({
           <span className="tiny-island">✦</span>
           <strong>A little island. A better workday.</strong>
         </div>
-        <p>Built for a team of 10.</p>
+        <p>Built for a team of 8.</p>
       </div>
     </aside>
   );

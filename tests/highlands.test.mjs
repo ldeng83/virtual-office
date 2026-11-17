@@ -92,7 +92,7 @@ test('the forest stays off trails, bridges and water, and trees block walking', 
   assert.ok(new Set(FOREST.map(t => t.kind)).size === 3, 'pines, birches and palms');
 });
 
-test('Maya and Theo hike the trails', () => {
+test('the team hikes the trails', () => {
   const hikes = demoCoworkers.flatMap(p =>
     Object.values(p.schedule)
       .flatMap(b => (b ? [b.home, ...b.errands] : []))

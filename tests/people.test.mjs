@@ -69,7 +69,7 @@ test('planner alternates home and weighted errands', () => {
 
 test('working moves the task forward and finishing starts the next one', async () => {
   const { advanceWork } = await import('../src/people.ts');
-  const theo = demoCoworkers[1],
+  const theo = demoCoworkers.find(p => p.id === 'bin-yang'),
     first = theo.tasks[0];
   let { state, finished } = advanceWork(theo, { task: 0, progress: 0 }, first.seconds / 2);
   assert.equal(finished, null);
@@ -89,4 +89,37 @@ test('the whiteboard spot is reachable and every coworker has work time in their
       periods.some(p => activities(npc.schedule[p]).some(a => a.work)),
       npc.name,
     );
+});
+
+test('the roster is the team: seven coworkers, unique ids, and you are Le Deng', async () => {
+  const { DEFAULT_NAME, initials } = await import('../src/profile.ts');
+  assert.equal(DEFAULT_NAME, 'Le Deng');
+  assert.deepEqual(demoCoworkers.map(p => p.name).sort(), [
+    'Aaron Wang',
+    'Bin Lin',
+    'Bin Yang',
+    'Daniel Zheng',
+    'Houping Zhu',
+    'Shuwan Yao',
+    'Wilson Zhang',
+  ]);
+  assert.equal(new Set(demoCoworkers.map(p => p.id)).size, demoCoworkers.length);
+  assert.equal(
+    new Set(demoCoworkers.map(p => initials(p.name))).size,
+    demoCoworkers.length,
+    'initials tell people apart',
+  );
+  assert.deepEqual(
+    demoCoworkers.filter(p => p.hairStyle === 'long').map(p => p.name),
+    ['Shuwan Yao'],
+  );
+});
+
+test('the planner skips errands whose seats are all taken', () => {
+  const block = demoCoworkers[0].schedule.golden,
+    parasail = block.errands.find(e => e.seats?.includes('pa-0'));
+  const picks = new Set();
+  for (let r = 0; r < 1; r += 0.01) picks.add(nextActivity(block, block.home, () => r, new Set(['pa-0'])));
+  assert.ok(!picks.has(parasail));
+  assert.ok(picks.size === block.errands.length - 1);
 });

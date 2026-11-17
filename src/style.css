@@ -1319,7 +1319,8 @@ main {
 .sidebar {
   min-height: 0;
 }
-.places {
+.places,
+.people {
   min-height: 0;
   overflow-y: auto;
   flex-shrink: 1;

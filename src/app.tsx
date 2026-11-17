@@ -23,7 +23,7 @@ import { type News } from './campus';
 import { FullMap, MiniMap } from './island-map';
 import { cameraView, type ViewMode } from './camera-view';
 import { World, SceneBoundary, MIN_ZOOM, MAX_ZOOM } from './scene';
-import { readProfile, type Profile } from './profile';
+import { initials, readProfile, type Profile } from './profile';
 import { useCoworkers } from './use-coworkers';
 import { Sidebar, type SidebarTab } from './sidebar';
 import { Dialog, type DialogKind } from './dialogs';
@@ -225,7 +225,7 @@ export function App() {
             style={{ background: profile.color }}
             onClick={() => setModal('settings')}
           >
-            {profile.name.slice(0, 1).toUpperCase()}
+            {initials(profile.name)}
           </button>
         </div>
       </header>
@@ -396,7 +396,7 @@ export function App() {
           {nearby && !greeting && !fun.nudge && (
             <div className="nearby-prompt">
               <span className="person-avatar" style={{ background: nearby.person.color }}>
-                {nearby.person.name.slice(0, 1)}
+                {initials(nearby.person.name)}
               </span>
               <span>
                 <strong>{nearby.person.name}</strong> is nearby · {nearby.target?.activity.activity}
@@ -417,7 +417,7 @@ export function App() {
       <footer className="bottom-bar">
         <div className="self">
           <span className="self-avatar" style={{ background: profile.color }}>
-            {profile.name.slice(0, 1)}
+            {initials(profile.name)}
           </span>
           <div>
             <strong>{profile.name}</strong>

@@ -13,7 +13,7 @@ import {
   Map as MapIcon,
 } from 'lucide-react';
 import { AtmosphereControls, useOcean, type IslandTime, type Atmosphere } from './atmosphere';
-import { colors, type Profile } from './profile';
+import { colors, DEFAULT_NAME, type Profile } from './profile';
 
 export type DialogKind = 'help' | 'settings' | 'atmosphere' | 'telescope';
 // Real constellations for the telescope, with star positions on a 100×70 chart.
@@ -271,9 +271,9 @@ export function Dialog({
               Your name
               <input
                 maxLength={24}
-                value={profile.name === 'You' ? '' : profile.name}
+                value={profile.name}
                 placeholder="Your name"
-                onChange={e => update({ name: e.target.value || 'You' })}
+                onChange={e => update({ name: e.target.value || DEFAULT_NAME })}
               />
             </label>
             <span className="form-label">Avatar color</span>
@@ -293,7 +293,7 @@ export function Dialog({
             <label className="atmosphere-toggle">
               <span>
                 <strong>Demo coworkers</strong>
-                <small>Show Maya and Theo until real teammates join</small>
+                <small>Show the team on their daily routines until shared presence arrives</small>
               </span>
               <input type="checkbox" role="switch" checked={showDemo} onChange={e => setShowDemo(e.target.checked)} />
             </label>
