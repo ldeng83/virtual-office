@@ -74,16 +74,29 @@ export function App() {
       /* Storage may be disabled. */
     }
   }, [showDemo]);
-  const { coworkers, work, shipped, feed, greeting, greet, say, nearby, pickSeat, findPerson, postYou, occupiedSeats } =
-    useCoworkers({
-      period: mood.period,
-      seat,
-      setSeat,
-      notify: setToast,
-      position,
-      showDemo,
-      onLook: freeLook,
-    });
+  const {
+    coworkers,
+    work,
+    shipped,
+    feed,
+    greeting,
+    greet,
+    say,
+    nearby,
+    pickSeat,
+    findPerson,
+    openFeedItem,
+    postYou,
+    occupiedSeats,
+  } = useCoworkers({
+    period: mood.period,
+    seat,
+    setSeat,
+    notify: setToast,
+    position,
+    showDemo,
+    onLook: freeLook,
+  });
   const fun = useFun({
     seat,
     setSeat,
@@ -95,6 +108,10 @@ export function App() {
     say,
     travel: point => travel(point),
     openTelescope: () => setModal('telescope'),
+    lookAt: point => {
+      cameraView.look = point;
+      freeLook();
+    },
   });
   const news: News = useMemo(
     () => ({
@@ -272,6 +289,7 @@ export function App() {
           unseen={unseen}
           autopilot={autopilot.active ? (autopilot.activity?.activity ?? 'Planning') : null}
           findPerson={findPerson}
+          openFeedItem={openFeedItem}
         />
         <section
           ref={panel}

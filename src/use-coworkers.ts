@@ -14,9 +14,18 @@ import {
 } from './people';
 import type { Period } from './daylight';
 import { routeLength } from './rides';
-import { playerState } from './fun-state';
+import { playerState, seaState } from './fun-state';
 
-export type FeedItem = { id: number; at: Date; personId: string; who: string; icon: string; text: string };
+export type FeedItem = {
+  id: number;
+  at: Date;
+  personId: string;
+  who: string;
+  icon: string;
+  text: string;
+  // Wildlife sightings: where the animal is now.
+  where?: () => Point;
+};
 export type CoworkerView = { person: DemoCoworker; target: Target | null };
 // Demo coworker state: routines, work progress, the team feed, greetings and seat ownership.
 export function useCoworkers({
@@ -147,6 +156,16 @@ export function useCoworkers({
     setFeed(items =>
       [{ id: ++feedId.current, at: new Date(), personId: 'you', who: 'You', icon, text }, ...items].slice(0, 40),
     );
+  // Sightings out at sea (a whale breaching, dolphins riding a bow wave) join the feed.
+  useEffect(() => {
+    seaState.onSighting = ({ icon, who, text, where }) =>
+      setFeed(items =>
+        [{ id: ++feedId.current, at: new Date(), personId: 'sea', who, icon, text, where }, ...items].slice(0, 40),
+      );
+    return () => {
+      seaState.onSighting = () => {};
+    };
+  }, []);
   useEffect(() => {
     if (!showDemo) return;
     const clock = window.setInterval(() => {
@@ -239,6 +258,12 @@ export function useCoworkers({
       onLook();
     }
   };
+  // Selecting a feed entry looks at who (or what) it is about.
+  const openFeedItem = (item: FeedItem) => {
+    if (!item.where) return findPerson(item.personId);
+    cameraView.look = item.where();
+    onLook();
+  };
   const say = (personId: string, text: string) => setGreeting({ id: personId, text });
   const occupiedSeats = new Set(occupied.keys());
   return {
@@ -252,6 +277,7 @@ export function useCoworkers({
     nearby,
     pickSeat,
     findPerson,
+    openFeedItem,
     postYou,
     occupiedSeats,
   };

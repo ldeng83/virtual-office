@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { Period } from './daylight';
-import { EMOTE_ICONS, type Emote } from './fun-state';
+import { EMOTE_ICONS, seaState, type Emote } from './fun-state';
+import { seaRegion } from './open-sea';
 import type { RideKind } from './rides';
 import { dailyShells } from './island-extras';
 import { CAVE, checkpoints, SUMMIT, TRAILS } from './highlands';
@@ -50,6 +51,7 @@ export function useFun({
   say,
   travel,
   openTelescope,
+  lookAt,
 }: {
   seat: string | null;
   setSeat: (id: string | null) => void;
@@ -61,6 +63,7 @@ export function useFun({
   say: (personId: string, text: string) => void;
   travel: (point: Point) => void;
   openTelescope: () => void;
+  lookAt: (point: Point) => void;
 }) {
   const [stats, setStats] = useState(readStats);
   useEffect(() => {
@@ -129,10 +132,15 @@ export function useFun({
     if (seat?.startsWith('rt-')) notify('☀️ Up on the rooftop terrace. Best view on the island.');
   }, [seat]);
 
-  // Telescope: stars only after dusk.
+  // Telescope: stars after dusk; by day it finds whatever is out at sea, whales first.
   const lookThroughTelescope = () => {
-    if (period === 'dusk' || period === 'night') openTelescope();
-    else notify('🔭 The stars come out after dusk. Come back tonight.');
+    if (period === 'dusk' || period === 'night') return openTelescope();
+    const out = seaState.sights.filter(sight => sight.present),
+      found = (['whale', 'dolphins', 'shark'] as const).map(kind => out.find(s => s.kind === kind)).find(Boolean);
+    if (!found) return notify('🔭 Nothing out at sea just now. The stars come out after dusk.');
+    const name = { whale: 'A humpback whale', dolphins: 'A pod of dolphins', shark: 'A shark fin' }[found.kind];
+    notify(`🔭 ${name}, ${seaRegion(found.x, found.z)}!`);
+    lookAt([found.x, found.z]);
   };
 
   // Trails: pass every checkpoint along a trail to complete it; the summit and the cave are milestones.

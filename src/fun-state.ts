@@ -12,3 +12,8 @@ export const EMOTE_ICONS: Record<Emote, string> = { wave: '👋', dance: '💃',
 
 // Taking back control from autopilot stops you where you are (the scene fills this in).
 export const playerControl = { halt: () => {} };
+
+// Life out at sea (open-sea.tsx writes these every frame). The telescope and the activity feed read them.
+export type SeaSight = { kind: 'whale' | 'dolphins' | 'shark'; x: number; z: number; present: boolean };
+export type Sighting = { icon: string; who: string; text: string; where: () => [number, number] };
+export const seaState = { sights: [] as SeaSight[], onSighting: (_sighting: Sighting) => {} };

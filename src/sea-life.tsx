@@ -46,7 +46,7 @@ function Fin({
     </mesh>
   );
 }
-function Turtle() {
+export function Turtle() {
   return (
     <>
       <Blob scale={[0.43, 0.2, 0.57]} color="#718a50" />
@@ -75,27 +75,6 @@ function Fish({ index }: { index: number }) {
         <Blob scale={[0.16, 0.025, 0.11]} color={color} />
       </group>
     </group>
-  );
-}
-function Dolphin() {
-  return (
-    <>
-      <Blob scale={[0.25, 0.23, 0.88]} color="#799da8" />
-      <Blob position={[0, -0.08, 0.18]} scale={[0.19, 0.14, 0.67]} color="#c5d7d0" />
-      <Blob position={[0, 0, 0.88]} scale={[0.11, 0.09, 0.3]} color="#799da8" />
-      <group rotation={[0, 0, Math.PI / 2]} position={[0, 0.16, -0.16]}>
-        <Fin color="#648b99" length={0.38} width={0.2} />
-      </group>
-      {[-1, 1].map(side => (
-        <Fin key={side} side={side} color="#648b99" length={0.5} />
-      ))}
-      <group name="dolphin-tail" position={[0, 0, -0.85]}>
-        <Blob scale={[0.46, 0.045, 0.18]} color="#648b99" />
-      </group>
-      {[-1, 1].map(side => (
-        <Blob key={side} position={[side * 0.19, 0.07, 0.63]} scale={[0.025, 0.025, 0.025]} color="#294957" />
-      ))}
-    </>
   );
 }
 function Manta() {
@@ -137,7 +116,6 @@ function Crab() {
 const inhabitants: { kind: SeaAnimal; index: number }[] = [
   ...[0, 1].map(index => ({ kind: 'turtle' as const, index })),
   ...[0, 1, 2].map(index => ({ kind: 'school' as const, index })),
-  ...[0, 1].map(index => ({ kind: 'dolphin' as const, index })),
   ...[0, 1].map(index => ({ kind: 'ray' as const, index })),
   ...[0, 1, 2].map(index => ({ kind: 'crab' as const, index })),
 ];
@@ -160,7 +138,6 @@ export function SeaLife({ motion }: { motion: boolean }) {
             0.24 *
             ((part.children[0] as THREE.Mesh).geometry.attributes.position.getX(1) > 0 ? 1 : -1);
         if (part.name === 'fish-tail') part.rotation.y = Math.sin(t * 7 + i) * 0.35;
-        if (part.name === 'dolphin-tail') part.rotation.x = Math.sin(t * 4 + index) * 0.25;
         if (part.name === 'crab-leg') part.rotation.y = Math.sin(t * 9 + part.position.z * 15) * route.activity * 0.25;
       });
     });
@@ -173,8 +150,6 @@ export function SeaLife({ motion }: { motion: boolean }) {
             <Turtle />
           ) : kind === 'school' ? (
             Array.from({ length: 7 }, (_, n) => <Fish key={n} index={n} />)
-          ) : kind === 'dolphin' ? (
-            <Dolphin />
           ) : kind === 'ray' ? (
             <Manta />
           ) : (

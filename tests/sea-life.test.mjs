@@ -5,7 +5,7 @@ import { animalRoute } from '../src/sea-life-motion.ts';
 
 test('sea animals stay offshore and beach crabs stay clear of the dock', () => {
   for (let t = 0; t < 600; t += 0.5) {
-    for (const kind of ['turtle', 'school', 'dolphin', 'ray', 'crab']) {
+    for (const kind of ['turtle', 'school', 'ray', 'crab']) {
       for (let index = 0; index < (kind === 'crab' || kind === 'school' ? 3 : 2); index++) {
         const p = animalRoute(kind, index, t);
         assert.ok(Object.values(p).every(Number.isFinite));
@@ -17,10 +17,7 @@ test('sea animals stay offshore and beach crabs stay clear of the dock', () => {
     }
   }
 });
-test('dolphins leap occasionally and underwater species stay submerged', () => {
-  assert.ok(animalRoute('dolphin', 0, 1.4).y > 1);
-  assert.ok(animalRoute('dolphin', 0, 6).y < -0.4);
-  assert.ok(animalRoute('dolphin', 1, 1.4).y < -0.4);
+test('underwater species stay submerged', () => {
   for (const kind of ['ray', 'school']) for (let t = 0; t < 30; t++) assert.ok(animalRoute(kind, 0, t).y < -0.4);
 });
 
@@ -35,7 +32,6 @@ test('animals stay in local habitats instead of circling the island', () => {
   const habitats = {
     turtle: [1.15, 1.95],
     school: [1.0, 2.1],
-    dolphin: [2.0, 2.75],
     ray: [-0.05, 0.6],
     crab: [0.7, 1.4],
   };

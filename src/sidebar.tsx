@@ -51,6 +51,7 @@ export function Sidebar({
   showDemo,
   unseen,
   findPerson,
+  openFeedItem,
   autopilot,
 }: SidebarProps) {
   return (
@@ -100,7 +101,7 @@ export function Sidebar({
         <div className="feed" aria-live="polite">
           {showDemo && feed.length ? (
             feed.map(item => (
-              <button key={item.id} className="feed-item" onClick={() => findPerson(item.personId)}>
+              <button key={item.id} className="feed-item" onClick={() => openFeedItem(item)}>
                 <span className="feed-icon">{item.icon}</span>
                 <span>
                   <strong>{item.who}</strong> {item.text}
@@ -223,4 +224,5 @@ export type SidebarProps = {
   showDemo: boolean;
   unseen: number;
   findPerson: (id: string) => void;
+  openFeedItem: (item: FeedItem) => void;
 };

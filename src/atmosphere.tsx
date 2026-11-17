@@ -7,6 +7,7 @@ import * as THREE from 'three';
 import { IslandLife } from './island-life';
 import { Ocean } from './ocean';
 import { SeaLife } from './sea-life';
+import { OpenSea } from './open-sea-scene';
 
 import { daylightAtHour, localHour, normalizeAtmosphere, periods, type Atmosphere } from './daylight';
 export type { Atmosphere } from './daylight';
@@ -158,6 +159,7 @@ export function AtmosphereScene({
       />
       <Ocean motion={settings.motion} time={time} />
       <SeaLife motion={settings.motion} />
+      <OpenSea motion={settings.motion} period={time.period} darkness={target.darkness} />
       <pointLight ref={fire} position={[13.2, 1.7, 5.97]} color="#ffab59" distance={8} decay={2} />
       <group ref={lamps}>
         {lampPosts.map(([x, z]) => (
