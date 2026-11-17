@@ -1,8 +1,17 @@
-import { ISLAND_CENTER_Z, ISLAND_X_SCALE, shorePoint } from './shoreline.ts';
 import { turnToward } from './steering.ts';
-import { highlandsDistance } from './highlands.ts';
+import {
+  courseAt,
+  courseSeconds,
+  longestTrip,
+  planDetour,
+  tripCourse,
+  TRIPS,
+  type BoatKind,
+  type Course,
+  type Sight,
+} from './boat-trips.ts';
 import { DIVE_DEPTH, tourPose, tourSeconds } from './dive.ts';
-import { bluff, jetty, marina, seats, type Point, type Seat } from './world.ts';
+import { bluff, seats, type Point, type Seat } from './world.ts';
 
 // Autopilot rides: each one is a path over time, starting and ending at its launch spot.
 // The player controller follows the rider; the boats, skis and chute follow `ride` (in fun-state).
@@ -25,87 +34,31 @@ const smooth = (v: number) => {
   const t = clamp01(v);
   return t * t * (3 - 2 * t);
 };
-const coastAngle = (p: Point) => Math.atan2(p[1] - ISLAND_CENTER_Z, p[0] / ISLAND_X_SCALE);
 const wrap = (a: number) => Math.atan2(Math.sin(a), Math.cos(a));
-// Water routes swing wide round the docks and the bluff instead of sailing through them.
-const obstacles = [
-  { angle: coastAngle([marina.x, marina.z1]), width: 0.16, push: 6 },
-  { angle: coastAngle([jetty.x0, jetty.z]), width: 0.2, push: 6.5 },
-  { angle: coastAngle([bluff.x, bluff.z]), width: 0.12, push: 2.5 },
-];
-const swingWide = (a: number) =>
-  obstacles.reduce((sum, o) => sum + o.push * Math.exp(-((wrap(a - o.angle) / o.width) ** 2)), 0);
-
-// A loop round the island: ease out from the launch, circle once, ease back in.
-function loop(launch: Point, t: number, speed: number, offset: (a: number) => number, ease = 4) {
-  const duration = (Math.PI * 2) / Math.abs(speed),
-    a = coastAngle(launch) + speed * t;
-  // On the north side the strait is narrow: stay well clear of the Highlands' shore.
-  let reach = offset(a) + swingWide(a),
-    [lx, lz] = shorePoint(a, reach);
-  while (reach > 3 && highlandsDistance(lx, lz) < 4) [lx, lz] = shorePoint(a, (reach -= 0.5));
-  const k = smooth(t / ease) * smooth((duration - t) / ease);
-  return { x: launch[0] + (lx - launch[0]) * k, z: launch[1] + (lz - launch[1]) * k, k, duration };
-}
-const ROUTES = {
-  kayak: { speed: 0.07, offset: () => 5.5 },
-  jetski: { speed: 0.16, offset: (a: number) => 11 + 2.2 * Math.sin(a * 9) },
-  sailboat: { speed: -0.05, offset: (a: number) => 8.5 + 1.2 * Math.sin(a * 3) },
-};
-// Parasailing doesn't lap the island: the rope bridge to the Highlands is in the way of a rider ten
-// units up. The tow boat runs a long oval along the west coast instead, out wide and back closer in,
-// turning well short of the bridge.
-const PARASAIL = { seconds: 86, sweep: 2.1, mid: 16, wide: 6, ease: 6 };
-// The oval, measured out so the boat holds a steady speed all the way round (turns included).
-const ovals = new Map<string, { points: Point[]; lengths: number[] }>();
-function oval(launch: Point) {
-  const key = launch.join(',');
-  let found = ovals.get(key);
-  if (!found) {
-    const points = Array.from({ length: 241 }, (_, i): Point => {
-      const u = (i / 240) * Math.PI * 2,
-        a = coastAngle(launch) + (PARASAIL.sweep / 2) * (1 - Math.cos(u));
-      return shorePoint(a, PARASAIL.mid + PARASAIL.wide * Math.sin(u) + swingWide(a));
-    });
-    const lengths = [0];
-    for (let i = 1; i < points.length; i++)
-      lengths.push(lengths[i - 1] + Math.hypot(points[i][0] - points[i - 1][0], points[i][1] - points[i - 1][1]));
-    ovals.set(key, (found = { points, lengths }));
-  }
-  return found;
-}
-function towBoatAt(launch: Point, t: number) {
-  const { points, lengths } = oval(launch),
-    goal = clamp01(t / PARASAIL.seconds) * lengths[lengths.length - 1];
-  let i = 1;
-  while (i < lengths.length - 1 && lengths[i] < goal) i++;
-  const f = clamp01((goal - lengths[i - 1]) / (lengths[i] - lengths[i - 1] || 1)),
-    lx = points[i - 1][0] + (points[i][0] - points[i - 1][0]) * f,
-    lz = points[i - 1][1] + (points[i][1] - points[i - 1][1]) * f,
-    k = smooth(t / PARASAIL.ease) * smooth((PARASAIL.seconds - t) / PARASAIL.ease);
-  return {
-    x: launch[0] + (lx - launch[0]) * k,
-    y: 0,
-    z: launch[1] + (lz - launch[1]) * k,
-    done: t >= PARASAIL.seconds,
-  };
-}
 export const PARASAIL_HEIGHT = 10;
 export const CLIMB_SECONDS = 22;
 
 // Where the rider is `t` seconds into the ride. Heading comes from where the ride goes next.
-export function ridePose(kind: RideKind, launch: Point, t: number, route?: Point[]): RidePose {
+// Boats follow one of their trips (boat-trips.ts), or `course` when the trip has bent out for a detour.
+export function ridePose(
+  kind: RideKind,
+  launch: Point,
+  t: number,
+  route?: Point[],
+  trip = 0,
+  course?: Course | null,
+): RidePose {
   if (kind === 'ferry') return withHeading(t => ferryPose(route ?? [launch], t), t);
   if (kind === 'climb') return climbPose(launch, t);
   if (kind === 'scuba') return withHeading(t => tourPose(launch, t), t);
-  if (kind === 'parasail') return parasailPose(launch, t);
-  const lap = ROUTES[kind];
+  const path = course ?? tripCourse(kind, launch, trip);
+  if (kind === 'parasail') return parasailPose(launch, t, path);
   const at = (t: number) => {
-    const p = loop(launch, t, lap.speed, lap.offset);
+    const p = courseAt(kind, path, launch, t);
     // Jet skis hop a wave every few seconds once they're out on the water.
     const phase = t % 5.5,
       hop = kind === 'jetski' && p.k > 0.95 && phase > 4.6 ? Math.sin(((phase - 4.6) / 0.9) * Math.PI) * 0.55 : 0;
-    return { x: p.x, y: hop, z: p.z, done: t >= p.duration };
+    return { x: p.x, y: hop, z: p.z, done: p.done };
   };
   const pose = withHeading(at, t);
   // Lean into the turn: how fast the heading is changing.
@@ -122,9 +75,12 @@ function withHeading(at: (t: number) => { x: number; y: number; z: number; done:
 }
 
 // The tow boat runs its oval; the rider rises behind it on a long line, then lands back on the deck.
-function parasailPose(launch: Point, t: number): RidePose {
-  const boat = withHeading(t => towBoatAt(launch, t), t),
-    duration = PARASAIL.seconds,
+function parasailPose(launch: Point, t: number, course: Course): RidePose {
+  const boat = withHeading(t => {
+      const p = courseAt('parasail', course, launch, t);
+      return { x: p.x, y: 0, z: p.z, done: p.done };
+    }, t),
+    duration = courseSeconds('parasail', course),
     lift = smooth((t - 4) / 10) * smooth((duration - t - 3) / 10),
     line = 0.9 + 6.5 * lift,
     heading = Number.isNaN(boat.heading) ? 0 : boat.heading;
@@ -202,20 +158,51 @@ export type RideView = {
   heading: number;
   roll: number;
   boat: { x: number; z: number; heading: number } | null;
+  // Boats: which of the boat's trips this is, and its course if it has bent out to pass a whale or
+  // dolphins (`detour` says which).
+  trip: number;
+  course?: Course | null;
+  detour?: Sight['kind'];
   // Diving only: you've taken over from the guided tour, or you're on your way back up.
   mode?: 'free' | 'return';
 };
-// Getting on. A second sailor joins the boat's trip already under way, so both ride together.
-export function startRide(seat: Seat, riders: Record<string, RideView>): RideView {
+const isBoat = (kind: RideKind): kind is BoatKind => kind in TRIPS;
+// Getting on. A boat picks one of its trips, and bends it if there's a whale or dolphins within
+// reach (`sights`). A second sailor joins the boat's trip already under way, so both ride together.
+export function startRide(
+  seat: Seat,
+  riders: Record<string, RideView>,
+  sights: Sight[] = [],
+  pick = Math.random(),
+): RideView {
   const { kind, launch } = seat.ride!;
   const crew = Object.entries(riders).find(([id]) => id !== seat.id && id.split('-')[0] === seat.id.split('-')[0]);
-  const shared = kind === 'sailboat' && crew ? crew[1].t : 0;
-  return { kind, t: shared, x: launch[0], y: 0, z: launch[1], heading: seat.angle, roll: 0, boat: null };
+  const view: RideView = {
+    kind,
+    t: 0,
+    x: launch[0],
+    y: 0,
+    z: launch[1],
+    heading: seat.angle,
+    roll: 0,
+    boat: null,
+    trip: 0,
+  };
+  if (kind === 'sailboat' && crew) {
+    const { t, trip, course, detour } = crew[1];
+    return { ...view, t, trip, course, detour };
+  }
+  if (isBoat(kind)) {
+    view.trip = Math.min(TRIPS[kind].length - 1, Math.floor(pick * TRIPS[kind].length));
+    const plan = planDetour(kind, tripCourse(kind, launch, view.trip), sights);
+    if (plan) Object.assign(view, { course: plan.course, detour: plan.sight });
+  }
+  return view;
 }
 // Move a rider along; returns true when the ride is over.
 export function stepRide(seat: Seat, view: RideView, dt: number) {
   view.t += dt;
-  const p = ridePose(view.kind, seat.ride!.launch, view.t, seat.ride!.route);
+  const p = ridePose(view.kind, seat.ride!.launch, view.t, seat.ride!.route, view.trip, view.course);
   if (!Number.isNaN(p.heading)) view.heading = turnToward(view.heading, p.heading, dt, view.kind === 'climb' ? 6 : 3);
   Object.assign(view, { x: p.x, y: p.y, z: p.z, roll: p.roll, boat: p.boat ?? null });
   return p.done;
@@ -226,11 +213,14 @@ export function riderSpot(seat: Seat, view: RideView): Point {
   return [view.x + Math.sin(view.heading) * deck, view.z + Math.cos(view.heading) * deck];
 }
 // Roughly how long each ride takes (the climb: up, then a while at the lookout).
+// How long to allow for each ride: the boat's longest trip with room for a detour, the climb's way
+// up plus a while at the lookout.
+const launchOf = (kind: RideKind) => seats.find(s => s.ride?.kind === kind)!.ride!.launch;
 export const RIDE_SECONDS: Record<RideKind, number> = {
-  kayak: (Math.PI * 2) / ROUTES.kayak.speed,
-  jetski: (Math.PI * 2) / ROUTES.jetski.speed,
-  sailboat: (Math.PI * 2) / -ROUTES.sailboat.speed,
-  parasail: PARASAIL.seconds,
+  kayak: longestTrip('kayak', launchOf('kayak')),
+  jetski: longestTrip('jetski', launchOf('jetski')),
+  sailboat: longestTrip('sailboat', launchOf('sailboat')),
+  parasail: longestTrip('parasail', launchOf('parasail')),
   climb: CLIMB_SECONDS + 20,
   scuba: DIVE_SECONDS,
   ferry: 60,

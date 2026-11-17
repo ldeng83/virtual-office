@@ -1,8 +1,8 @@
-import { Cat, Rain, Rainbow, Shells, type Shell } from './island-extras';
+import { Cat, Dog, Rain, Rainbow, Shells, type Shell } from './island-extras';
 import { FunSpots } from './fun';
 import { WaterSports } from './water-sports';
 import { StaticBatch } from './static-batch';
-import { diveState, EMOTE_ICONS, playerControl, playerState, riders, type Emote } from './fun-state';
+import { diveState, EMOTE_ICONS, playerControl, playerState, riders, seaState, type Emote } from './fun-state';
 import { airLeft, stepSwim } from './dive';
 import { DiveScene } from './dive-scene';
 import { InteractionHints } from './interaction-hints';
@@ -102,6 +102,7 @@ export function World({
   shells,
   onShell,
   onPetCat,
+  onPetDog,
   emote,
   raining,
   rainbow,
@@ -120,6 +121,7 @@ export function World({
   shells: Shell[];
   onShell: (id: string) => void;
   onPetCat: () => void;
+  onPetDog: () => void;
   emote: { kind: Emote; seq: number } | null;
   raining: boolean;
   rainbow: boolean;
@@ -281,7 +283,7 @@ export function World({
       rideY.current = 0;
       sittingIn.current = s;
       playerState.elevated = !!s.y;
-      if (s.ride) riders[s.id] = startRide(s, riders);
+      if (s.ride) riders[s.id] = startRide(s, riders, seaState.sights);
       if (s.ride?.kind === 'scuba') {
         diveState.seen.clear();
         diveState.surface = false;
@@ -641,6 +643,7 @@ export function World({
         motion={motionOn}
       />
       <Cat player={pos} motion={motionOn} onPet={onPetCat} />
+      <Dog player={pos} motion={motionOn} onPet={onPetDog} />
       <Shells shells={shells} player={pos} onCollect={onShell} onWalk={walkTo} />
       <Rain raining={raining} motion={motionOn} />
       <Rainbow visible={rainbow} />

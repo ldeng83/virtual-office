@@ -177,6 +177,203 @@ export function Cat({
   );
 }
 
+// ---------------- Limo, the island dog ----------------
+// A Yorkshire terrier: small and white, with a long silky coat and pricked ears. Trots between favourite spots,
+// sits and looks about, wags harder and turns to you when you come close, and tags along after a pat.
+// The first spot is by the arrival pier, so Limo is there to meet you.
+const DOG_SPOTS: Point[] = (
+  [
+    [1.6, 9.6],
+    [4, 2],
+    [-11.6, 0.6],
+    [11, 5],
+    [19.2, -8.2],
+    [0, -2.6],
+    [-4, -16],
+    [8.5, -31.4],
+    [25.6, -12],
+    [-10.5, -30.4],
+  ] as Point[]
+).filter(p => walkable(...p));
+// A white coat; the long hair of the skirt and face is a shade off so the shape still reads.
+const TAN = '#f1ece2',
+  GOLD = '#fbf8f1',
+  STEEL = '#ffffff';
+export function Dog({
+  player,
+  motion,
+  onPet,
+}: {
+  player: RefObject<THREE.Vector3>;
+  motion: boolean;
+  onPet: () => void;
+}) {
+  const group = useRef<THREE.Group>(null),
+    body = useRef<THREE.Group>(null),
+    head = useRef<THREE.Group>(null),
+    tail = useRef<THREE.Group>(null);
+  const pos = useRef(new THREE.Vector3(DOG_SPOTS[0][0], 0, DOG_SPOTS[0][1])),
+    path = useRef<Point[]>([]),
+    mover = useRef({ speed: 0 });
+  const state = useRef({ mode: 'sit' as 'walk' | 'sit', until: 12, followUntil: 0, repath: 0 });
+  const clock = useRef(0);
+  const [hearts, setHearts] = useState(0);
+  useFrame((_, dt) => {
+    const g = group.current;
+    if (!g) return;
+    dt = Math.min(dt, 0.05);
+    if (motion) clock.current += dt;
+    const t = clock.current,
+      s = state.current,
+      me = player.current;
+    const away = me ? Math.hypot(me.x - pos.current.x, me.z - pos.current.z) : Infinity,
+      following = t < s.followUntil && !!me;
+    if (following && t > s.repath) {
+      s.repath = t + 0.9;
+      if (away > 1.4) {
+        const toward: Point = [
+          me.x + ((pos.current.x - me.x) / away) * 0.8,
+          me.z + ((pos.current.z - me.z) / away) * 0.8,
+        ];
+        const route = walkable(...toward) ? findPath([pos.current.x, pos.current.z], toward) : [];
+        if (route.length) {
+          path.current = route;
+          s.mode = 'walk';
+        }
+      }
+    }
+    if (!following && t > s.until && s.mode !== 'walk') {
+      const next = DOG_SPOTS[Math.floor(Math.random() * DOG_SPOTS.length)];
+      path.current = findPath([pos.current.x, pos.current.z], next);
+      s.mode = path.current.length ? 'walk' : 'sit';
+      s.until = t + 4;
+    }
+    let moving = false;
+    if (s.mode === 'walk' && motion) {
+      const step = stepAlongPath(pos.current, path.current, mover.current, dt, following ? 2.6 : 1.8, 0.2);
+      if (step) {
+        pos.current.x += step.dx;
+        pos.current.z += step.dz;
+        if (Math.hypot(step.dx, step.dz) > 1e-5)
+          g.rotation.y = turnToward(g.rotation.y, Math.atan2(step.dx, step.dz), dt, 9);
+        moving = true;
+      }
+      if (!path.current.length) {
+        s.mode = 'sit';
+        s.until = t + 4 + Math.random() * 9;
+      }
+    }
+    // Someone close by is far more interesting than whatever Limo was looking at.
+    const greeting = !moving && away < 3.2;
+    if (greeting && motion)
+      g.rotation.y = turnToward(g.rotation.y, Math.atan2(me!.x - pos.current.x, me!.z - pos.current.z), dt, 5);
+    g.position.set(pos.current.x, 0.1, pos.current.z);
+    if (body.current) {
+      // A bouncy trot; sitting drops the back end.
+      body.current.position.y = moving ? Math.abs(Math.sin(t * 13)) * 0.045 : 0;
+      body.current.rotation.x = moving ? 0 : -0.28;
+    }
+    if (head.current) {
+      head.current.rotation.z = moving ? 0 : Math.sin(t * 0.7) * 0.18 + (greeting ? 0.12 : 0);
+      head.current.rotation.x = moving ? 0 : 0.22;
+    }
+    if (tail.current) tail.current.rotation.z = Math.sin(t * (greeting || following ? 19 : moving ? 11 : 5)) * 0.55;
+  });
+  return (
+    <group
+      ref={group}
+      name="island-dog"
+      scale={1.3}
+      onClick={e => {
+        e.stopPropagation();
+        if (e.delta >= 6) return;
+        state.current.followUntil = clock.current + 40;
+        state.current.repath = 0;
+        setHearts(h => h + 1);
+        onPet();
+        window.setTimeout(() => setHearts(h => Math.max(0, h - 1)), 2200);
+      }}
+      onPointerOver={e => {
+        e.stopPropagation();
+        const at = group.current!.position;
+        hoverSpot({ id: 'dog', x: at.x, y: at.y - 0.6, z: at.z, label: 'Pet Limo' });
+      }}
+      onPointerOut={() => hoverSpot(null)}
+    >
+      <group ref={body}>
+        {/* A long back, and the silky coat hanging from it almost to the ground. */}
+        <mesh position={[0, 0.25, -0.01]} scale={[0.115, 0.1, 0.24]} castShadow>
+          <sphereGeometry args={[1, 14, 10]} />
+          <meshStandardMaterial color={STEEL} roughness={0.75} />
+        </mesh>
+        <mesh position={[0, 0.15, -0.01]} scale={[0.125, 0.13, 0.22]} castShadow>
+          <sphereGeometry args={[1, 12, 8, 0, Math.PI * 2, Math.PI * 0.42, Math.PI * 0.58]} />
+          <meshStandardMaterial color={TAN} roughness={0.75} side={THREE.DoubleSide} />
+        </mesh>
+        <mesh position={[0, 0.24, 0.17]} scale={[0.09, 0.1, 0.08]}>
+          <sphereGeometry args={[1, 10, 8]} />
+          <meshStandardMaterial color={GOLD} roughness={0.75} />
+        </mesh>
+        <group ref={head} position={[0, 0.37, 0.24]}>
+          <mesh castShadow>
+            <sphereGeometry args={[0.105, 12, 9]} />
+            <meshStandardMaterial color={GOLD} roughness={1} />
+          </mesh>
+          {/* The fall of hair over the face, and a whiskery muzzle. */}
+          <mesh position={[0, 0.055, 0.045]} scale={[1.15, 0.6, 0.9]}>
+            <sphereGeometry args={[0.07, 9, 7]} />
+            <meshStandardMaterial color={TAN} roughness={0.75} />
+          </mesh>
+          <mesh position={[0, -0.045, 0.09]} scale={[1.25, 0.95, 1.1]}>
+            <sphereGeometry args={[0.058, 9, 7]} />
+            <meshStandardMaterial color={GOLD} roughness={0.75} />
+          </mesh>
+          <mesh position={[0, -0.015, 0.155]}>
+            <sphereGeometry args={[0.02, 6, 5]} />
+            <meshBasicMaterial color="#231d1a" />
+          </mesh>
+          {/* Small pricked ears. */}
+          {[-1, 1].map(side => (
+            <mesh key={side} position={[side * 0.065, 0.115, -0.015]} rotation={[0, 0, -side * 0.25]}>
+              <coneGeometry args={[0.04, 0.1, 4]} />
+              <meshStandardMaterial color={TAN} roughness={0.75} />
+            </mesh>
+          ))}
+          {[-1, 1].map(side => (
+            <mesh key={`e${side}`} position={[side * 0.043, 0.025, 0.093]}>
+              <sphereGeometry args={[0.015, 6, 4]} />
+              <meshBasicMaterial color="#231d1a" />
+            </mesh>
+          ))}
+        </group>
+        {[-1, 1].flatMap(sx =>
+          [-1, 1].map(sz => (
+            <mesh key={`${sx}${sz}`} position={[sx * 0.065, 0.07, sz * 0.13 + 0.01]}>
+              <cylinderGeometry args={[0.034, 0.03, 0.15, 7]} />
+              <meshStandardMaterial color={TAN} roughness={1} />
+            </mesh>
+          )),
+        )}
+        <group ref={tail} position={[0, 0.3, -0.21]}>
+          <mesh position={[0, 0.06, -0.02]} rotation={[-0.3, 0, 0]}>
+            <cylinderGeometry args={[0.018, 0.022, 0.12, 6]} />
+            <meshStandardMaterial color={STEEL} />
+          </mesh>
+        </group>
+      </group>
+      {hearts > 0 && (
+        <Label position={[0, 0.85, 0]} zIndex={22}>
+          <div className="cat-hearts" aria-hidden="true">
+            <span>♥</span>
+            <span>♥</span>
+            <span>♥</span>
+          </div>
+        </Label>
+      )}
+    </group>
+  );
+}
+
 // ---------------- Seashell hunt ----------------
 // Five shells wash up along the coast each day, in spots you can walk to.
 export type Shell = { id: string; point: Point; kind: 'scallop' | 'spiral' };

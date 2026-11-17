@@ -4,7 +4,7 @@ import { useFrame } from '@react-three/fiber';
 import { Label } from './label';
 import * as THREE from 'three';
 import { findPath, seats, type Point } from './world';
-import { riders } from './fun-state';
+import { riders, seaState } from './fun-state';
 import { groundHeight } from './highlands';
 import { riderPose, riderSpot, startRide, stepRide } from './rides';
 import { ARRIVAL_DOCK, peopleView, type DemoCoworker, type Target } from './people';
@@ -285,7 +285,7 @@ export function Coworker({
       !rideOver.current &&
       Math.hypot(pos.current.x - rideSeat.point[0], pos.current.z - rideSeat.point[1]) < 0.3
     )
-      view = riders[rideSeat.id] = startRide(rideSeat, riders);
+      view = riders[rideSeat.id] = startRide(rideSeat, riders, seaState.sights);
     if (rideSeat && view) {
       if (stepRide(rideSeat, view, dt)) {
         delete riders[rideSeat.id];

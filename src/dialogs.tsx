@@ -263,7 +263,8 @@ export function Dialog({
                     yourself, and what you meet goes in your dive log), ride a jet ski, sail or go parasailing from the
                     water sports dock, climb the bluff on the north shore, play the piano, turn on the café radio, relax
                     on the rooftop, catch the quiz or a movie at the town hall, and look through the telescope at night.
-                    Pet Mochi the cat, hunt for today’s five seashells, and use the emotes at the bottom.
+                    Pet Mochi the cat and Limo the dog, hunt for today’s five seashells, and use the emotes at the
+                    bottom.
                   </p>
                 </div>
               </li>

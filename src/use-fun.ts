@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { Period } from './daylight';
-import { EMOTE_ICONS, seaState, type Emote } from './fun-state';
+import { EMOTE_ICONS, riders, seaState, type Emote } from './fun-state';
+import { TRIPS, type BoatKind } from './boat-trips';
 import { seaRegion } from './open-sea';
 import type { RideKind } from './rides';
 import { dailyShells } from './island-extras';
@@ -127,9 +128,19 @@ export function useFun({
 
   useEffect(() => {
     const ride = seats.find(s => s.id === seat)?.ride?.kind;
-    if (ride) notify(RIDE_STARTS[ride]);
+    // Boats pick their trip as you board (the scene does that a moment after this runs).
+    const timer =
+      ride && seat
+        ? setTimeout(() => {
+            const view = riders[seat],
+              trip = view && ride in TRIPS ? TRIPS[ride as BoatKind][view.trip] : null;
+            notify(trip?.start ?? RIDE_STARTS[ride]);
+            if (view?.detour) setTimeout(() => notify(DETOURS[view.detour as 'whale' | 'dolphins']), 4500);
+          }, 60)
+        : undefined;
     if (seat?.startsWith('hm-')) notify('🌴 Swinging in the hammock. Take your time.');
     if (seat?.startsWith('rt-')) notify('☀️ Up on the rooftop terrace. Best view on the island.');
+    return () => clearTimeout(timer);
   }, [seat]);
 
   // Telescope: stars after dusk; by day it finds whatever is out at sea, whales first.
@@ -268,6 +279,7 @@ export function useFun({
     shells,
     collectShell,
     petCat: () => notify('💛 Mochi purrs and follows you for a while.'),
+    petDog: () => notify('🐶 Limo wags like mad and trots along with you for a while.'),
     emote,
     doEmote,
     emoteIcons: EMOTE_ICONS,
@@ -290,6 +302,10 @@ const RIDE_STARTS: Record<RideKind, string> = {
   scuba: '🤿 Down the ladder for a guided dive: the reef first, then the shipwreck.',
   ferry: '⛴️ All aboard the water taxi. Sit back for the trip round the coast.',
 };
+const DETOURS = {
+  whale: '🐋 There’s a whale out that way. Bending the trip to pass it.',
+  dolphins: '🐬 Dolphins out that way. Swinging over for a closer look.',
+};
 const RIDE_MESSAGES: Record<RideKind, { text: string; action: string }> = {
   kayak: { text: 'Paddling around the island', action: 'Paddle back' },
   jetski: { text: 'Riding the jet ski', action: 'Head back' },
@@ -304,7 +320,12 @@ const RIDE_MESSAGES: Record<RideKind, { text: string; action: string }> = {
 export function seatMessage(id: string) {
   const seat = seats.find(s => s.id === id);
   if (!seat) return { text: 'Settled in', action: 'Stand up' };
-  if (seat.ride) return RIDE_MESSAGES[seat.ride.kind];
+  if (seat.ride) {
+    const message = RIDE_MESSAGES[seat.ride.kind],
+      trips = TRIPS[seat.ride.kind as BoatKind],
+      view = riders[id];
+    return trips && view ? { ...message, text: trips[view.trip].doing } : message;
+  }
   if (seat.kind === 'hammock') return { text: 'Swinging in the hammock', action: 'Get up' };
   if (id === 'pn-0') return { text: 'Playing the piano', action: 'Stop playing' };
   if (id.startsWith('fs-')) return { text: 'Fishing off the jetty', action: 'Reel in' };

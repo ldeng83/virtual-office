@@ -11,16 +11,18 @@ import {
   startRide,
   stepRide,
 } from '../src/rides.ts';
+import { courseSeconds, detour, planDetour, tripCourse, TRIPS } from '../src/boat-trips.ts';
 import { demoCoworkers } from '../src/people.ts';
 import { bluff, findPath, locations, marina, onJetty, seats, segmentDistance, walkable } from '../src/world.ts';
 
 const rides = seats.filter(s => s.ride);
-const ride = (seat, t) => ridePose(seat.ride.kind, seat.ride.launch, t, seat.ride.route);
+const ride = (seat, t, trip = 0, course) =>
+  ridePose(seat.ride.kind, seat.ride.launch, t, seat.ride.route, trip, course);
 // Run a ride until it ends, sampling every 0.25s.
-function run(seat, limit = 400) {
+function run(seat, trip = 0, course, limit = 400) {
   const samples = [];
   for (let t = 0; t < limit; t += 0.25) {
-    const p = ride(seat, t);
+    const p = ride(seat, t, trip, course);
     samples.push({ t, ...p });
     if (p.done) break;
   }
@@ -39,25 +41,93 @@ test('every ride can be reached on foot from the pier', () => {
   }
 });
 
-test('water rides loop out on the open water and come back to their launch', () => {
-  for (const seat of rides.filter(s => !['climb', 'scuba', 'ferry'].includes(s.ride.kind))) {
-    const samples = run(seat);
-    const last = samples.at(-1);
-    assert.ok(last.done, `${seat.id} finishes`);
-    const [ex, ez] = last.boat ? [last.boat.x, last.boat.z] : [last.x, last.z];
-    assert.ok(Math.hypot(ex - seat.ride.launch[0], ez - seat.ride.launch[1]) < 0.3, `${seat.id} returns`);
-    // Once under way, the vehicle (the tow boat for parasailing) stays off the beach and clear of the docks.
-    for (const p of samples.filter(p => p.t > 6 && p.t < last.t - 6)) {
-      const [x, z] = p.boat ? [p.boat.x, p.boat.z] : [p.x, p.z];
-      assert.ok(shoreDistance(x, z) > 2, `${seat.id} stays in the water at t=${p.t}`);
-      assert.ok(highlandsDistance(x, z) > 2.5, `${seat.id} keeps off the Highlands at t=${p.t}`);
-      assert.ok(!onJetty(x, z), `${seat.id} doesn't cross a dock at t=${p.t}`);
-      assert.ok(
-        segmentDistance([x, z], [marina.x, marina.z0], [marina.x, marina.z1 + 2]) > 2.5,
-        `${seat.id} keeps clear of the marina at t=${p.t}`,
-      );
-    }
+const boats = rides.filter(s => s.ride.kind in TRIPS);
+// Once under way, the vehicle (the tow boat for parasailing) stays off the beach and clear of the docks.
+function staysOnTheWater(samples, name) {
+  const last = samples.at(-1);
+  for (const p of samples.filter(p => p.t > 6 && p.t < last.t - 6)) {
+    const [x, z] = p.boat ? [p.boat.x, p.boat.z] : [p.x, p.z];
+    assert.ok(shoreDistance(x, z) > 2, `${name} stays in the water at t=${p.t}`);
+    assert.ok(highlandsDistance(x, z) > 2.5, `${name} keeps off the Highlands at t=${p.t}`);
+    assert.ok(!onJetty(x, z), `${name} doesn't cross a dock at t=${p.t}`);
+    assert.ok(
+      segmentDistance([x, z], [marina.x, marina.z0], [marina.x, marina.z1 + 2]) > 2.5,
+      `${name} keeps clear of the marina at t=${p.t}`,
+    );
   }
+}
+
+test('every trip a boat can pick goes out on the open water and comes back to its launch', () => {
+  for (const seat of boats)
+    TRIPS[seat.ride.kind].forEach((trip, i) => {
+      const name = `${seat.id} "${trip.doing}"`,
+        samples = run(seat, i),
+        last = samples.at(-1);
+      assert.ok(last.done, `${name} finishes`);
+      assert.ok(last.t <= RIDE_SECONDS[seat.ride.kind], `${name} fits the time allowed`);
+      const [ex, ez] = last.boat ? [last.boat.x, last.boat.z] : [last.x, last.z];
+      assert.ok(Math.hypot(ex - seat.ride.launch[0], ez - seat.ride.launch[1]) < 0.3, `${name} returns`);
+      staysOnTheWater(samples, name);
+    });
+});
+
+test('each boat has several different trips, and boarding picks one of them', () => {
+  for (const seat of boats) {
+    const trips = TRIPS[seat.ride.kind];
+    assert.ok(trips.length >= 2, `${seat.ride.kind} has a choice of trips`);
+    assert.equal(new Set(trips.map(t => t.doing)).size, trips.length);
+    assert.equal(new Set(trips.map(t => t.start)).size, trips.length);
+    const picked = trips.map((_, i) => startRide(seat, {}, [], (i + 0.5) / trips.length).trip);
+    assert.deepEqual(
+      picked,
+      trips.map((_, i) => i),
+    );
+    assert.equal(startRide(seat, {}, [], 0.9999999).trip, trips.length - 1);
+    // The trips really do go to different places.
+    const far = trips.map((_, i) => {
+      const { points } = tripCourse(seat.ride.kind, seat.ride.launch, i);
+      return points[Math.floor(points.length / 2)];
+    });
+    for (let i = 1; i < far.length; i++)
+      assert.ok(Math.hypot(far[i][0] - far[0][0], far[i][1] - far[0][1]) > 10, `${seat.id} trip ${i} differs`);
+  }
+});
+
+test('a boat bends its trip to pass a whale or dolphins within reach, and still gets home', () => {
+  const seat = seats.find(s => s.ride?.kind === 'sailboat'),
+    { launch } = seat.ride,
+    course = tripCourse('sailboat', launch, 1),
+    // A whale out past the far end of the open-sea trip.
+    far = course.points[Math.floor(course.points.length / 2)],
+    out = Math.hypot(far[0], far[1]),
+    whale = { kind: 'whale', x: far[0] * (1 + 22 / out), z: far[1] * (1 + 22 / out), present: true };
+  const nearest = c => Math.min(...c.points.map(p => Math.hypot(p[0] - whale.x, p[1] - whale.z)));
+  assert.ok(nearest(course) > 20);
+  const view = startRide(seat, {}, [whale], 0.5);
+  assert.equal(view.trip, 1);
+  assert.equal(view.detour, 'whale');
+  // It passes close, but not over the top of it.
+  assert.ok(nearest(view.course) < 9 && nearest(view.course) > 3, `passes at ${nearest(view.course)}`);
+  assert.ok(courseSeconds('sailboat', view.course) <= RIDE_SECONDS.sailboat);
+  const samples = run(seat, view.trip, view.course);
+  assert.ok(samples.at(-1).done);
+  assert.ok(Math.hypot(samples.at(-1).x - launch[0], samples.at(-1).z - launch[1]) < 0.3);
+  staysOnTheWater(samples, 'the detour');
+
+  // Whales come before dolphins; things that have dived, sharks and anything too far away are left alone.
+  const dolphins = { ...whale, kind: 'dolphins' };
+  assert.equal(planDetour('sailboat', course, [dolphins, whale]).sight, 'whale');
+  assert.equal(planDetour('sailboat', course, [dolphins]).sight, 'dolphins');
+  assert.equal(planDetour('sailboat', course, [{ ...whale, present: false }]), null);
+  assert.equal(planDetour('sailboat', course, [{ ...whale, kind: 'shark' }]), null);
+  assert.equal(planDetour('sailboat', course, [{ ...whale, x: whale.x * 3, z: whale.z * 3 }]), null);
+  // It aims for where the animal will be, not where it is now.
+  const moving = { ...whale, x: 500, z: 500, ahead: () => ({ x: whale.x, z: whale.z, present: true }) };
+  assert.ok(nearest(planDetour('sailboat', course, [moving]).course) < 9);
+  assert.equal(planDetour('sailboat', course, [{ ...whale, ahead: () => ({ x: 0, z: 0, present: false }) }]), null);
+  // Nothing drags a boat onto the beach, and the tow boat keeps to its run.
+  assert.equal(detour(course, [0, 0], 200), null);
+  assert.equal(planDetour('parasail', tripCourse('parasail', launch, 0), [whale]), null);
 });
 
 test('parasailing lifts you high above the sea and lands you back on the boat', () => {
@@ -69,12 +139,15 @@ test('parasailing lifts you high above the sea and lands you back on the boat', 
 
 test('parasailing keeps well away from the rope bridge, boat and rider both', () => {
   const strait = DECKS.find(d => d.id === 'strait');
-  for (const p of run(seats.find(s => s.ride?.kind === 'parasail'))) {
-    assert.ok(segmentDistance([p.x, p.z], strait.a, strait.b) > 15, `rider near the bridge at t=${p.t}`);
-    assert.ok(segmentDistance([p.boat.x, p.boat.z], strait.a, strait.b) > 15, `boat near the bridge at t=${p.t}`);
-    // The rider stays over water while aloft.
-    if (p.y > 1) assert.ok(shoreDistance(p.x, p.z) > 1 && highlandsDistance(p.x, p.z) > 1, `over land at t=${p.t}`);
-  }
+  const seat = seats.find(s => s.ride?.kind === 'parasail');
+  TRIPS.parasail.forEach((_, trip) => {
+    for (const p of run(seat, trip)) {
+      assert.ok(segmentDistance([p.x, p.z], strait.a, strait.b) > 15, `rider near the bridge at t=${p.t}`);
+      assert.ok(segmentDistance([p.boat.x, p.boat.z], strait.a, strait.b) > 15, `boat near the bridge at t=${p.t}`);
+      // The rider stays over water while aloft.
+      if (p.y > 1) assert.ok(shoreDistance(p.x, p.z) > 1 && highlandsDistance(p.x, p.z) > 1, `over land at t=${p.t}`);
+    }
+  });
 });
 
 test('the climb goes up the face to the lookout and waits there', () => {
@@ -112,10 +185,11 @@ test('everyone on the team takes rides, staying long enough to finish them', () 
 
 test('a second sailor joins the boat on the trip already under way', () => {
   const [helm, bow] = ['sb-0', 'sb-1'].map(id => seats.find(s => s.id === id));
-  const riders = { 'sb-0': startRide(helm, {}) };
+  const riders = { 'sb-0': startRide(helm, {}, [], 0.99) };
   for (let i = 0; i < 40; i++) stepRide(helm, riders['sb-0'], 0.25);
   riders['sb-1'] = startRide(bow, riders);
   assert.equal(riders['sb-1'].t, riders['sb-0'].t);
+  assert.equal(riders['sb-1'].trip, riders['sb-0'].trip);
   stepRide(helm, riders['sb-0'], 0.25);
   stepRide(bow, riders['sb-1'], 0.25);
   assert.ok(Math.hypot(riders['sb-0'].x - riders['sb-1'].x, riders['sb-0'].z - riders['sb-1'].z) < 1e-9);

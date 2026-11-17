@@ -303,7 +303,17 @@ export function OpenSea({ motion, period, darkness }: { motion: boolean; period:
       const { pod, member } = pods[i],
         p = podMember(pod, member, t);
       dolphin(object, `p${i}`, p, i);
-      if (member === 0) sights.push({ kind: 'dolphins', x: p.x, z: p.z, present: p.presence > 0.5 });
+      if (member === 0)
+        sights.push({
+          kind: 'dolphins',
+          x: p.x,
+          z: p.z,
+          present: p.presence > 0.5,
+          ahead: seconds => {
+            const q = podMember(pod, 0, t + seconds);
+            return { x: q.x, z: q.z, present: q.presence > 0.5 };
+          },
+        });
     });
 
     // Now and then a pair comes over to ride the bow wave of a boat that's out on the water.
@@ -470,7 +480,16 @@ export function OpenSea({ motion, period, darkness }: { motion: boolean; period:
         });
       }
       if (p.presence > 0.9) wake(p.x, p.z, 3);
-      sights.push({ kind: 'whale', x: p.x, z: p.z, present });
+      sights.push({
+        kind: 'whale',
+        x: p.x,
+        z: p.z,
+        present,
+        ahead: seconds => {
+          const q = whalePose(i, t + seconds, chance);
+          return { x: q.x, z: q.z, present: q.presence > 0.5 };
+        },
+      });
     });
 
     // The shark's fin, the strait turtle and the jellyfish.

@@ -352,6 +352,7 @@ export function App() {
                   shells={fun.shells}
                   onShell={fun.collectShell}
                   onPetCat={fun.petCat}
+                  onPetDog={fun.petDog}
                   emote={fun.emote}
                   raining={fun.raining}
                   rainbow={fun.rainbow}
