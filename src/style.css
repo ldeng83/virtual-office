@@ -511,31 +511,56 @@ main {
   margin: 0 3px;
 }
 .zone-label {
-  display: block;
-  white-space: nowrap;
-  font-size: 8px;
-  font-weight: 700;
-  letter-spacing: 1.1px;
-  padding: 6px 10px;
-  border: 1px solid #fff9;
-  background: #f8f9ead9;
-  color: #5a715a;
-  border-radius: 5px;
-  box-shadow: 0 2px 7px #3e554514;
-  user-select: none;
-}
-.avatar-label {
-  white-space: nowrap;
-  padding: 5px 8px;
-  background: #fffef1;
-  box-shadow: 0 3px 10px #49624b20;
-  border-radius: 5px;
-  font-size: 10px;
-  color: #465e4a;
   display: flex;
   align-items: center;
   gap: 5px;
+  white-space: nowrap;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 2.2px;
+  text-transform: uppercase;
+  color: #2f4a3c;
+  /* A cream outline instead of a box, like lettering on a map: readable on grass, sand and at night. */
+  -webkit-text-stroke: 2.5px #fffdf0;
+  paint-order: stroke fill;
+  text-shadow: 0 1px 6px #1d2d2466;
+  user-select: none;
+}
+.zone-label span {
+  font-size: 13px;
+  letter-spacing: 0;
+  -webkit-text-stroke: 0;
+  filter: drop-shadow(0 0 2px #fffdf0);
+}
+/* People wear a round name tag with their colour and initial. */
+.avatar-label {
+  white-space: nowrap;
+  padding: 3px 10px 3px 3px;
+  background: #fffef1;
+  border: 1px solid #ffffff;
+  box-shadow: 0 3px 10px #49624b33;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 600;
+  color: #2f4337;
+  display: flex;
+  align-items: center;
+  gap: 6px;
   pointer-events: none;
+}
+.avatar-label em {
+  position: relative;
+  flex-shrink: 0;
+  display: grid;
+  place-items: center;
+  height: 18px;
+  width: 18px;
+  border-radius: 50%;
+  font-style: normal;
+  font-size: 9px;
+  font-weight: 700;
+  color: #fff;
+  text-shadow: 0 0 2px #0005;
 }
 .avatar-label i {
   height: 5px;
@@ -543,9 +568,40 @@ main {
   background: #85a26c;
   border-radius: 50%;
 }
+.avatar-label em i {
+  position: absolute;
+  right: -2px;
+  bottom: -2px;
+  height: 7px;
+  width: 7px;
+  border: 1.5px solid #fffef1;
+}
 .avatar-label span {
   font-size: 8px;
-  color: #a2aa91;
+  font-weight: 500;
+  color: #8d967c;
+}
+/* What you can use: the action under the pointer, or next to you with its key. */
+.use-chip {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+  padding: 5px 9px;
+  border-radius: 7px;
+  background: #23362df2;
+  color: #fff8dc;
+  font-size: 11px;
+  font-weight: 600;
+  box-shadow: 0 4px 12px #0003;
+}
+.use-chip kbd {
+  font: inherit;
+  font-size: 10px;
+  padding: 1px 5px;
+  border-radius: 4px;
+  background: #ffd76a;
+  color: #23362d;
 }
 .bottom-bar {
   height: 83px;

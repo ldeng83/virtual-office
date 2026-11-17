@@ -5,6 +5,7 @@ import { StaticBatch } from './static-batch';
 import { diveState, EMOTE_ICONS, playerControl, playerState, riders, type Emote } from './fun-state';
 import { airLeft, stepSwim } from './dive';
 import { DiveScene } from './dive-scene';
+import { InteractionHints } from './interaction-hints';
 import type { AutopilotCommand } from './use-autopilot';
 import { PARASAIL_HEIGHT, riderPose, riderSpot, startRide, stepRide } from './rides';
 import { seatPose, UPRIGHT } from './poses';
@@ -625,6 +626,12 @@ export function World({
       />
       <WaterSportsScene motion={motionOn} />
       <DiveScene motion={motionOn} night={night} />
+      <InteractionHints
+        seat={seat}
+        onUse={spot =>
+          spot.id === 'radio' ? onRadio() : spot.id === 'telescope' ? onTelescope() : onPickSeat(spot.id)
+        }
+      />
       <Highlands3D
         onWalk={walkOnGround}
         onHike={hike}
@@ -689,6 +696,7 @@ export function World({
           <ZoneLabel
             key={d.id}
             position={[d.point[0], groundHeight(...d.point) + (fitMode === 'overview' ? 3 : 2.6), d.point[1] - 1.6]}
+            id={d.id}
             title={d.name.toUpperCase()}
           />
         ))}
@@ -725,7 +733,7 @@ export function World({
         )}
         <Label position={[0, 1.85, 0]} zIndex={20}>
           <div className="avatar-label">
-            <i />
+            <em style={{ background: profile.color }}>{profile.name.trim()[0]?.toUpperCase()}</em>
             {profile.name} <span>{autopilotOn ? '🤖 autopilot' : 'you'}</span>
           </div>
         </Label>

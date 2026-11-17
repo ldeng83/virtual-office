@@ -1,3 +1,4 @@
+import { hoverSpot, RADIO_SPOT, TELESCOPE_SPOT } from './interact';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
@@ -342,9 +343,9 @@ function Radio({ on, onToggle }: { on: boolean; onToggle: () => void }) {
       }}
       onPointerOver={e => {
         e.stopPropagation();
-        document.body.style.cursor = 'pointer';
+        hoverSpot(RADIO_SPOT);
       }}
-      onPointerOut={() => (document.body.style.cursor = 'auto')}
+      onPointerOut={() => hoverSpot(null)}
     >
       <Box p={[0, 0.14, 0]} s={[0.5, 0.28, 0.2]} c="#c97d5d" />
       <mesh position={[-0.1, 0.14, 0.105]}>
@@ -375,9 +376,9 @@ function Telescope({ onLook }: { onLook: () => void }) {
       }}
       onPointerOver={e => {
         e.stopPropagation();
-        document.body.style.cursor = 'pointer';
+        hoverSpot(TELESCOPE_SPOT);
       }}
-      onPointerOut={() => (document.body.style.cursor = 'auto')}
+      onPointerOut={() => hoverSpot(null)}
     >
       {[0, 1, 2].map(i => (
         <group key={i} rotation={[0, (i * Math.PI * 2) / 3, 0.28]}>

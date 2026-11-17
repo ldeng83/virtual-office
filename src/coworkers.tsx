@@ -389,7 +389,10 @@ export function Coworker({
               </div>
             )
           )}
-          <i className={status === 'Available' ? '' : 'busy'} />
+          <em style={{ background: person.color }}>
+            {person.name[0]}
+            <i className={status === 'Available' ? '' : 'busy'} />
+          </em>
           {person.name}
           {target && (
             <b className={waving ? 'activity-icon waving' : 'activity-icon'} title={target.activity.activity}>

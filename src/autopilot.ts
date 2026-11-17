@@ -6,9 +6,9 @@ import type { Activity, Block, Pose } from './people.ts';
 
 // When you stop touching the controls for a while, your avatar carries on with a day of its own,
 // planned like a coworker's: a home spot for each part of the day plus short errands.
-export type AutopilotSettings = { enabled: boolean; delay: number; paused: boolean };
-export const DEFAULT_AUTOPILOT: AutopilotSettings = { enabled: true, delay: 10_000, paused: false };
-export const AUTOPILOT_DELAYS = [10_000, 30_000, 60_000, 300_000];
+export type AutopilotSettings = { enabled: boolean; delay: number; paused: boolean; version: number };
+export const DEFAULT_AUTOPILOT: AutopilotSettings = { enabled: true, delay: 90_000, paused: false, version: 2 };
+export const AUTOPILOT_DELAYS = [10_000, 30_000, 60_000, 90_000, 300_000];
 // The countdown shows for the last few seconds before autopilot takes over.
 export const COUNTDOWN_MS = 3_000;
 // Give up on reaching a spot after this long (a blocked path, a long hike) and plan again.
@@ -16,11 +16,36 @@ export const ARRIVE_TIMEOUT_MS = 150_000;
 
 export function readAutopilot(): AutopilotSettings {
   try {
-    const saved = JSON.parse(localStorage.getItem('atoll-autopilot') || '{}');
-    return { ...DEFAULT_AUTOPILOT, ...saved };
+    return restoreAutopilot(JSON.parse(localStorage.getItem('atoll-autopilot') || '{}'));
   } catch {
     return DEFAULT_AUTOPILOT;
   }
+}
+
+// Settings saved before the default went from 10 to 90 seconds held the old default, not a choice:
+// those move to the new default. A delay picked since then is kept.
+export function restoreAutopilot(saved: Partial<AutopilotSettings>): AutopilotSettings {
+  const { delay, ...rest } = saved,
+    stale = !saved.version && delay === 10_000;
+  return { ...DEFAULT_AUTOPILOT, ...rest, ...(delay && !stale ? { delay } : {}), version: DEFAULT_AUTOPILOT.version };
+}
+
+// Looking around isn't taking control: zooming, panning (left-drag) and orbiting (right-drag) leave
+// autopilot running. `where` is what the input landed on: the 3D view, the camera buttons (zoom, Follow me, Island overview), elsewhere in
+// the island panel, or anything else. A left press on the 3D view is only a click (walk, sit) if it
+// comes back up without having moved, so it waits for the release.
+export const CLICK_SLOP = 6;
+export function inputIntent(
+  type: string,
+  button: number,
+  where: 'view' | 'zoom' | 'panel' | 'other',
+): 'look' | 'press' | 'control' {
+  if (where === 'zoom') return 'look';
+  if (type === 'wheel') return where === 'other' ? 'control' : 'look';
+  if (where !== 'view') return 'control';
+  if (type === 'touchstart') return 'look';
+  if (type === 'pointerdown') return button === 0 ? 'press' : 'look';
+  return 'control';
 }
 
 // Before autopilot starts: nothing, a countdown (whole seconds left), or start now.

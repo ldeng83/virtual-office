@@ -1,4 +1,5 @@
 import { Label } from './label';
+import { hoverSpot, seatSpot } from './interact';
 import { seats } from './world';
 import { groundHeight } from './highlands';
 import type { RideKind } from './rides';
@@ -72,9 +73,9 @@ export function Seat({ seat, onSelect }: { seat: (typeof seats)[number]; onSelec
       }}
       onPointerOver={e => {
         e.stopPropagation();
-        document.body.style.cursor = 'pointer';
+        hoverSpot(seatSpot(seat));
       }}
-      onPointerOut={() => (document.body.style.cursor = 'auto')}
+      onPointerOut={() => hoverSpot(null)}
     >
       {seat.ride ? rideHitArea(seat.ride.kind) : seatModel(seat.kind)}
     </group>
@@ -178,10 +179,35 @@ function seatModel(kind: (typeof seats)[number]['kind']) {
     </>
   );
 }
-export function ZoneLabel({ position, title }: { position: [number, number, number]; title: string }) {
+// Place names read as lettering on a map (an icon and spaced capitals, no box), so they can't be
+// mistaken for the name tags people wear.
+const PLACE_ICONS: Record<string, string> = {
+  plaza: '🧭',
+  office: '💻',
+  meeting: '🗓️',
+  cafe: '☕',
+  library: '📚',
+  townhall: '🎬',
+  wellness: '🌿',
+  boardwalk: '🏖️',
+  games: '🏓',
+  firepit: '🔥',
+  jetty: '🎣',
+  marina: '⛵',
+  bluff: '🧗',
+  highlands: '🥾',
+  lake: '🏞️',
+  falls: '💧',
+  summit: '⛰️',
+  campsite: '🏕️',
+};
+export function ZoneLabel({ position, title, id }: { position: [number, number, number]; title: string; id: string }) {
   return (
     <Label position={position} zIndex={10}>
-      <span className="zone-label">{title}</span>
+      <span className="zone-label">
+        <span aria-hidden="true">{PLACE_ICONS[id] ?? '📍'}</span>
+        {title}
+      </span>
     </Label>
   );
 }

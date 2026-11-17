@@ -5,7 +5,9 @@ import {
   ARRIVE_TIMEOUT_MS,
   autopilotBlock,
   autopilotFeedText,
+  CLICK_SLOP,
   idlePhase,
+  inputIntent,
   seatHome,
   type AutopilotSettings,
 } from './autopilot';
@@ -124,12 +126,40 @@ export function useAutopilot({
         lastInput.current = Date.now();
         return;
       }
-      takeOver();
+      // Looking around (zoom, pan, orbit) shows you're here but leaves autopilot running.
+      const el = e.target as HTMLElement | null,
+        onMap = !!el?.closest?.('.full-map, .mini-map'),
+        where = el?.closest?.('.map-controls, .view-modes')
+          ? 'zoom'
+          : onMap || !el?.closest?.('.island-panel')
+            ? 'other'
+            : el.tagName === 'CANVAS'
+              ? 'view'
+              : 'panel',
+        intent = inputIntent(e.type, e instanceof PointerEvent ? e.button : 0, where);
+      if (intent === 'control') return takeOver();
+      lastInput.current = Date.now();
+      if (intent === 'press') {
+        const down = e as PointerEvent;
+        press = { x: down.clientX, y: down.clientY, id: down.pointerId };
+      }
+    };
+    // A press on the 3D view that comes back up where it went down was a click, not a drag.
+    let press: { x: number; y: number; id: number } | null = null;
+    const release = (e: PointerEvent) => {
+      if (!press || e.pointerId !== press.id) return;
+      const moved = Math.hypot(e.clientX - press.x, e.clientY - press.y);
+      press = null;
+      if (e.type === 'pointerup' && moved < CLICK_SLOP) takeOver();
     };
     const events = ['keydown', 'pointerdown', 'wheel', 'touchstart'] as const;
     for (const name of events) window.addEventListener(name, input, { capture: true, passive: true });
+    window.addEventListener('pointerup', release, { capture: true });
+    window.addEventListener('pointercancel', release, { capture: true });
     return () => {
       for (const name of events) window.removeEventListener(name, input, { capture: true });
+      window.removeEventListener('pointerup', release, { capture: true });
+      window.removeEventListener('pointercancel', release, { capture: true });
     };
   }, []);
 

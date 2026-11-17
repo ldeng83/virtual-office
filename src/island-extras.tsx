@@ -1,3 +1,4 @@
+import { hoverSpot } from './interact';
 import { useMemo, useRef, useState, type RefObject } from 'react';
 import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
@@ -116,9 +117,10 @@ export function Cat({
       }}
       onPointerOver={e => {
         e.stopPropagation();
-        document.body.style.cursor = 'pointer';
+        const at = group.current!.position;
+        hoverSpot({ id: 'cat', x: at.x, y: at.y - 0.6, z: at.z, label: 'Pet Mochi' });
       }}
-      onPointerOut={() => (document.body.style.cursor = 'auto')}
+      onPointerOut={() => hoverSpot(null)}
     >
       <group ref={body}>
         <mesh position={[0, 0.22, 0]} scale={[0.17, 0.15, 0.3]} castShadow>
