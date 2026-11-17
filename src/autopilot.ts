@@ -165,6 +165,8 @@ const MEETING_HOME = home('Pavilion M', 'In a meeting', 'In a meeting', '💬', 
 ]);
 
 // Sitting down when you go idle makes that seat "home": autopilot pops out for errands and comes back.
+// Out on a ride you're busy, however still your hands are: the idle clock waits until it's over.
+export const onRide = (seatId: string | null) => !!seats.find(s => s.id === seatId)?.ride;
 export function seatHome(seatId: string | null): Activity | null {
   const seat = seatId ? seats.find(s => s.id === seatId) : undefined;
   if (!seat || seat.ride) return null;

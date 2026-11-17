@@ -1,4 +1,7 @@
 import { Label } from './label';
+import { playerState } from './fun-state';
+import type { Spot } from './interact';
+import { freeSpot, type Activity } from './place-activities';
 import { hoverSpot, seatSpot } from './interact';
 import { seats } from './world';
 import { groundHeight } from './highlands';
@@ -201,14 +204,66 @@ const PLACE_ICONS: Record<string, string> = {
   summit: '⛰️',
   campsite: '🏕️',
 };
-export function ZoneLabel({ position, title, id }: { position: [number, number, number]; title: string; id: string }) {
+export function ZoneLabel({
+  position,
+  title,
+  id,
+  stage = 'name',
+  activities = [],
+  occupied,
+  onUse,
+}: {
+  position: [number, number, number];
+  title: string;
+  id: string;
+  // 'open' when you're standing at the place (buttons), 'hint' when it's close by (icons).
+  stage?: 'name' | 'hint' | 'open';
+  activities?: Activity[];
+  occupied?: ReadonlySet<string>;
+  onUse?: (spot: Spot) => void;
+}) {
+  // The place's own icon already says the obvious one.
+  const icons = [...new Set(activities.map(a => a.icon))].filter(icon => icon !== PLACE_ICONS[id]).slice(0, 6);
   return (
-    <Label position={position} zIndex={10}>
-      <span className="zone-label">
-        <span aria-hidden="true">{PLACE_ICONS[id] ?? '📍'}</span>
-        {title}
-      </span>
+    <Label position={position} zIndex={stage === 'open' ? 24 : 10}>
+      <div className="zone">
+        <span className="zone-label">
+          <span aria-hidden="true">{PLACE_ICONS[id] ?? '📍'}</span>
+          {title}
+        </span>
+        {stage === 'hint' && icons.length > 0 && (
+          <div className="zone-icons" aria-hidden="true">
+            {icons.join(' ')}
+          </div>
+        )}
+        {stage === 'open' && activities.length > 0 && (
+          <div className="zone-chips" role="group" aria-label={`Things to do: ${title.toLowerCase()}`}>
+            {activities.map(activity => {
+              const spot = freeSpot(activity, playerState.x, playerState.z, occupied ?? NOBODY);
+              return (
+                <button
+                  key={activity.key}
+                  type="button"
+                  disabled={!spot}
+                  title={spot ? spot.label : 'In use right now'}
+                  onPointerDown={e => e.stopPropagation()}
+                  onClick={e => {
+                    e.stopPropagation();
+                    // Pick again as you click: someone may have sat down since this was drawn.
+                    const now = freeSpot(activity, playerState.x, playerState.z, occupied ?? NOBODY);
+                    if (now) onUse?.(now);
+                  }}
+                >
+                  <span aria-hidden="true">{activity.icon}</span>
+                  {activity.label}
+                </button>
+              );
+            })}
+          </div>
+        )}
+      </div>
     </Label>
   );
 }
+const NOBODY: ReadonlySet<string> = new Set();
 // Zoom multiplier range (30 = default framing). Low values reveal more open sea around the island.

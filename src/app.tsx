@@ -343,6 +343,7 @@ export function App() {
                   coworkers={coworkers}
                   greeting={greeting}
                   onPickSeat={pickSeat}
+                  occupied={occupiedSeats}
                   work={work}
                   shipped={shipped}
                   news={news}

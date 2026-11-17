@@ -8,6 +8,7 @@ import {
   CLICK_SLOP,
   idlePhase,
   inputIntent,
+  onRide,
   seatHome,
   type AutopilotSettings,
 } from './autopilot';
@@ -166,14 +167,14 @@ export function useAutopilot({
   // The idle clock: a countdown for the last few seconds, then autopilot.
   useEffect(() => {
     const tick = window.setInterval(() => {
-      const { settings, checked, blocked } = live.current;
+      const { settings, checked, blocked, seat } = live.current;
       const typing = !!(document.activeElement as HTMLElement | null)?.closest?.('input,textarea,select');
       if (activeRef.current) {
         // Turned off, checked out or paused while it was running.
         if (!settings.enabled || settings.paused || !checked) takeOver();
         return;
       }
-      if (!settings.enabled || settings.paused || !checked || blocked || typing) {
+      if (!settings.enabled || settings.paused || !checked || blocked || typing || onRide(seat)) {
         lastInput.current = Date.now();
         setCountdown(null);
         return;

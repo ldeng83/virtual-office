@@ -12,6 +12,7 @@ import {
   stepRide,
 } from '../src/rides.ts';
 import { courseSeconds, detour, planDetour, tripCourse, TRIPS } from '../src/boat-trips.ts';
+import { SEA } from '../src/open-sea.ts';
 import { demoCoworkers } from '../src/people.ts';
 import { bluff, findPath, locations, marina, onJetty, seats, segmentDistance, walkable } from '../src/world.ts';
 
@@ -83,13 +84,34 @@ test('each boat has several different trips, and boarding picks one of them', ()
       trips.map((_, i) => i),
     );
     assert.equal(startRide(seat, {}, [], 0.9999999).trip, trips.length - 1);
-    // The trips really do go to different places.
-    const far = trips.map((_, i) => {
-      const { points } = tripCourse(seat.ride.kind, seat.ride.launch, i);
-      return points[Math.floor(points.length / 2)];
-    });
-    for (let i = 1; i < far.length; i++)
-      assert.ok(Math.hypot(far[i][0] - far[0][0], far[i][1] - far[0][1]) > 10, `${seat.id} trip ${i} differs`);
+    // No two trips are the same water: somewhere along the way they're well apart.
+    const courses = trips.map((_, i) => tripCourse(seat.ride.kind, seat.ride.launch, i).points);
+    const apart = (a, b) => Math.max(...a.map(p => Math.min(...b.map(q => Math.hypot(p[0] - q[0], p[1] - q[1])))));
+    for (let i = 0; i < courses.length; i++)
+      for (let j = 0; j < i; j++)
+        assert.ok(Math.max(apart(courses[i], courses[j]), apart(courses[j], courses[i])) > 10, `${seat.id} ${i}/${j}`);
+  }
+});
+
+test('between them the trips cover the whole sea, with plenty to choose from', () => {
+  assert.deepEqual(Object.fromEntries(Object.entries(TRIPS).map(([kind, trips]) => [kind, trips.length])), {
+    kayak: 15,
+    jetski: 15,
+    sailboat: 15,
+    parasail: 10,
+  });
+  for (const kind of ['kayak', 'jetski', 'sailboat']) {
+    const { launch } = seats.find(s => s.ride?.kind === kind).ride,
+      wakes = TRIPS[kind].flatMap((_, i) => tripCourse(kind, launch, i).points);
+    // Every patch of open water has a trip passing within sight of it, and nothing leaves the sea.
+    for (let x = SEA.minX + 10; x <= SEA.maxX - 10; x += 15)
+      for (let z = SEA.minZ + 10; z <= SEA.maxZ - 10; z += 15) {
+        if (shoreDistance(x, z) < 8 || highlandsDistance(x, z) < 8) continue;
+        const nearest = Math.min(...wakes.map(p => Math.hypot(p[0] - x, p[1] - z)));
+        assert.ok(nearest < 34, `${kind}: nothing passes (${x}, ${z}); nearest is ${nearest.toFixed(0)} away`);
+      }
+    for (const [x, z] of wakes)
+      assert.ok(x > SEA.minX && x < SEA.maxX && z > SEA.minZ && z < SEA.maxZ, `${kind} leaves the sea at ${x}, ${z}`);
   }
 });
 
@@ -103,7 +125,7 @@ test('a boat bends its trip to pass a whale or dolphins within reach, and still 
     whale = { kind: 'whale', x: far[0] * (1 + 22 / out), z: far[1] * (1 + 22 / out), present: true };
   const nearest = c => Math.min(...c.points.map(p => Math.hypot(p[0] - whale.x, p[1] - whale.z)));
   assert.ok(nearest(course) > 20);
-  const view = startRide(seat, {}, [whale], 0.5);
+  const view = startRide(seat, {}, [whale], 1.5 / TRIPS.sailboat.length);
   assert.equal(view.trip, 1);
   assert.equal(view.detour, 'whale');
   // It passes close, but not over the top of it.

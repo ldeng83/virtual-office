@@ -242,7 +242,8 @@ export function Dialog({
                   <p>
                     Drag to pan, right-drag to orbit, and scroll or use + / − to zoom. Panning frees the camera; walk or
                     choose Back to me to return. Follow me keeps you in view; Island overview shows every district. Use
-                    the map or sidebar to travel.
+                    the map or sidebar to travel. Walk up to a place and buttons for what you can do there appear over
+                    its name.
                   </p>
                 </div>
               </li>

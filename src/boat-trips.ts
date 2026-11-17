@@ -171,12 +171,201 @@ function roundTheDiveSites(near: number, far: number, across: number): Point[] {
 }
 const closed = (gate: Point, ...parts: Point[][]): Point[] => [gate, ...parts.flat(), gate];
 
+// ---- Voyages ----
+// Trips out to a named part of the open sea and home again, so between them the boats cover all
+// of it. The sea is the box in open-sea.ts; boats keep a little inside its edge.
+const SEA = { minX: -94, maxX: 99, minZ: -139, maxZ: 66 };
+const landClear = (x: number, z: number) => Math.min(shoreDistance(x, z), highlandsDistance(x, z));
+// A ring of open water round both islands, for getting to the far side of them.
+const RING = (() => {
+  let minX = Infinity,
+    maxX = -Infinity,
+    minZ = Infinity,
+    maxZ = -Infinity;
+  for (const a of range(0, Math.PI * 2, 0.05))
+    for (const [x, z] of [shorePoint(a, 0), highlandsPoint(a, 0)]) {
+      minX = Math.min(minX, x);
+      maxX = Math.max(maxX, x);
+      minZ = Math.min(minZ, z);
+      maxZ = Math.max(maxZ, z);
+    }
+  return { x: (minX + maxX) / 2, z: (minZ + maxZ) / 2, rx: ((maxX - minX) / 2) * 1.5, rz: ((maxZ - minZ) / 2) * 1.2 };
+})();
+const ringAngle = ([x, z]: Point) => Math.atan2((z - RING.z) / RING.rz, (x - RING.x) / RING.rx);
+const ringPoint = (angle: number, lane: number): Point => [
+  Math.max(SEA.minX, Math.min(SEA.maxX, RING.x + Math.cos(angle) * (RING.rx + lane))),
+  Math.max(SEA.minZ, Math.min(SEA.maxZ, RING.z + Math.sin(angle) * (RING.rz + lane))),
+];
+// Can a boat go straight from one point to the other without running into land?
+function openWater(a: Point, b: Point, margin: number) {
+  const steps = Math.ceil(Math.hypot(b[0] - a[0], b[1] - a[1]) / 2);
+  for (let i = 0; i <= steps; i++)
+    if (landClear(a[0] + ((b[0] - a[0]) * i) / steps, a[1] + ((b[1] - a[1]) * i) / steps) < margin) return false;
+  return true;
+}
+// What the boat does when it gets there. Each is a list of [ahead, across] steps, in turn-widths,
+// entered from the left of the way in and left on the right.
+export const PATTERNS = ['loop', 'eight', 'zigzag', 'spiral', 'triangle', 'clover', 'sweep'] as const;
+export type Pattern = (typeof PATTERNS)[number];
+const SHAPES: Record<Pattern, () => Point[]> = {
+  // Once round.
+  loop: () => range(-2.2, 2.2, 0.55).map(u => [Math.cos(u), Math.sin(u)]),
+  // A figure of eight, one lobe beyond the other.
+  eight: () => range(0.25, Math.PI * 2 - 0.25, 0.4).map(u => [1.3 * (1 - Math.cos(u)), -1.15 * Math.sin(2 * u)]),
+  // (The weave is on the way out; at the far end it's a plain turn.)
+  zigzag: () => range(-2.2, 2.2, 0.55).map(u => [Math.cos(u), Math.sin(u)]),
+  // Winding in to the middle and out again.
+  spiral: () =>
+    range(0, 1, 0.045).map(u => {
+      const angle = -2.2 + u * (4.4 + Math.PI * 2),
+        r = 1.7 - 1.15 * Math.sin(Math.PI * u);
+      return [r * Math.cos(angle), r * Math.sin(angle)];
+    }),
+  // Three marks to round, like a regatta course.
+  triangle: () => [
+    [-0.3, -2],
+    [1.1, -1.1],
+    [2.5, 0],
+    [1.1, 1.1],
+    [-0.3, 2],
+  ],
+  // Three leaves.
+  clover: () =>
+    range(-2.4, 2.4, 0.2).map(u => {
+      const r = 1.15 + 0.95 * Math.cos(3 * u);
+      return [r * Math.cos(u), r * Math.sin(u)];
+    }),
+  // One long, wide sweep across it.
+  sweep: () => [
+    [-0.7, -2.8],
+    [0.5, -1.5],
+    [1, 0],
+    [0.5, 1.5],
+    [-0.7, 2.8],
+  ],
+};
+const inSea = ([x, z]: Point): Point => [
+  Math.max(SEA.minX, Math.min(SEA.maxX, x)),
+  Math.max(SEA.minZ, Math.min(SEA.maxZ, z)),
+];
+// Slide a pattern back inside the sea, whole, rather than flattening it against the edge.
+function fitInSea(points: Point[]): Point[] {
+  const xs = points.map(p => p[0]),
+    zs = points.map(p => p[1]),
+    slide = (low: number, high: number, min: number, max: number) =>
+      low < min ? min - low : high > max ? max - high : 0,
+    dx = slide(Math.min(...xs), Math.max(...xs), SEA.minX, SEA.maxX),
+    dz = slide(Math.min(...zs), Math.max(...zs), SEA.minZ, SEA.maxZ);
+  return points.map(([x, z]) => inSea([x + dx, z + dz]));
+}
+// Out to `target`, a pattern there, and home: straight out if the way is clear, otherwise round
+// the islands on the ring (out on one lane, back on another, so the wakes don't cross).
+// `circuit` carries on round both islands instead of turning back.
+function voyage(
+  launch: Point,
+  target: Point,
+  near: number,
+  turn: number,
+  pattern: Pattern = 'loop',
+  circuit = false,
+): Point[] {
+  const gate = coast(coastAngle(launch), near),
+    from = ringAngle(gate),
+    to = ringAngle(target),
+    // The short way round to the target's side.
+    way = wrap(to - from) >= 0 ? 1 : -1,
+    span = Math.abs(wrap(to - from));
+  const direct = !circuit && openWater(gate, target, near + 4),
+    approach = direct ? Math.atan2(target[1] - gate[1], target[0] - gate[0]) : to + (way * Math.PI) / 2,
+    cos = Math.cos(approach),
+    sin = Math.sin(approach),
+    // A point `ahead` and `across` of `from`, across being to the side the boat turns towards.
+    off = (from: Point, ahead: number, across: number): Point => [
+      from[0] + ahead * cos - across * way * sin,
+      from[1] + ahead * sin + across * way * cos,
+    ],
+    // A circuit sweeps past the target on its way round instead of doubling back.
+    there = circuit
+      ? [target]
+      : fitInSea(SHAPES[pattern]().map(([ahead, across]) => off(target, ahead * turn, across * turn))),
+    weave = pattern === 'zigzag';
+  if (direct) {
+    // A teardrop: out along one side (weaving, for a zigzag), back along the other.
+    const length = Math.hypot(target[0] - gate[0], target[1] - gate[1]),
+      wide = length * 0.16,
+      along = (f: number, across: number) =>
+        inSea(off([gate[0] + (target[0] - gate[0]) * f, gate[1] + (target[1] - gate[1]) * f], 0, across)),
+      legs = Math.max(3, Math.round(length / 14)),
+      out = weave
+        ? range(1, legs - 1, 1).map(i => along(i / legs, -wide * 0.6 + (i % 2 ? -1 : 1) * Math.min(9, wide)))
+        : [along(0.5, -wide)];
+    return closed(gate, out, there, [along(0.5, wide)]);
+  }
+  const first = 0.3,
+    last = Math.max(0.35, span - 0.25),
+    out = range(first, last, weave ? 0.22 : 0.28).map((da, i) => ringPoint(from + way * da, weave && i % 2 ? 16 : 0)),
+    back = circuit
+      ? range(span + 0.25, Math.PI * 2 - 0.3, 0.28).map(da => ringPoint(from + way * da, 0))
+      : range(last, first, 0.28).map(da => ringPoint(from + way * da, weave ? 26 : 9));
+  return closed(gate, out, there, back);
+}
+// Named parts of the sea, spread over all of it.
+const WATERS = {
+  southBanks: { name: 'the south banks', at: [4, 60] as Point },
+  southWest: { name: 'the south-west deep', at: [-72, 52] as Point },
+  southEast: { name: 'the south-east shoals', at: [78, 52] as Point },
+  farWest: { name: 'the far west', at: [-88, 2] as Point },
+  farEast: { name: 'the far east', at: [93, 4] as Point },
+  westReach: { name: 'the western reach', at: [-84, -52] as Point },
+  eastReach: { name: 'the eastern reach', at: [90, -50] as Point },
+  highWest: { name: 'the sea west of the Highlands', at: [-78, -96] as Point },
+  highEast: { name: 'the sea east of the Highlands', at: [86, -98] as Point },
+  northWest: { name: 'the north-west corner', at: [-80, -130] as Point },
+  north: { name: 'the open sea north of the Highlands', at: [8, -133] as Point },
+  northEast: { name: 'the north-east corner', at: [86, -130] as Point },
+};
+type Water = keyof typeof WATERS;
+const FLOURISH: Record<Pattern, string> = {
+  loop: 'once round and home',
+  eight: 'a figure of eight out there, then home',
+  zigzag: 'weaving all the way out',
+  spiral: 'a spiral in and out when you get there',
+  triangle: 'three marks to round out there',
+  clover: 'a clover-leaf turn out there',
+  sweep: 'one long sweep across it and home',
+};
+// One voyage to each of `waters`, each with a different pattern (starting from `first`).
+const voyages = (
+  waters: Water[],
+  near: number,
+  turn: number,
+  land: number,
+  first: number,
+  doing: (name: string) => string,
+  start: (name: string, flourish: string) => string,
+  circuits: Water[] = [],
+): Trip[] =>
+  waters.map((id, i) => {
+    const circuit = circuits.includes(id),
+      pattern = PATTERNS[(i + first) % PATTERNS.length];
+    return {
+      doing: doing(WATERS[id].name),
+      start: start(WATERS[id].name, circuit ? 'right round both islands' : FLOURISH[pattern]),
+      pattern: circuit ? undefined : pattern,
+      path: launch => voyage(launch, WATERS[id].at, near, turn, pattern, circuit),
+      land,
+    };
+  });
+const EVERYWHERE = Object.keys(WATERS) as Water[];
+
 type Trip = {
   // What the seat message says while you're on it, and the notice when you set off.
   doing: string;
   start: string;
   path: (launch: Point) => Point[];
   land: number;
+  // Voyages: the pattern sailed at the far end.
+  pattern?: Pattern;
 };
 const kayakOff = () => 5.5,
   jetskiOff = (a: number) => 11 + 2.2 * Math.sin(a * 9),
@@ -201,6 +390,15 @@ export const TRIPS: Record<BoatKind, Trip[]> = {
       path: () => roundTheDiveSites(2, 12, 14),
       land: 3,
     },
+    ...voyages(
+      EVERYWHERE,
+      5.5,
+      7,
+      3,
+      0,
+      name => `Paddling out to ${name}`,
+      (name, flourish) => `🛶 A long paddle today, out to ${name}: ${flourish}.`,
+    ),
   ],
   jetski: [
     {
@@ -247,6 +445,16 @@ export const TRIPS: Record<BoatKind, Trip[]> = {
       },
       land: 3.5,
     },
+    ...voyages(
+      EVERYWHERE,
+      11,
+      12,
+      4,
+      2,
+      name => `Racing out to ${name}`,
+      (name, flourish) => `🚤 Full throttle for ${name}: ${flourish}.`,
+      ['north', 'northWest', 'northEast', 'highEast'],
+    ),
   ],
   sailboat: [
     {
@@ -276,6 +484,16 @@ export const TRIPS: Record<BoatKind, Trip[]> = {
       },
       land: 4,
     },
+    ...voyages(
+      EVERYWHERE,
+      8.5,
+      10,
+      4,
+      4,
+      name => `Sailing out to ${name}`,
+      (name, flourish) => `⛵ Sails up, bound for ${name}: ${flourish}.`,
+      ['north'],
+    ),
   ],
   parasail: [
     {
@@ -290,6 +508,17 @@ export const TRIPS: Record<BoatKind, Trip[]> = {
       path: launch => alongCoast(launch, -2.1, 16, 6),
       land: 5,
     },
+    // The tow boat keeps to wide water; the north is a long haul round the outside of the Highlands.
+    ...voyages(
+      ['southBanks', 'southWest', 'southEast', 'farWest', 'farEast', 'westReach', 'eastReach', 'north'],
+      16,
+      12,
+      6,
+      0,
+      name => `Parasailing over ${name}`,
+      (name, flourish) => `🪂 Hold on: up you go, out over ${name}: ${flourish}.`,
+      ['north'],
+    ),
   ],
 };
 export const BOAT_SPEED: Record<BoatKind, number> = { kayak: 2.6, jetski: 7.2, sailboat: 2.5, parasail: 2.55 };
@@ -314,7 +543,10 @@ export function tripCourse(kind: BoatKind, launch: Point, trip: number): Course 
   }
   return found;
 }
-export const courseSeconds = (kind: BoatKind, course: Course) => course.total / BOAT_SPEED[kind];
+// Long voyages are made at a brisker pace, so no ride outstays its welcome.
+const LONGEST: Record<BoatKind, number> = { kayak: 210, jetski: 110, sailboat: 240, parasail: 150 };
+export const courseSeconds = (kind: BoatKind, course: Course) =>
+  Math.min(course.total / BOAT_SPEED[kind], LONGEST[kind]);
 // Where the boat is `t` seconds in: easing off the mooring onto the course, round it at a steady
 // speed, and easing back in. `k` is how far out on the course it is (1 once clear of the mooring).
 export function courseAt(kind: BoatKind, course: Course, launch: Point, t: number) {
@@ -384,7 +616,7 @@ export function planDetour(kind: BoatKind, course: Course, sights: Sight[]) {
       for (let pass = 0; pass < 2 && sight.ahead; pass++) {
         const { index } = nearestIndex(course, [meet.x, meet.z]);
         if (index < 0) break;
-        meet = sight.ahead(course.lengths[index] / BOAT_SPEED[kind]);
+        meet = sight.ahead((course.lengths[index] / course.total) * courseSeconds(kind, course));
       }
       if (!meet.present) continue;
       const bent = detour(course, [meet.x, meet.z], reach, 4, SOFT[kind]);

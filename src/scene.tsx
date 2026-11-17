@@ -41,7 +41,8 @@ import { HighlandsScene } from './highlands-scene';
 import { DeskScreen, Whiteboard } from './work-props';
 import { AvatarBody, Coworker, DiveGear } from './coworkers';
 import { stepAlongPath, turnToward } from './steering';
-import { Box, Cylinder, Palm, Seat, ZoneLabel } from './scene-parts';
+import { Box, Cylinder, Palm, Seat } from './scene-parts';
+import { PlaceLabels } from './place-labels';
 import type { Profile } from './profile';
 
 // Parts of the scene that only change with their own props skip the scene's frequent re-renders.
@@ -51,7 +52,8 @@ const Atmosphere3D = React.memo(AtmosphereScene),
   WaterSportsScene = React.memo(WaterSports),
   Terrain = React.memo(IslandTerrain),
   Highlands3D = React.memo(HighlandsScene);
-export const MIN_ZOOM = 10,
+// The low end takes in the whole sea, both islands and every boat trip.
+export const MIN_ZOOM = 4,
   MAX_ZOOM = 65;
 // How far the camera tips over underwater (from straight down), to look along the seabed.
 const DIVE_TILT = 1.34;
@@ -93,6 +95,7 @@ export function World({
   coworkers,
   greeting,
   onPickSeat,
+  occupied,
   work,
   shipped,
   news,
@@ -139,6 +142,7 @@ export function World({
   shipped: Record<string, string>;
   greeting: { id: string; text: string } | null;
   onPickSeat: (id: string) => void;
+  occupied: ReadonlySet<string>;
   viewMode: ViewMode;
   onExplore: () => void;
   onFreeLook: () => void;
@@ -427,7 +431,9 @@ export function World({
             : Math.min(36, size.width / 20, size.height / 17),
         lift = sat?.ride?.kind === 'parasail' ? Math.min(1, rideY.current / PARASAIL_HEIGHT) : 0,
         view = controls.current.object,
-        wantZoom = ((fit * cameraView.zoom) / 30) * (1 - 0.5 * lift) * (1 + 0.7 * immersion.current);
+        // However far out you zoom, the view stops at the whole sea: there's nothing beyond it.
+        widest = Math.min(size.width / 330, size.height / 200),
+        wantZoom = Math.max(widest, ((fit * cameraView.zoom) / 30) * (1 - 0.5 * lift) * (1 + 0.7 * immersion.current));
       if (Math.abs(view.zoom - wantZoom) > wantZoom * 1e-4) {
         view.zoom = snapZoom.current ? wantZoom : THREE.MathUtils.damp(view.zoom, wantZoom, lift ? 3 : 10, dt);
         view.updateProjectionMatrix();
@@ -693,16 +699,14 @@ export function World({
         spot={WHITEBOARD_SPOT}
         active={coworkers.some(c => c.target?.activity.place === 'Pavilion M')}
       />
-      {districts
-        .filter(d => d.id !== 'arrival')
-        .map(d => (
-          <ZoneLabel
-            key={d.id}
-            position={[d.point[0], groundHeight(...d.point) + (fitMode === 'overview' ? 3 : 2.6), d.point[1] - 1.6]}
-            id={d.id}
-            title={d.name.toUpperCase()}
-          />
-        ))}
+      <PlaceLabels
+        raised={fitMode === 'overview'}
+        quiet={!!seat || autopilotOn}
+        occupied={occupied}
+        onUse={spot =>
+          spot.id === 'radio' ? onRadio() : spot.id === 'telescope' ? onTelescope() : onPickSeat(spot.id)
+        }
+      />
       {marker && (
         <mesh position={[marker[0], groundHeight(...marker) + 0.22, marker[1]]} rotation={[-Math.PI / 2, 0, 0]}>
           <ringGeometry args={[0.18, 0.24, 24]} />

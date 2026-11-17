@@ -103,3 +103,9 @@ test('looking around (zoom, pan, orbit) leaves autopilot running; clicks and key
   assert.equal(inputIntent('pointerdown', 0, 'other'), 'control');
   assert.equal(inputIntent('wheel', 0, 'other'), 'control');
 });
+
+test('the idle clock waits while you are out on a ride', async () => {
+  const { onRide } = await import('../src/autopilot.ts');
+  for (const id of ['sb-0', 'ky-0', 'js-1', 'pa-0', 'dv-0', 'cl-0', 'fy-0']) assert.ok(onRide(id), id);
+  for (const id of ['desk-0', 'hm-0', 'fs-0', null]) assert.ok(!onRide(id), String(id));
+});

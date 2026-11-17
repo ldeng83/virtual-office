@@ -532,6 +532,74 @@ main {
   -webkit-text-stroke: 0;
   filter: drop-shadow(0 0 2px #fffdf0);
 }
+/* Close to a place, its name hints at what you can do there (icons); at the place, they're buttons. */
+.zone {
+  position: relative;
+  display: flex;
+  justify-content: center;
+}
+.zone-icons,
+.zone-chips {
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  white-space: nowrap;
+  animation: zone-in 0.22s ease-out;
+}
+.zone-icons {
+  margin-top: 2px;
+  font-size: 11px;
+  letter-spacing: 1px;
+  opacity: 0.85;
+  filter: drop-shadow(0 0 2px #fffdf0);
+  user-select: none;
+}
+.zone-chips {
+  /* Above the name, so they don't cover your own name tag when you stand under it. */
+  top: auto;
+  bottom: 100%;
+  margin-bottom: 6px;
+  display: flex;
+  gap: 5px;
+  pointer-events: auto;
+}
+.zone-chips button {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 9px 4px 7px;
+  border: 1px solid #2f4a3c33;
+  border-radius: 999px;
+  background: #fffdf0f5;
+  box-shadow: 0 3px 10px #1d2d2433;
+  color: #2f4a3c;
+  font: inherit;
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.zone-chips button:hover:not(:disabled),
+.zone-chips button:focus-visible {
+  background: #ffd76a;
+  border-color: #2f4a3c66;
+}
+.zone-chips button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+@keyframes zone-in {
+  from {
+    opacity: 0;
+    transform: translate(-50%, 4px);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .zone-icons,
+  .zone-chips {
+    animation: none;
+  }
+}
 /* People wear a round name tag with their colour and initial. */
 .avatar-label {
   white-space: nowrap;
