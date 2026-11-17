@@ -51,6 +51,7 @@ export function Sidebar({
   showDemo,
   unseen,
   findPerson,
+  autopilot,
 }: SidebarProps) {
   return (
     <aside className="sidebar">
@@ -143,7 +144,7 @@ export function Sidebar({
               <strong>
                 {profile.name} <small>(you)</small>
               </strong>
-              <p>{profile.checked ? profile.status : 'Not checked in'}</p>
+              <p>{autopilot ? `🤖 Autopilot · ${autopilot}` : profile.checked ? profile.status : 'Not checked in'}</p>
             </div>
             <span className={profile.checked ? 'online-dot' : 'offline-dot'} />
           </div>
@@ -215,6 +216,8 @@ export type SidebarProps = {
   nearestId: string;
   travel: (point: Point) => void;
   coworkers: CoworkerView[];
+  // What autopilot is doing, while it drives you.
+  autopilot: string | null;
   work: Record<string, WorkState>;
   feed: FeedItem[];
   showDemo: boolean;

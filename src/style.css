@@ -2110,3 +2110,105 @@ main {
   color: #5b7764;
   line-height: 1.45;
 }
+
+/* Autopilot: a pill at the top of the view while it drives you (or counts down to start). */
+.autopilot-pill {
+  position: absolute;
+  top: 22px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 36;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  max-width: calc(100% - 140px);
+  border-radius: 999px;
+  padding: 6px 6px 6px 14px;
+  background: #2f4436;
+  color: #f4f1e2;
+  box-shadow: 0 5px 20px #2f443640;
+  font-size: 12px;
+  white-space: nowrap;
+}
+.autopilot-pill > span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.autopilot-pill small {
+  color: #b9c7ad;
+  font-size: 11px;
+}
+.autopilot-pill button {
+  flex-shrink: 0;
+  border: 0;
+  border-radius: 999px;
+  padding: 6px 12px;
+  background: #f4f1e2;
+  color: #2f4436;
+  font-weight: 600;
+  font-size: 11px;
+  cursor: pointer;
+}
+.autopilot-pill button:hover {
+  background: #fff;
+}
+.autopilot-pill.counting {
+  padding: 8px 14px;
+  background: #fffdf0;
+  color: #435d48;
+  box-shadow: 0 5px 20px #446b5520;
+  animation: autopilot-pulse 1s ease-in-out infinite;
+}
+@keyframes autopilot-pulse {
+  50% {
+    opacity: 0.7;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .autopilot-pill.counting {
+    animation: none;
+  }
+}
+.autopilot-toggle {
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  margin-left: 4px;
+  border: 1px solid #d9e0ce;
+  border-radius: 7px;
+  background: none;
+  color: #a3ad98;
+  cursor: pointer;
+}
+.autopilot-toggle[aria-pressed='true'] {
+  background: #e3ecd8;
+  border-color: #c4d3b5;
+  color: #48704f;
+}
+.autopilot-toggle:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+.autopilot-delay {
+  margin-top: 10px;
+}
+.autopilot-delay select {
+  display: block;
+  margin-top: 9px;
+  width: 100%;
+  background: #fffdf5;
+  border: 1px solid #d9e0ce;
+  padding: 10px;
+  border-radius: 6px;
+  color: #435d48;
+}
+@media (max-width: 720px) {
+  .autopilot-pill {
+    top: 60px;
+    max-width: calc(100% - 32px);
+  }
+  .autopilot-pill small {
+    display: none;
+  }
+}

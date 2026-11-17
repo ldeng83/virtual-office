@@ -2,7 +2,8 @@ import { Cat, Rain, Rainbow, Shells, type Shell } from './island-extras';
 import { FunSpots } from './fun';
 import { WaterSports } from './water-sports';
 import { StaticBatch } from './static-batch';
-import { EMOTE_ICONS, playerState, riders, type Emote } from './fun-state';
+import { EMOTE_ICONS, playerControl, playerState, riders, type Emote } from './fun-state';
+import type { AutopilotCommand } from './use-autopilot';
 import { PARASAIL_HEIGHT, riderPose, riderSpot, startRide, stepRide } from './rides';
 import { seatPose, UPRIGHT } from './poses';
 import React, { useEffect, useRef, useState } from 'react';
@@ -103,6 +104,9 @@ export function World({
   walkRequest,
   hikeRequest,
   onNoRoute,
+  autopilot,
+  autopilotOn,
+  onAutopilotArrive,
 }: {
   news: News;
   radioOn: boolean;
@@ -119,6 +123,10 @@ export function World({
   walkRequest: { point: Point; seq: number } | null;
   hikeRequest: { id: Trail['id']; seq: number } | null;
   onNoRoute: () => void;
+  // Autopilot: where to go next, whether it's driving, and a callback once you get there.
+  autopilot: AutopilotCommand | null;
+  autopilotOn: boolean;
+  onAutopilotArrive: () => void;
   coworkers: { person: DemoCoworker; target: Target | null }[];
   work: Record<string, WorkState>;
   shipped: Record<string, string>;
@@ -215,6 +223,7 @@ export function World({
     walk = useRef(0),
     last = useRef(0);
   const [marker, setMarker] = useState<Point | null>(null);
+  const pilotGoal = useRef<Target | null>(null);
   useEffect(() => {
     if (go) {
       setSeat(null);
@@ -337,6 +346,12 @@ export function World({
         dz = step.dz;
       }
       if (!path.current.length) setMarker(null);
+    } else if (pilotGoal.current && !sat) {
+      // Autopilot reached its spot: face the way the activity faces, then report back.
+      const goal = pilotGoal.current;
+      pilotGoal.current = null;
+      if (!goal.seatId) avatar.current.rotation.y = goal.angle;
+      latest.current.arrive();
     }
     if (k.size) {
       const length = Math.hypot(dx, dz);
@@ -469,7 +484,12 @@ export function World({
     }
   });
   // Stable handlers for the memoized scenery, always calling the latest version.
-  const latest = useRef({ walkTo: (_: Point) => {}, onPickSeat, hike: (_: Trail['id']) => {} });
+  const latest = useRef({
+    walkTo: (_: Point) => {},
+    onPickSeat,
+    hike: (_: Trail['id']) => {},
+    arrive: onAutopilotArrive,
+  });
   const hike = React.useCallback((id: Trail['id']) => latest.current.hike(id), []);
   const pickSeat = React.useCallback((id: string) => latest.current.onPickSeat(id), []);
   const walkOnGround = React.useCallback((target: Point, delta: number) => {
@@ -499,7 +519,31 @@ export function World({
     setMarker(trail.points[trail.points.length - 1]);
     onHike(trail);
   };
-  latest.current = { walkTo, onPickSeat, hike: startHike };
+  latest.current = { walkTo, onPickSeat, hike: startHike, arrive: onAutopilotArrive };
+  // Autopilot heads to its next spot: the start of a trail (then along it), or a seat's step-in point.
+  useEffect(() => {
+    if (!autopilot) return;
+    const goal = autopilot.target;
+    pilotGoal.current = goal;
+    // Stand up first: routes start from the seat's step-in spot, not from inside the seat.
+    if (seat) {
+      standUp();
+      setSeat(null);
+    }
+    if (goal.route && goal.activity.trail) {
+      startHike(goal.activity.trail);
+      return;
+    }
+    const here: Point = [pos.current.x, pos.current.z];
+    path.current =
+      Math.hypot(here[0] - goal.approach[0], here[1] - goal.approach[1]) > 0.3 ? findPath(here, goal.approach) : [];
+    setMarker(path.current.length ? goal.approach : null);
+  }, [autopilot]);
+  playerControl.halt = () => {
+    pilotGoal.current = null;
+    path.current = [];
+    setMarker(null);
+  };
   useEffect(() => {
     if (walkRequest && !walkTo(walkRequest.point)) onNoRoute();
   }, [walkRequest]);
@@ -619,7 +663,7 @@ export function World({
         <Label position={[0, 1.85, 0]} zIndex={20}>
           <div className="avatar-label">
             <i />
-            {profile.name} <span>you</span>
+            {profile.name} <span>{autopilotOn ? '🤖 autopilot' : 'you'}</span>
           </div>
         </Label>
       </group>

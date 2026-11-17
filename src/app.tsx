@@ -15,6 +15,7 @@ import {
   Armchair,
   Navigation,
   Hand,
+  Bot,
 } from 'lucide-react';
 import { locations, type Point } from './world';
 import type { Trail } from './highlands';
@@ -27,6 +28,8 @@ import { initials, readProfile, type Profile } from './profile';
 import { useCoworkers } from './use-coworkers';
 import { Sidebar, type SidebarTab } from './sidebar';
 import { Dialog, type DialogKind } from './dialogs';
+import { readAutopilot, type AutopilotSettings } from './autopilot';
+import { useAutopilot } from './use-autopilot';
 
 export function App() {
   const [viewMode, setViewMode] = useState<ViewMode>('follow');
@@ -71,15 +74,16 @@ export function App() {
       /* Storage may be disabled. */
     }
   }, [showDemo]);
-  const { coworkers, work, shipped, feed, greeting, greet, say, nearby, pickSeat, findPerson } = useCoworkers({
-    period: mood.period,
-    seat,
-    setSeat,
-    notify: setToast,
-    position,
-    showDemo,
-    onLook: freeLook,
-  });
+  const { coworkers, work, shipped, feed, greeting, greet, say, nearby, pickSeat, findPerson, postYou, occupiedSeats } =
+    useCoworkers({
+      period: mood.period,
+      seat,
+      setSeat,
+      notify: setToast,
+      position,
+      showDemo,
+      onLook: freeLook,
+    });
   const fun = useFun({
     seat,
     setSeat,
@@ -116,6 +120,29 @@ export function App() {
       if (profile.status === 'Focused' && previous !== 'Focused') update({ status: previous });
     }
   }, [seat]);
+  // Autopilot: after a while with no input, your avatar carries on with its own day.
+  const [autopilotSettings, setAutopilotSettings] = useState(readAutopilot);
+  const updateAutopilot = (patch: Partial<AutopilotSettings>) => setAutopilotSettings(v => ({ ...v, ...patch }));
+  useEffect(() => {
+    try {
+      localStorage.setItem('atoll-autopilot', JSON.stringify(autopilotSettings));
+    } catch {
+      /* Storage may be disabled. */
+    }
+  }, [autopilotSettings]);
+  const autopilot = useAutopilot({
+    settings: autopilotSettings,
+    checked: profile.checked,
+    // The status you chose (not the automatic Focused while sitting in a library booth).
+    status: focusRestore.current ?? profile.status,
+    seat,
+    setSeat,
+    period: mood.period,
+    blocked: !!modal || mapOpen,
+    occupied: occupiedSeats,
+    onStart: () => setViewMode('follow'),
+    post: postYou,
+  });
   const [seenFeed, setSeenFeed] = useState(0);
   const unseen = showDemo ? feed.filter(item => item.id > seenFeed).length : 0;
   const panel = useRef<HTMLElement>(null);
@@ -243,6 +270,7 @@ export function App() {
           feed={feed}
           showDemo={showDemo}
           unseen={unseen}
+          autopilot={autopilot.active ? (autopilot.activity?.activity ?? 'Planning') : null}
           findPerson={findPerson}
         />
         <section
@@ -314,6 +342,9 @@ export function App() {
                   walkRequest={walkRequest}
                   hikeRequest={hikeRequest}
                   onNoRoute={() => setToast('There’s no way to walk there. Try a path or a place nearby.')}
+                  autopilot={autopilot.command}
+                  autopilotOn={autopilot.active}
+                  onAutopilotArrive={autopilot.arrive}
                 />
               </Canvas>
             </Suspense>
@@ -406,6 +437,23 @@ export function App() {
               </button>
             </div>
           )}
+          {(autopilot.active || autopilot.countdown !== null) && (
+            <div className={autopilot.active ? 'autopilot-pill' : 'autopilot-pill counting'} role="status">
+              <Bot size={16} />
+              {autopilot.active ? (
+                <>
+                  <span>
+                    <strong>Autopilot</strong>
+                    {autopilot.activity && <> · {autopilot.activity.activity}</>}
+                    <small> · press any key to take over</small>
+                  </span>
+                  <button onClick={autopilot.takeOver}>Take over</button>
+                </>
+              ) : (
+                <span>Autopilot in {autopilot.countdown}…</span>
+              )}
+            </div>
+          )}
           {toast && (
             <div className="toast" role="status">
               <Check size={17} />
@@ -421,7 +469,9 @@ export function App() {
           </span>
           <div>
             <strong>{profile.name}</strong>
-            <span>{profile.checked ? 'Checked in' : 'Exploring the island'}</span>
+            <span>
+              {autopilot.active ? '🤖 On autopilot' : profile.checked ? 'Checked in' : 'Exploring the island'}
+            </span>
           </div>
           <span className="bottom-divider" />
           <label className="status-select">
@@ -437,6 +487,22 @@ export function App() {
               <option>Away</option>
             </select>
           </label>
+          <button
+            className="autopilot-toggle"
+            aria-pressed={autopilotSettings.enabled && !autopilotSettings.paused}
+            aria-label={autopilotSettings.paused ? 'Resume autopilot' : 'Pause autopilot'}
+            title={
+              !autopilotSettings.enabled
+                ? 'Autopilot when idle is off (turn it on in your profile)'
+                : autopilotSettings.paused
+                  ? 'Autopilot paused: your avatar stays put when you’re idle'
+                  : `Autopilot after ${autopilotSettings.delay / 1000}s idle. Click to pause.`
+            }
+            disabled={!autopilotSettings.enabled}
+            onClick={() => updateAutopilot({ paused: !autopilotSettings.paused })}
+          >
+            <Bot size={15} />
+          </button>
         </div>
         <div className="emotes" role="group" aria-label="Emotes">
           {(['wave', 'dance', 'highfive', 'cheer'] as const).map(kind => (
@@ -472,6 +538,8 @@ export function App() {
           mood={mood}
           showDemo={showDemo}
           setShowDemo={setShowDemo}
+          autopilot={autopilotSettings}
+          updateAutopilot={updateAutopilot}
           onRain={fun.startRain}
           raining={fun.raining}
         />

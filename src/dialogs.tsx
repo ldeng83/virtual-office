@@ -1,3 +1,4 @@
+import { AUTOPILOT_DELAYS, type AutopilotSettings } from './autopilot';
 import { useState } from 'react';
 import {
   Armchair,
@@ -11,6 +12,7 @@ import {
   Users,
   X,
   Map as MapIcon,
+  Bot,
 } from 'lucide-react';
 import { AtmosphereControls, useOcean, type IslandTime, type Atmosphere } from './atmosphere';
 import { colors, DEFAULT_NAME, type Profile } from './profile';
@@ -145,6 +147,8 @@ export function Dialog({
   setShowDemo,
   onRain,
   raining,
+  autopilot,
+  updateAutopilot,
 }: DialogProps) {
   return (
     <div className="modal-overlay" onClick={() => setModal(null)}>
@@ -253,6 +257,19 @@ export function Dialog({
                 </div>
               </li>
               <li>
+                <Bot />
+                <div>
+                  <strong>Autopilot when you step away</strong>
+                  <p>
+                    After 10 seconds with no input while you’re checked in, your avatar carries on with a day of its
+                    own: your desk in the morning, meetings at midday, coffee runs, rides and hikes. Sit down first and
+                    that seat becomes home. Focused keeps you at a desk or the library, and In a meeting keeps you in a
+                    pavilion. Press any key, click or scroll to take back control. Change the delay or turn it off in
+                    your profile, or pause it with the robot button by your status.
+                  </p>
+                </div>
+              </li>
+              <li>
                 <Users />
                 <div>
                   <strong>A first little island</strong>
@@ -297,6 +314,30 @@ export function Dialog({
               </span>
               <input type="checkbox" role="switch" checked={showDemo} onChange={e => setShowDemo(e.target.checked)} />
             </label>
+            <label className="atmosphere-toggle">
+              <span>
+                <strong>Autopilot when idle</strong>
+                <small>Your avatar carries on with its day while you’re away from the controls</small>
+              </span>
+              <input
+                type="checkbox"
+                role="switch"
+                checked={autopilot.enabled}
+                onChange={e => updateAutopilot({ enabled: e.target.checked, paused: false })}
+              />
+            </label>
+            {autopilot.enabled && (
+              <label className="form-label autopilot-delay">
+                Start after
+                <select value={autopilot.delay} onChange={e => updateAutopilot({ delay: Number(e.target.value) })}>
+                  {AUTOPILOT_DELAYS.map(ms => (
+                    <option key={ms} value={ms}>
+                      {ms < 60_000 ? `${ms / 1000} seconds` : ms === 60_000 ? '1 minute' : `${ms / 60_000} minutes`}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            )}
             <p className="settings-note">Saved automatically on this device.</p>
           </>
         )}
@@ -321,4 +362,6 @@ export type DialogProps = {
   mood: IslandTime;
   showDemo: boolean;
   setShowDemo: (on: boolean) => void;
+  autopilot: AutopilotSettings;
+  updateAutopilot: (patch: Partial<AutopilotSettings>) => void;
 };

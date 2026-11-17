@@ -14,6 +14,7 @@ import {
 } from './people';
 import type { Period } from './daylight';
 import { routeLength } from './rides';
+import { playerState } from './fun-state';
 
 export type FeedItem = { id: number; at: Date; personId: string; who: string; icon: string; text: string };
 export type CoworkerView = { person: DemoCoworker; target: Target | null };
@@ -141,6 +142,11 @@ export function useCoworkers({
         40,
       ),
     );
+  // Your own entries (autopilot heading somewhere).
+  const postYou = (icon: string, text: string) =>
+    setFeed(items =>
+      [{ id: ++feedId.current, at: new Date(), personId: 'you', who: 'You', icon, text }, ...items].slice(0, 40),
+    );
   useEffect(() => {
     if (!showDemo) return;
     const clock = window.setInterval(() => {
@@ -226,12 +232,27 @@ export function useCoworkers({
           : person.greetings[Math.floor(Math.random() * person.greetings.length)],
     });
   const findPerson = (id: string) => {
-    const p = peopleView[id];
+    // Your own feed entries look at you.
+    const p = id === 'you' ? { ...playerState, present: true } : peopleView[id];
     if (p?.present) {
       cameraView.look = [p.x, p.z];
       onLook();
     }
   };
   const say = (personId: string, text: string) => setGreeting({ id: personId, text });
-  return { coworkers, work, shipped, feed, greeting, greet, say, nearby, pickSeat, findPerson };
+  const occupiedSeats = new Set(occupied.keys());
+  return {
+    coworkers,
+    work,
+    shipped,
+    feed,
+    greeting,
+    greet,
+    say,
+    nearby,
+    pickSeat,
+    findPerson,
+    postYou,
+    occupiedSeats,
+  };
 }
