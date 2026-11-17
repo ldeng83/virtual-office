@@ -51,8 +51,45 @@ const ROUTES = {
   kayak: { speed: 0.07, offset: () => 5.5 },
   jetski: { speed: 0.16, offset: (a: number) => 11 + 2.2 * Math.sin(a * 9) },
   sailboat: { speed: -0.05, offset: (a: number) => 8.5 + 1.2 * Math.sin(a * 3) },
-  parasail: { speed: 0.065, offset: () => 11 },
 };
+// Parasailing doesn't lap the island: the rope bridge to the Highlands is in the way of a rider ten
+// units up. The tow boat runs a long oval along the west coast instead, out wide and back closer in,
+// turning well short of the bridge.
+const PARASAIL = { seconds: 86, sweep: 2.1, mid: 16, wide: 6, ease: 6 };
+// The oval, measured out so the boat holds a steady speed all the way round (turns included).
+const ovals = new Map<string, { points: Point[]; lengths: number[] }>();
+function oval(launch: Point) {
+  const key = launch.join(',');
+  let found = ovals.get(key);
+  if (!found) {
+    const points = Array.from({ length: 241 }, (_, i): Point => {
+      const u = (i / 240) * Math.PI * 2,
+        a = coastAngle(launch) + (PARASAIL.sweep / 2) * (1 - Math.cos(u));
+      return shorePoint(a, PARASAIL.mid + PARASAIL.wide * Math.sin(u) + swingWide(a));
+    });
+    const lengths = [0];
+    for (let i = 1; i < points.length; i++)
+      lengths.push(lengths[i - 1] + Math.hypot(points[i][0] - points[i - 1][0], points[i][1] - points[i - 1][1]));
+    ovals.set(key, (found = { points, lengths }));
+  }
+  return found;
+}
+function towBoatAt(launch: Point, t: number) {
+  const { points, lengths } = oval(launch),
+    goal = clamp01(t / PARASAIL.seconds) * lengths[lengths.length - 1];
+  let i = 1;
+  while (i < lengths.length - 1 && lengths[i] < goal) i++;
+  const f = clamp01((goal - lengths[i - 1]) / (lengths[i] - lengths[i - 1] || 1)),
+    lx = points[i - 1][0] + (points[i][0] - points[i - 1][0]) * f,
+    lz = points[i - 1][1] + (points[i][1] - points[i - 1][1]) * f,
+    k = smooth(t / PARASAIL.ease) * smooth((PARASAIL.seconds - t) / PARASAIL.ease);
+  return {
+    x: launch[0] + (lx - launch[0]) * k,
+    y: 0,
+    z: launch[1] + (lz - launch[1]) * k,
+    done: t >= PARASAIL.seconds,
+  };
+}
 export const PARASAIL_HEIGHT = 10;
 export const CLIMB_SECONDS = 22;
 
@@ -84,14 +121,10 @@ function withHeading(at: (t: number) => { x: number; y: number; z: number; done:
   return { ...p, heading: moving ? Math.atan2(q.x - p.x, q.z - p.z) : NaN, roll: 0 };
 }
 
-// The tow boat circles wide; the rider rises behind it on a long line, then lands back on the deck.
+// The tow boat runs its oval; the rider rises behind it on a long line, then lands back on the deck.
 function parasailPose(launch: Point, t: number): RidePose {
-  const boatAt = (t: number) => {
-    const p = loop(launch, t, ROUTES.parasail.speed, ROUTES.parasail.offset, 6);
-    return { x: p.x, y: 0, z: p.z, done: t >= p.duration };
-  };
-  const boat = withHeading(boatAt, t),
-    duration = (Math.PI * 2) / ROUTES.parasail.speed,
+  const boat = withHeading(t => towBoatAt(launch, t), t),
+    duration = PARASAIL.seconds,
     lift = smooth((t - 4) / 10) * smooth((duration - t - 3) / 10),
     line = 0.9 + 6.5 * lift,
     heading = Number.isNaN(boat.heading) ? 0 : boat.heading;
@@ -197,7 +230,7 @@ export const RIDE_SECONDS: Record<RideKind, number> = {
   kayak: (Math.PI * 2) / ROUTES.kayak.speed,
   jetski: (Math.PI * 2) / ROUTES.jetski.speed,
   sailboat: (Math.PI * 2) / -ROUTES.sailboat.speed,
-  parasail: (Math.PI * 2) / ROUTES.parasail.speed,
+  parasail: PARASAIL.seconds,
   climb: CLIMB_SECONDS + 20,
   scuba: DIVE_SECONDS,
   ferry: 60,

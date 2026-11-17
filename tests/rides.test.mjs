@@ -67,6 +67,16 @@ test('parasailing lifts you high above the sea and lands you back on the boat', 
   assert.ok(samples.at(-1).y < 0.05);
 });
 
+test('parasailing keeps well away from the rope bridge, boat and rider both', () => {
+  const strait = DECKS.find(d => d.id === 'strait');
+  for (const p of run(seats.find(s => s.ride?.kind === 'parasail'))) {
+    assert.ok(segmentDistance([p.x, p.z], strait.a, strait.b) > 15, `rider near the bridge at t=${p.t}`);
+    assert.ok(segmentDistance([p.boat.x, p.boat.z], strait.a, strait.b) > 15, `boat near the bridge at t=${p.t}`);
+    // The rider stays over water while aloft.
+    if (p.y > 1) assert.ok(shoreDistance(p.x, p.z) > 1 && highlandsDistance(p.x, p.z) > 1, `over land at t=${p.t}`);
+  }
+});
+
 test('the climb goes up the face to the lookout and waits there', () => {
   const seat = seats.find(s => s.ride?.kind === 'climb');
   const top = ride(seat, CLIMB_SECONDS + 5);
