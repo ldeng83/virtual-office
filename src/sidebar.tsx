@@ -39,6 +39,7 @@ const icons = [
 export type SidebarTab = 'places' | 'people' | 'activity';
 export function Sidebar({
   onCheckIn,
+  hosted,
   profile,
   update,
   setToast,
@@ -165,7 +166,7 @@ export function Sidebar({
               </span>
               <div>
                 <strong>
-                  {person.name} <small className="demo-tag">demo</small>
+                  {person.name} {!hosted && <small className="demo-tag">demo</small>}
                 </strong>
                 <p>{target ? `${target.activity.status} · ${target.activity.activity}` : 'Off the island'}</p>
                 {target &&
@@ -200,9 +201,11 @@ export function Sidebar({
             <Users size={25} />
             <strong>A space for the whole team</strong>
             <p>
-              {showDemo
-                ? 'Your teammates follow a demo daily routine for now. Live presence arrives with the shared server.'
-                : 'This first prototype runs locally. Shared employee presence is the next milestone.'}
+              {hosted
+                ? 'Teammates arrive when they check in, and each follows their own day around the island.'
+                : showDemo
+                  ? 'Your teammates follow a demo daily routine for now. Live presence arrives with the shared server.'
+                  : 'This first prototype runs locally. Shared employee presence is the next milestone.'}
             </p>
           </div>
         </div>
@@ -219,6 +222,8 @@ export function Sidebar({
 }
 export type SidebarProps = {
   onCheckIn?: () => void;
+  // Inside a host app the people are real teammates, not the demo team.
+  hosted: boolean;
   profile: Profile;
   update: (patch: Partial<Profile>) => void;
   setToast: (message: string) => void;

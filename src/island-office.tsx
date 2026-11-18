@@ -300,6 +300,7 @@ export function IslandOffice({ host }: { host?: IslandHost }) {
         <main>
           <Sidebar
             onCheckIn={host?.onCheckIn}
+            hosted={hosted}
             profile={profile}
             update={update}
             setToast={setToast}
