@@ -79,6 +79,8 @@ export function AvatarBody({
   color,
   hair = '#5b5147',
   hairStyle = 'short',
+  skin = '#e8bc98',
+  bottoms = '#495b60',
   head,
   torso,
   xray = 0,
@@ -86,6 +88,8 @@ export function AvatarBody({
   color: string;
   hair?: string;
   hairStyle?: 'short' | 'long';
+  skin?: string;
+  bottoms?: string;
   head?: RefObject<THREE.Group | null>;
   torso?: RefObject<THREE.Group | null>;
   xray?: number;
@@ -97,14 +101,14 @@ export function AvatarBody({
         <Part geometry={parts.torso} position={[0, 0.3, 0]} color={color} roughness={0.9} xray={ghost} />
       </group>
       <group ref={head} position={[0, 1.17, 0]}>
-        <Part geometry={parts.face} color="#e8bc98" xray={ghost} />
+        <Part geometry={parts.face} color={skin} xray={ghost} />
         <Part geometry={parts.hair} position={[0, 0.12, -0.03]} color={hair} shadow={false} xray={ghost} />
         {hairStyle === 'long' && (
           <Part geometry={parts.longHair} position={[0, -0.1, -0.09]} color={hair} shadow={false} xray={ghost} />
         )}
       </group>
       {[-0.13, 0.13].map(x => (
-        <Part key={x} geometry={parts.leg} position={[x, 0.22, 0]} color="#495b60" roughness={0.85} xray={ghost} />
+        <Part key={x} geometry={parts.leg} position={[x, 0.22, 0]} color={bottoms} roughness={0.85} xray={ghost} />
       ))}
     </>
   );
@@ -365,6 +369,8 @@ export function Coworker({
           color={person.color}
           hair={person.hair}
           hairStyle={person.hairStyle}
+          skin={person.skin}
+          bottoms={person.bottoms}
           head={head}
           torso={torso}
           xray={0.3}

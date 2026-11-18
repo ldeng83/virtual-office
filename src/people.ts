@@ -39,6 +39,9 @@ export type DemoCoworker = {
   hair: string;
   // Long hair reaches past the shoulders.
   hairStyle?: 'short' | 'long';
+  // Skin and trouser colours, when a host supplies them.
+  skin?: string;
+  bottoms?: string;
   greetings: string[];
   focusReply: string;
   // What their screen shows while working, and the demo backlog they cycle through.
@@ -65,7 +68,7 @@ export const ARRIVAL_DOCK: Point = locations[0].point;
 export { WHITEBOARD, WHITEBOARD_FACING, WHITEBOARD_SPOT } from './world.ts';
 const GARDEN_LOOP: Point = [garden.x, garden.z + garden.loopZ];
 
-const coffee = (seatIds: string[], weight = 3): Activity => ({
+export const coffee = (seatIds: string[], weight = 3): Activity => ({
   place: 'Café & terrace',
   status: 'Available',
   activity: 'Grabbing a coffee',
@@ -78,7 +81,13 @@ const coffee = (seatIds: string[], weight = 3): Activity => ({
 
 // Rides last as long as the ride (they wait at the launch for a moment after) and leave them Available.
 // Hikes: the walk there and the trail itself are counted separately, so the dwell is a rest at the end.
-const hike = (trail: Trail['id'], activity: string, icon: string, rest: [number, number], weight = 1): Activity => ({
+export const hike = (
+  trail: Trail['id'],
+  activity: string,
+  icon: string,
+  rest: [number, number],
+  weight = 1,
+): Activity => ({
   place: trailById(trail).name,
   status: 'Available',
   activity,
@@ -88,7 +97,7 @@ const hike = (trail: Trail['id'], activity: string, icon: string, rest: [number,
   weight,
   trail,
 });
-const ride = (
+export const ride = (
   kind: RideKind,
   place: string,
   activity: string,
@@ -116,7 +125,7 @@ const home = (
   seatIds: string[],
   work = false,
 ): Activity => ({ place, status, activity, icon, pose, dwell: [25, 50], seats: seatIds, ...(work && { work }) });
-const spot = (
+export const spot = (
   place: string,
   status: Activity['status'],
   activity: string,
