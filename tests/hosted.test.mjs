@@ -59,9 +59,8 @@ test('inside a host page, keys need focus in the island: the page keeps its own 
   assert.equal(keysAllowed(canvas, rootOf(canvas), body, true), true);
 });
 
-test('inside a host page the wheel scrolls the page; pinch or ctrl/cmd + wheel zooms the island', () => {
+test('the wheel over the island zooms it, on its own or inside a host page', () => {
   assert.equal(wheelZooms({ ctrlKey: false, metaKey: false }, false), true);
-  assert.equal(wheelZooms({ ctrlKey: false, metaKey: false }, true), false);
+  assert.equal(wheelZooms({ ctrlKey: false, metaKey: false }, true), true);
   assert.equal(wheelZooms({ ctrlKey: true, metaKey: false }, true), true);
-  assert.equal(wheelZooms({ ctrlKey: false, metaKey: true }, true), true);
 });

@@ -31,10 +31,9 @@ export function islandKey(event: KeyboardEvent) {
   const root = document.querySelector<HTMLElement>('.island-root');
   return keysAllowed(event.target, root, document.body, root?.dataset.hosted === 'true');
 }
-// On its own the island zooms with the wheel. On a host page the wheel scrolls the page, and a pinch
-// (which browsers report as ctrl + wheel) or ctrl/cmd + wheel zooms.
-export const wheelZooms = (event: { ctrlKey: boolean; metaKey: boolean }, hosted: boolean) =>
-  !hosted || event.ctrlKey || event.metaKey;
+// The wheel over the island always zooms it, hosted or not: the island fills the host's window, and
+// the host page scrolls from anywhere outside it.
+export const wheelZooms = (_event: { ctrlKey: boolean; metaKey: boolean }, _hosted: boolean) => true;
 
 // "12:30 PM" from an hour of the day such as 12.5.
 export function hourLabel(hour: number) {
