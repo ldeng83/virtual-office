@@ -70,3 +70,13 @@ export function hoverSpot(spot: Spot | null) {
   pointer.spot = spot;
   document.body.style.cursor = spot ? 'pointer' : 'auto';
 }
+
+// The keys that use the nearest thing, like clicking it: E, and Space for hands already on the
+// keyboard. Space on a focused button or link presses that instead, as it does everywhere.
+export function isUseKey(event: { key: string; target: unknown }) {
+  const key = event.key.toLowerCase();
+  if (key === 'e') return true;
+  if (key !== ' ' && key !== 'spacebar') return false;
+  const tag = (event.target as { tagName?: string } | null)?.tagName;
+  return !['BUTTON', 'A', 'SUMMARY'].includes(tag ?? '');
+}

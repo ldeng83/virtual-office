@@ -3,10 +3,10 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 import { diveState, playerState } from './fun-state';
-import { nearestSpot, pointer, SPOTS, type Spot } from './interact';
+import { isUseKey, nearestSpot, pointer, SPOTS, type Spot } from './interact';
 import { Label } from './label';
 
-// Shows what can be used: a ring and the action under the pointer, an "E" prompt on the nearest
+// Shows what can be used: a ring and the action under the pointer, a "Space" prompt (E works too) on the nearest
 // spot as you walk up to it, and a marker on every spot in view while Q is held.
 const typing = (e: KeyboardEvent) =>
   !islandKey(e) || !!(e.target as HTMLElement).closest?.('input,textarea,select,[contenteditable=true],.modal');
@@ -31,7 +31,11 @@ export function InteractionHints({ seat, onUse }: { seat: string | null; onUse: 
         if (typing(e) || e.metaKey || e.ctrlKey || e.altKey) return;
         const key = e.key.toLowerCase();
         if (key === 'q') showAll.current = true;
-        if (key === 'e' && !e.repeat && near.current) use.current(near.current);
+        if (isUseKey(e) && near.current) {
+          // Space would otherwise scroll the page.
+          e.preventDefault();
+          if (!e.repeat) use.current(near.current);
+        }
       },
       up = (e: KeyboardEvent) => {
         if (e.key.toLowerCase() === 'q') showAll.current = false;
@@ -93,7 +97,7 @@ export function InteractionHints({ seat, onUse }: { seat: string | null; onUse: 
         <Label zIndex={24}>
           {chip && (
             <div className="use-chip">
-              {chip.key && <kbd>E</kbd>}
+              {chip.key && <kbd>Space</kbd>}
               {chip.label}
             </div>
           )}

@@ -472,8 +472,9 @@ export function IslandOffice({ host }: { host?: IslandHost }) {
                 {nearest.name}
               </span>
               <span className="movement-hint">
-                <span>W A S D</span> to move <i /> Click to walk <i /> <span>E</span> to use <i /> Hold <span>Q</span>{' '}
-                to show what you can use <i /> Drag to pan <i /> Right-drag to orbit <i /> Scroll to zoom
+                <span>W A S D</span> to move <i /> Click to walk <i /> <span>Space</span> or <span>E</span> to use <i />{' '}
+                Hold <span>Q</span> to show what you can use <i /> Drag to pan <i /> Right-drag to orbit <i /> Scroll to
+                zoom
               </span>
             </div>
             {dive.hud.under && <div className="dive-tint" />}

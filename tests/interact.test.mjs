@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { REACH, SPOTS, nearestSpot, seatAction } from '../src/interact.ts';
+import { REACH, SPOTS, isUseKey, nearestSpot, seatAction } from '../src/interact.ts';
 import { seats } from '../src/world.ts';
 
 test('every seat says what using it does', () => {
@@ -25,4 +25,22 @@ test('E picks the nearest spot within reach, and nothing when none is close', ()
 test('the radio and the telescope are usable spots too', () => {
   assert.ok(SPOTS.some(s => s.id === 'radio') && SPOTS.some(s => s.id === 'telescope'));
   assert.equal(new Set(SPOTS.map(s => s.id)).size, SPOTS.length);
+});
+
+test('E and Space both use the nearest thing', () => {
+  const canvas = { tagName: 'CANVAS' };
+  assert.equal(isUseKey({ key: 'e', target: canvas }), true);
+  assert.equal(isUseKey({ key: 'E', target: canvas }), true);
+  assert.equal(isUseKey({ key: ' ', target: canvas }), true);
+  assert.equal(isUseKey({ key: 'Spacebar', target: canvas }), true);
+  assert.equal(isUseKey({ key: 'q', target: canvas }), false);
+  assert.equal(isUseKey({ key: 'Enter', target: canvas }), false);
+});
+
+test('Space on a focused button or link presses that, not the nearest thing', () => {
+  for (const tagName of ['BUTTON', 'A', 'SUMMARY'])
+    assert.equal(isUseKey({ key: ' ', target: { tagName } }), false, tagName);
+  // E is not how a button is pressed, so it still reaches the island.
+  assert.equal(isUseKey({ key: 'e', target: { tagName: 'BUTTON' } }), true);
+  assert.equal(isUseKey({ key: ' ', target: null }), true);
 });
