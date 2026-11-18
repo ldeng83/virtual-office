@@ -37,6 +37,10 @@
   button {
     color: inherit;
   }
+  /* The scene holds the keyboard on a host page; it needs no ring to say so. */
+  .island-panel:focus {
+    outline: none;
+  }
   button:focus-visible,
   a:focus-visible,
   select:focus-visible,

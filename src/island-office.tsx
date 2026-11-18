@@ -30,7 +30,7 @@ import { initials, readProfile, type Profile } from './profile';
 import { useCoworkers } from './use-coworkers';
 import { demoCoworkers } from './people';
 import { homeSeats, hostedCoworkers } from './hosted-people';
-import { hostedProfile, islandKey, wheelZooms } from './hosted';
+import { hostedProfile, islandKey, takesFocus, wheelZooms } from './hosted';
 import type { IslandHost } from './host';
 import { Sidebar, type SidebarTab } from './sidebar';
 import { Dialog, type DialogKind } from './dialogs';
@@ -187,6 +187,10 @@ export function IslandOffice({ host }: { host?: IslandHost }) {
   const [seenFeed, setSeenFeed] = useState(0);
   const unseen = showDemo ? feed.filter(item => item.id > seenFeed).length : 0;
   const panel = useRef<HTMLElement>(null);
+  useEffect(() => {
+    if (hosted && loaded && takesFocus(document.activeElement, document.body))
+      panel.current?.focus({ preventScroll: true });
+  }, [hosted, loaded]);
   // Mouse wheel / trackpad scroll zooms the island; the mini-map keeps its own scroll.
   useEffect(() => {
     const el = panel.current;

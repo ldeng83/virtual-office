@@ -35,6 +35,10 @@ export function islandKey(event: KeyboardEvent) {
 // the host page scrolls from anywhere outside it.
 export const wheelZooms = (_event: { ctrlKey: boolean; metaKey: boolean }, _hosted: boolean) => true;
 
+// When a hosted island has loaded it takes the keyboard, so the arrow keys move you straight away;
+// but never away from something the visitor has already focused on the host page.
+export const takesFocus = (active: unknown, body: unknown) => !active || active === body;
+
 // "12:30 PM" from an hour of the day such as 12.5.
 export function hourLabel(hour: number) {
   const minutes = Math.min(1439, Math.max(0, Math.floor(hour * 60))),

@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { hostedProfile, keysAllowed, hourLabel, wheelZooms } from '../src/hosted.ts';
+import { hostedProfile, keysAllowed, hourLabel, takesFocus, wheelZooms } from '../src/hosted.ts';
 
 test('a hosted profile takes name, colour and check-in from the host, and keeps your status', () => {
   const me = {
@@ -63,4 +63,12 @@ test('the wheel over the island zooms it, on its own or inside a host page', () 
   assert.equal(wheelZooms({ ctrlKey: false, metaKey: false }, false), true);
   assert.equal(wheelZooms({ ctrlKey: false, metaKey: false }, true), true);
   assert.equal(wheelZooms({ ctrlKey: true, metaKey: false }, true), true);
+});
+
+test('on load the island takes the keyboard, unless the visitor is already somewhere else on the page', () => {
+  const body = el('BODY');
+  assert.equal(takesFocus(body, body), true);
+  assert.equal(takesFocus(null, body), true);
+  assert.equal(takesFocus(el('INPUT'), body), false);
+  assert.equal(takesFocus(el('BUTTON'), body), false);
 });
