@@ -173,11 +173,16 @@ export function Sidebar({
                   (() => {
                     const task = currentTask(person, work[person.id]);
                     return (
-                      <p className="person-task" title={`${Math.round(work[person.id].progress * 100)}% done`}>
+                      <p
+                        className="person-task"
+                        title={hosted ? undefined : `${Math.round(work[person.id].progress * 100)}% done`}
+                      >
                         {task.icon} {task.title}
-                        <span className="mini-bar">
-                          <span style={{ width: `${work[person.id].progress * 100}%` }} />
-                        </span>
+                        {!hosted && (
+                          <span className="mini-bar">
+                            <span style={{ width: `${work[person.id].progress * 100}%` }} />
+                          </span>
+                        )}
                       </p>
                     );
                   })()}

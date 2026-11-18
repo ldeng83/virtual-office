@@ -18,14 +18,23 @@ export function keysAllowed(
   target: unknown,
   root: { contains: (node: never) => boolean } | null,
   body: unknown = typeof document === 'undefined' ? null : document.body,
+  // On a host page the body belongs to the page: arrow keys there scroll it.
+  hosted = false,
 ): boolean {
   const el = target as KeyTarget | null;
   if (!el || !root) return false;
   if (el.isContentEditable || ['INPUT', 'TEXTAREA', 'SELECT'].includes(el.tagName ?? '')) return false;
-  return el === body || root.contains(el as never);
+  return (el === body && !hosted) || root.contains(el as never);
 }
 // The same check for a key event, against the island on this page.
-export const islandKey = (event: KeyboardEvent) => keysAllowed(event.target, document.querySelector('.island-root'));
+export function islandKey(event: KeyboardEvent) {
+  const root = document.querySelector<HTMLElement>('.island-root');
+  return keysAllowed(event.target, root, document.body, root?.dataset.hosted === 'true');
+}
+// On its own the island zooms with the wheel. On a host page the wheel scrolls the page, and a pinch
+// (which browsers report as ctrl + wheel) or ctrl/cmd + wheel zooms.
+export const wheelZooms = (event: { ctrlKey: boolean; metaKey: boolean }, hosted: boolean) =>
+  !hosted || event.ctrlKey || event.metaKey;
 
 // "12:30 PM" from an hour of the day such as 12.5.
 export function hourLabel(hour: number) {

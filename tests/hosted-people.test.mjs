@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { hostedCoworkers, WORK_SEATS } from '../src/hosted-people.ts';
-import { resolveTarget } from '../src/people.ts';
+import { advanceWork, resolveTarget } from '../src/people.ts';
 import { seats } from '../src/world.ts';
 import { periods } from '../src/daylight.ts';
 
@@ -80,4 +80,33 @@ test('tasks fall back, and the look carries over', () => {
     q.tasks.map(t => t.title),
     ['Ship the report', 'Review PRs'],
   );
+});
+
+test('people already seated keep their seats when someone new sorts before them', () => {
+  // Find a newcomer whose arrival would have shuffled someone under plain re-assignment.
+  const base = Array.from({ length: 30 }, (_, i) => P(`m${String(i).padStart(2, '0')}`)),
+    before = hostedCoworkers(base),
+    kept = new Map(before.map(p => [p.id, p.schedule.morning.home.seats?.[0] ?? null]));
+  for (let n = 0; n < 200; n++) {
+    const after = hostedCoworkers([...base, P(`a-new-${n}`)], kept);
+    for (const p of before)
+      assert.deepEqual(after.find(q => q.id === p.id).schedule.morning.home.seats, p.schedule.morning.home.seats);
+    const mine = after.find(q => q.id === `a-new-${n}`).schedule.morning.home.seats[0];
+    assert.ok(![...kept.values()].includes(mine), `newcomer ${n} took an occupied seat`);
+  }
+});
+
+test('a teammate whose seat is taken stands on the plaza instead of sitting on someone', () => {
+  const [p] = hostedCoworkers([P('a')]),
+    home = p.schedule.morning.home,
+    target = resolveTarget(home, new Set(home.seats));
+  assert.equal(target.seatId, null);
+  assert.equal(resolveTarget(home).seatId, home.seats[0]);
+});
+
+test('real teammates are not given made-up progress', () => {
+  const [p] = hostedCoworkers([P('a', { tasks: ['Fixed login'] })]);
+  assert.equal(p.simulated, false);
+  const state = { task: 0, progress: 0.99 };
+  assert.deepEqual(advanceWork(p, state, 100), { state, finished: null });
 });

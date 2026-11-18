@@ -9,6 +9,8 @@
   line-height: normal;
   height: 100%;
   container: island / size;
+  /* Dialogs and the map stay inside the island's box. */
+  contain: layout;
   /* The layout needs a minimum height; in a shorter box the island scrolls inside itself. */
   overflow: auto;
   /* Start from the browser's own defaults, whatever resets the host page applies. Icons keep

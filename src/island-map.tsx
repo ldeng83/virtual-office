@@ -1,3 +1,4 @@
+import { islandKey } from './hosted';
 import { useEffect, useRef, type PointerEvent as ReactPointerEvent } from 'react';
 import { Check, Footprints, Map as MapIcon, Minus, Plus, X } from 'lucide-react';
 import { amphitheater, boardwalk, districts, FERRY_ROUTE, pads, plaza, ponds, walkways, type Point } from './world';
@@ -301,7 +302,7 @@ export function FullMap({
   useLiveLayer(svg, people);
   useEffect(() => {
     apply();
-    const key = (e: KeyboardEvent) => e.key === 'Escape' && onClose();
+    const key = (e: KeyboardEvent) => e.key === 'Escape' && islandKey(e) && onClose();
     window.addEventListener('keydown', key);
     return () => {
       window.removeEventListener('keydown', key);

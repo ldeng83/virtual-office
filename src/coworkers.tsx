@@ -161,7 +161,8 @@ export function Coworker({
   greeting: string | null;
   player: RefObject<THREE.Vector3>;
   motion: boolean;
-  task: { title: string; icon: string; progress: number } | null;
+  // No `progress` for a real teammate: only what they're on.
+  task: { title: string; icon: string; progress?: number } | null;
   shipped: string | null;
   onClick: (id: string) => void;
 }) {
@@ -402,7 +403,7 @@ export function Coworker({
             task && (
               <div className="task-card">
                 {task.icon} {task.title}
-                <b>{Math.round(task.progress * 100)}%</b>
+                {task.progress !== undefined && <b>{Math.round(task.progress * 100)}%</b>}
               </div>
             )
           )}
@@ -416,7 +417,7 @@ export function Coworker({
               {waving ? '👋' : target.activity.icon}
             </b>
           )}
-          {task && (
+          {task?.progress !== undefined && (
             <span className="task-bar" aria-hidden="true">
               <span style={{ width: `${task.progress * 100}%` }} />
             </span>

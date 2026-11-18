@@ -672,7 +672,10 @@ export function World({
           motion={atmosphere.motion}
           task={
             target?.activity.work
-              ? { ...currentTask(person, work[person.id]), progress: work[person.id].progress }
+              ? {
+                  ...currentTask(person, work[person.id]),
+                  progress: person.simulated === false ? undefined : work[person.id].progress,
+                }
               : null
           }
           shipped={shipped[person.id] ?? null}
@@ -691,7 +694,7 @@ export function World({
               work={{
                 personId: person.id,
                 craft: person.craft,
-                progress: work[person.id].progress,
+                progress: person.simulated === false ? 0.5 : work[person.id].progress,
                 celebrating: !!shipped[person.id],
               }}
             />

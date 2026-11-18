@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { hostedProfile, keysAllowed, hourLabel } from '../src/hosted.ts';
+import { hostedProfile, keysAllowed, hourLabel, wheelZooms } from '../src/hosted.ts';
 
 test('a hosted profile takes name, colour and check-in from the host, and keeps your status', () => {
   const me = {
@@ -50,4 +50,18 @@ test('the office hour reads as a clock time', () => {
   assert.equal(hourLabel(0), '12:00 AM');
   assert.equal(hourLabel(9.25), '9:15 AM');
   assert.equal(hourLabel(23.999), '11:59 PM');
+});
+
+test('inside a host page, keys need focus in the island: the page keeps its own keyboard scrolling', () => {
+  const body = el('BODY'),
+    canvas = el('CANVAS');
+  assert.equal(keysAllowed(body, rootOf(canvas), body, true), false);
+  assert.equal(keysAllowed(canvas, rootOf(canvas), body, true), true);
+});
+
+test('inside a host page the wheel scrolls the page; pinch or ctrl/cmd + wheel zooms the island', () => {
+  assert.equal(wheelZooms({ ctrlKey: false, metaKey: false }, false), true);
+  assert.equal(wheelZooms({ ctrlKey: false, metaKey: false }, true), false);
+  assert.equal(wheelZooms({ ctrlKey: true, metaKey: false }, true), true);
+  assert.equal(wheelZooms({ ctrlKey: false, metaKey: true }, true), true);
 });

@@ -29,8 +29,8 @@ import { World, SceneBoundary, MIN_ZOOM, MAX_ZOOM } from './scene';
 import { initials, readProfile, type Profile } from './profile';
 import { useCoworkers } from './use-coworkers';
 import { demoCoworkers } from './people';
-import { hostedCoworkers } from './hosted-people';
-import { hostedProfile, islandKey } from './hosted';
+import { homeSeats, hostedCoworkers } from './hosted-people';
+import { hostedProfile, islandKey, wheelZooms } from './hosted';
 import type { IslandHost } from './host';
 import { Sidebar, type SidebarTab } from './sidebar';
 import { Dialog, type DialogKind } from './dialogs';
@@ -42,7 +42,14 @@ import { useAutopilot } from './use-autopilot';
 export function IslandOffice({ host }: { host?: IslandHost }) {
   const hosted = !!host;
   const hostPeople = JSON.stringify(host?.people ?? null);
-  const people = useMemo(() => (host ? hostedCoworkers(host.people) : demoCoworkers), [hostPeople]);
+  // Seats stick: whoever is already on the island keeps their seat when someone else arrives.
+  const seated = useRef<ReadonlyMap<string, string | null>>(new Map());
+  const people = useMemo(() => {
+    if (!host) return demoCoworkers;
+    const next = hostedCoworkers(host.people, seated.current);
+    seated.current = homeSeats(next);
+    return next;
+  }, [hostPeople]);
   const [viewMode, setViewMode] = useState<ViewMode>('follow');
   const freeLook = React.useCallback(() => setViewMode('free'), []);
   const [atmosphere, setAtmosphere] = useState(readAtmosphere);
@@ -185,7 +192,7 @@ export function IslandOffice({ host }: { host?: IslandHost }) {
     const el = panel.current;
     if (!el) return;
     const wheel = (e: WheelEvent) => {
-      if ((e.target as HTMLElement).closest('.full-map, .mini-map')) return;
+      if ((e.target as HTMLElement).closest('.full-map, .mini-map') || !wheelZooms(e, hosted)) return;
       e.preventDefault();
       const delta = e.deltaY * (e.deltaMode === 1 ? 16 : e.deltaMode === 2 ? 400 : 1);
       cameraView.zoom = Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, cameraView.zoom * Math.exp(-delta * 0.0015)));
@@ -206,6 +213,7 @@ export function IslandOffice({ host }: { host?: IslandHost }) {
   useEffect(() => {
     if (!modal) return;
     const handle = (e: KeyboardEvent) => {
+      if (!islandKey(e)) return;
       if (e.key === 'Escape') setModal(null);
       if (e.key === 'Tab') {
         const elements = Array.from(document.querySelectorAll<HTMLElement>('.modal button,.modal input,.modal select'));
@@ -257,7 +265,7 @@ export function IslandOffice({ host }: { host?: IslandHost }) {
         : b,
     );
   return (
-    <div className="island-root">
+    <div className="island-root" data-hosted={hosted}>
       <div className="app">
         <header className="header">
           <a
@@ -319,6 +327,15 @@ export function IslandOffice({ host }: { host?: IslandHost }) {
           />
           <section
             ref={panel}
+            // On a host page, clicking the island gives it the keyboard.
+            tabIndex={hosted ? -1 : undefined}
+            onPointerDown={
+              hosted
+                ? e =>
+                    (e.target as HTMLElement).closest('button,a,input,select') ||
+                    panel.current?.focus({ preventScroll: true })
+                : undefined
+            }
             data-view-mode={viewMode}
             data-mood={mood.period}
             className="island-panel"

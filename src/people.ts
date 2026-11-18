@@ -39,6 +39,8 @@ export type DemoCoworker = {
   hair: string;
   // Long hair reaches past the shoulders.
   hairStyle?: 'short' | 'long';
+  // False for a real teammate: their tasks are things they did, so no progress is made up for them.
+  simulated?: boolean;
   // Skin and trouser colours, when a host supplies them.
   skin?: string;
   bottoms?: string;
@@ -807,6 +809,7 @@ export function advanceWork(
   state: WorkState,
   seconds: number,
 ): { state: WorkState; finished: Task | null } {
+  if (person.simulated === false) return { state, finished: null };
   const task = person.tasks[state.task % person.tasks.length];
   const progress = state.progress + seconds / task.seconds;
   if (progress < 1) return { state: { task: state.task, progress }, finished: null };
@@ -836,8 +839,10 @@ export function resolveTarget(
       route: points,
     };
   }
-  if (activity.seats) {
-    const id = activity.seats.find(s => !taken.has(s)) ?? activity.seats[0];
+  // With every seat taken, an activity that also names a spot is done standing there instead.
+  const free = activity.seats?.find(s => !taken.has(s));
+  if (activity.seats && (free || !activity.point)) {
+    const id = free ?? activity.seats[0];
     const seat = seats.find(s => s.id === id);
     if (!seat) throw new Error(`Unknown seat ${id}`);
     return {

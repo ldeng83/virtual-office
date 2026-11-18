@@ -52,6 +52,8 @@ const FIRESIDE = spot('Firepit & hammocks', 'Available', 'By the firepit', '🔥
 ]);
 
 function homeAt(seatId: string | null, standing: number): Activity {
+  const angle = standing * 2.4,
+    point: Point = [plaza.x + Math.cos(angle) * 3.4, plaza.z + Math.sin(angle) * 3.4];
   if (seatId)
     return {
       place: placeOf(seatId),
@@ -61,11 +63,12 @@ function homeAt(seatId: string | null, standing: number): Activity {
       pose: 'desk',
       dwell: [40, 80],
       seats: [seatId],
+      // If someone is in their seat when they get back, they stand on the plaza rather than sit on them.
+      point,
+      face: [plaza.x, plaza.z],
       work: true,
     };
   // No work seat left: they work standing on the plaza, spread round the fountain.
-  const angle = standing * 2.4,
-    point: Point = [plaza.x + Math.cos(angle) * 3.4, plaza.z + Math.sin(angle) * 3.4];
   return {
     place: 'Central plaza',
     status: 'Available',
@@ -79,57 +82,65 @@ function homeAt(seatId: string | null, standing: number): Activity {
   };
 }
 
-export function hostedCoworkers(people: HostPerson[]): DemoCoworker[] {
-  const claimed = new Set<string>();
-  let standing = 0;
-  return people
-    .filter(p => p.present)
-    .sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0))
-    .map(person => {
-      const seed = hash(person.id);
-      let seatId: string | null = null;
-      for (let i = 0; i < WORK_SEATS.length && !seatId; i++) {
-        const candidate = WORK_SEATS[(seed + i) % WORK_SEATS.length];
-        if (!claimed.has(candidate)) seatId = candidate;
-      }
-      if (seatId) claimed.add(seatId);
-      const home = homeAt(seatId, seatId ? 0 : standing++),
-        first = person.name.split(/\s+/)[0] || person.name,
-        block = (shift: number, late = false): Block => ({
-          home,
-          errands: late
-            ? [FIRESIDE]
-            : [
-                coffee(['cs-0', 'cs-1', 'cs-2'], 2),
-                BREAKS[(seed + shift) % BREAKS.length],
-                OUTINGS[((seed >>> 4) + shift) % OUTINGS.length],
-              ],
-        }),
-        schedule = Object.fromEntries(
-          (Object.keys(periods) as Period[]).map((period, i) => [period, block(i, period === 'night')]),
-        ) as Record<Period, Block | null>;
-      return {
-        id: person.id,
-        name: person.name,
-        role: person.role,
-        color: person.look.shirt,
-        hair: person.look.hair,
-        hairStyle: person.look.hairStyle,
-        skin: person.look.skin,
-        bottoms: person.look.bottoms,
-        greetings: [
-          `Hi, ${first} here. Good to see you!`,
-          'Hey! How’s your day going?',
-          'Hello! Lovely out here today.',
-        ],
-        focusReply: 'Heads down right now. Catch you in a bit?',
-        craft: seed % 2 ? 'code' : 'design',
-        tasks: (person.tasks.length ? person.tasks : ['Heads-down work']).map(title => ({
-          title,
-          icon: '📌',
-          seconds: 55,
-        })),
-        schedule,
-      };
-    });
+// `kept` holds the seats people already have (id → seat, from homeSeats): they keep them, and
+// anyone new is seated round them. Without it, seats depend only on who is present.
+export function hostedCoworkers(
+  people: HostPerson[],
+  kept: ReadonlyMap<string, string | null> = new Map(),
+): DemoCoworker[] {
+  const present = people.filter(p => p.present).sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0)),
+    claimed = new Set<string>();
+  for (const person of present) {
+    const seat = kept.get(person.id);
+    if (seat && WORK_SEATS.includes(seat)) claimed.add(seat);
+  }
+  return present.map(person => {
+    const seed = hash(person.id),
+      held = kept.get(person.id);
+    let seatId: string | null = held && WORK_SEATS.includes(held) ? held : null;
+    for (let i = 0; i < WORK_SEATS.length && !seatId; i++) {
+      const candidate = WORK_SEATS[(seed + i) % WORK_SEATS.length];
+      if (!claimed.has(candidate)) seatId = candidate;
+    }
+    if (seatId) claimed.add(seatId);
+    const home = homeAt(seatId, seed % 97),
+      first = person.name.split(/\s+/)[0] || person.name,
+      block = (shift: number, late = false): Block => ({
+        home,
+        errands: late
+          ? [FIRESIDE]
+          : [
+              coffee(['cs-0', 'cs-1', 'cs-2'], 2),
+              BREAKS[(seed + shift) % BREAKS.length],
+              OUTINGS[((seed >>> 4) + shift) % OUTINGS.length],
+            ],
+      }),
+      schedule = Object.fromEntries(
+        (Object.keys(periods) as Period[]).map((period, i) => [period, block(i, period === 'night')]),
+      ) as Record<Period, Block | null>;
+    return {
+      id: person.id,
+      name: person.name,
+      role: person.role,
+      color: person.look.shirt,
+      hair: person.look.hair,
+      hairStyle: person.look.hairStyle,
+      skin: person.look.skin,
+      bottoms: person.look.bottoms,
+      greetings: [`Hi, ${first} here. Good to see you!`, 'Hey! How’s your day going?', 'Hello! Lovely out here today.'],
+      focusReply: 'Heads down right now. Catch you in a bit?',
+      craft: seed % 2 ? 'code' : 'design',
+      simulated: false,
+      tasks: (person.tasks.length ? person.tasks : ['Heads-down work']).map(title => ({
+        title,
+        icon: '📌',
+        seconds: 55,
+      })),
+      schedule,
+    };
+  });
 }
+
+// Who sits where, to hand back to hostedCoworkers next time the people change.
+export const homeSeats = (coworkers: DemoCoworker[]) =>
+  new Map(coworkers.map(p => [p.id, p.schedule.morning?.home.seats?.[0] ?? null]));

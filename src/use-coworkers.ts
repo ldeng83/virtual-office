@@ -131,7 +131,7 @@ export function useCoworkers({
   }, [plans, peopleKey]);
   const coworkers = React.useMemo(
     () => (showDemo ? people.map(person => ({ person, target: plans[person.id] ?? null })) : []),
-    [plans, showDemo, peopleKey],
+    [plans, showDemo, people],
   );
   // Work: time spent at a work spot moves their current task forward; finishing posts to the feed.
   const plansRef = useRef(plans);
