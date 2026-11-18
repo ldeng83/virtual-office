@@ -154,6 +154,7 @@ export function Coworker({
   motion,
   task,
   shipped,
+  onClick,
 }: {
   person: DemoCoworker;
   target: Target | null;
@@ -162,6 +163,7 @@ export function Coworker({
   motion: boolean;
   task: { title: string; icon: string; progress: number } | null;
   shipped: string | null;
+  onClick: (id: string) => void;
 }) {
   const group = useRef<THREE.Group>(null),
     head = useRef<THREE.Group>(null),
@@ -363,7 +365,16 @@ export function Coworker({
   });
   const status = target?.activity.status;
   return (
-    <group ref={group} name={`coworker-${person.id}`}>
+    <group
+      ref={group}
+      name={`coworker-${person.id}`}
+      onClick={e => {
+        e.stopPropagation();
+        onClick(person.id);
+      }}
+      onPointerOver={() => (document.body.style.cursor = 'pointer')}
+      onPointerOut={() => (document.body.style.cursor = '')}
+    >
       <group ref={poseGroup}>
         <AvatarBody
           color={person.color}

@@ -173,6 +173,7 @@ export function Dialog({
   mood,
   showDemo,
   setShowDemo,
+  hosted,
   onRain,
   raining,
   autopilot,
@@ -321,36 +322,45 @@ export function Dialog({
         ) : (
           <>
             <p>A few things to make this place yours.</p>
-            <label className="form-label">
-              Your name
-              <input
-                maxLength={24}
-                value={profile.name}
-                placeholder="Your name"
-                onChange={e => update({ name: e.target.value || DEFAULT_NAME })}
-              />
-            </label>
-            <span className="form-label">Avatar color</span>
-            <div className="color-options">
-              {colors.map(c => (
-                <button
-                  key={c}
-                  style={{ background: c }}
-                  aria-label={`Choose avatar color ${c}`}
-                  aria-pressed={profile.color === c}
-                  onClick={() => update({ color: c })}
-                >
-                  {profile.color === c && <Check size={20} />}
-                </button>
-              ))}
-            </div>
-            <label className="atmosphere-toggle">
-              <span>
-                <strong>Demo coworkers</strong>
-                <small>Show the team on their daily routines until shared presence arrives</small>
-              </span>
-              <input type="checkbox" role="switch" checked={showDemo} onChange={e => setShowDemo(e.target.checked)} />
-            </label>
+            {!hosted && (
+              <>
+                <label className="form-label">
+                  Your name
+                  <input
+                    maxLength={24}
+                    value={profile.name}
+                    placeholder="Your name"
+                    onChange={e => update({ name: e.target.value || DEFAULT_NAME })}
+                  />
+                </label>
+                <span className="form-label">Avatar color</span>
+                <div className="color-options">
+                  {colors.map(c => (
+                    <button
+                      key={c}
+                      style={{ background: c }}
+                      aria-label={`Choose avatar color ${c}`}
+                      aria-pressed={profile.color === c}
+                      onClick={() => update({ color: c })}
+                    >
+                      {profile.color === c && <Check size={20} />}
+                    </button>
+                  ))}
+                </div>
+                <label className="atmosphere-toggle">
+                  <span>
+                    <strong>Demo coworkers</strong>
+                    <small>Show the team on their daily routines until shared presence arrives</small>
+                  </span>
+                  <input
+                    type="checkbox"
+                    role="switch"
+                    checked={showDemo}
+                    onChange={e => setShowDemo(e.target.checked)}
+                  />
+                </label>
+              </>
+            )}
             <label className="atmosphere-toggle">
               <span>
                 <strong>Autopilot when idle</strong>
@@ -400,6 +410,8 @@ export type DialogProps = {
   mood: IslandTime;
   showDemo: boolean;
   setShowDemo: (on: boolean) => void;
+  // Inside a host app your name, look and teammates come from the host.
+  hosted: boolean;
   autopilot: AutopilotSettings;
   updateAutopilot: (patch: Partial<AutopilotSettings>) => void;
 };

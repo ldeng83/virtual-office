@@ -38,6 +38,7 @@ const icons = [
 ];
 export type SidebarTab = 'places' | 'people' | 'activity';
 export function Sidebar({
+  onCheckIn,
   profile,
   update,
   setToast,
@@ -77,12 +78,20 @@ export function Sidebar({
         <button
           className={profile.checked ? 'checked-button' : 'primary-button'}
           onClick={() => {
+            // A host app runs its own check-in; the island only asks for it.
+            if (onCheckIn) return onCheckIn();
             update({ checked: !profile.checked });
             setToast(profile.checked ? 'Checked out. See you soon!' : 'Checked in. Welcome to the island!');
           }}
         >
           {profile.checked ? <Check size={16} /> : <DoorOpen size={16} />}{' '}
-          {profile.checked ? 'Check out' : 'Check in to the island'}
+          {onCheckIn
+            ? profile.checked
+              ? 'Edit today’s update'
+              : 'Check in'
+            : profile.checked
+              ? 'Check out'
+              : 'Check in to the island'}
           {!profile.checked && <ArrowUpRight size={16} />}
         </button>
       </div>
@@ -209,6 +218,7 @@ export function Sidebar({
   );
 }
 export type SidebarProps = {
+  onCheckIn?: () => void;
   profile: Profile;
   update: (patch: Partial<Profile>) => void;
   setToast: (message: string) => void;

@@ -1,3 +1,4 @@
+import { hourLabel } from './hosted';
 import { lampPosts } from './world';
 import { cameraView } from './camera-view';
 import { diveState } from './fun-state';
@@ -13,7 +14,8 @@ import { OpenSea } from './open-sea-scene';
 import { daylightAtHour, localHour, normalizeAtmosphere, periods, type Atmosphere } from './daylight';
 export type { Atmosphere } from './daylight';
 const periodIcons = { dawn: Sunrise, morning: CloudSun, midday: Sun, golden: Sunset, dusk: Sunset, night: Moon };
-export function useIslandTime(settings: Atmosphere) {
+// `hour` is the host's office hour (0–24); without it the island follows this browser's clock.
+export function useIslandTime(settings: Atmosphere, hour?: number) {
   const [now, setNow] = useState(() => new Date());
   useEffect(() => {
     // Only a new minute changes anything on screen, so only then re-render (the light eases between).
@@ -34,17 +36,18 @@ export function useIslandTime(settings: Atmosphere) {
   return useMemo(() => {
     const sample =
       settings.mode === 'auto'
-        ? daylightAtHour(localHour(now))
+        ? daylightAtHour(hour ?? localHour(now))
         : { period: settings.mood, from: settings.mood, to: settings.mood, progress: 0 };
     return {
       ...sample,
       now,
       name: periods[sample.period].name,
       Icon: periodIcons[sample.period],
-      time: now.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }),
-      timezone: Intl.DateTimeFormat().resolvedOptions().timeZone.replaceAll('_', ' '),
+      time: hour === undefined ? now.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }) : hourLabel(hour),
+      timezone:
+        hour === undefined ? Intl.DateTimeFormat().resolvedOptions().timeZone.replaceAll('_', ' ') : 'Office time',
     };
-  }, [now, settings.mode, settings.mood]);
+  }, [now, settings.mode, settings.mood, hour]);
 }
 export type IslandTime = ReturnType<typeof useIslandTime>;
 export function readAtmosphere(): Atmosphere {

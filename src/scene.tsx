@@ -34,6 +34,7 @@ import { Campus, type News } from './campus';
 import { periods } from './daylight';
 import { Buildings } from './buildings';
 import { cameraView, clampFocus, type ViewMode } from './camera-view';
+import { islandKey } from './hosted';
 import { currentTask, type DemoCoworker, type Target, type WorkState } from './people';
 import { OVERVIEW_CENTER } from './shoreline';
 import { groundHeight, HIGHLANDS_OVERVIEW, inHighlands, trailById, type Trail } from './highlands';
@@ -81,6 +82,7 @@ const viewCorners = [
   viewHit = new THREE.Vector3(),
   groundPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
 export function World({
+  onPerson,
   profile,
   go,
   seat,
@@ -142,6 +144,7 @@ export function World({
   shipped: Record<string, string>;
   greeting: { id: string; text: string } | null;
   onPickSeat: (id: string) => void;
+  onPerson: (id: string) => void;
   occupied: ReadonlySet<string>;
   viewMode: ViewMode;
   onExplore: () => void;
@@ -301,6 +304,7 @@ export function World({
   useEffect(() => {
     const down = (e: KeyboardEvent) => {
         if ((e.target as HTMLElement).closest('input,textarea,select,[contenteditable=true],.modal')) return;
+        if (!islandKey(e)) return;
         if (['w', 'a', 's', 'd', 'arrowup', 'arrowdown', 'arrowleft', 'arrowright'].includes(e.key.toLowerCase())) {
           e.preventDefault();
           keys.current.add(e.key.toLowerCase());
@@ -672,6 +676,7 @@ export function World({
               : null
           }
           shipped={shipped[person.id] ?? null}
+          onClick={onPerson}
         />
       ))}
       {coworkers.map(({ person, target }) => {

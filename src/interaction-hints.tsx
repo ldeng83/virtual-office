@@ -1,3 +1,4 @@
+import { islandKey } from './hosted';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
@@ -8,7 +9,7 @@ import { Label } from './label';
 // Shows what can be used: a ring and the action under the pointer, an "E" prompt on the nearest
 // spot as you walk up to it, and a marker on every spot in view while Q is held.
 const typing = (e: KeyboardEvent) =>
-  !!(e.target as HTMLElement).closest?.('input,textarea,select,[contenteditable=true],.modal');
+  !islandKey(e) || !!(e.target as HTMLElement).closest?.('input,textarea,select,[contenteditable=true],.modal');
 const flat = new THREE.Quaternion().setFromEuler(new THREE.Euler(-Math.PI / 2, 0, 0));
 
 export function InteractionHints({ seat, onUse }: { seat: string | null; onUse: (spot: Spot) => void }) {
