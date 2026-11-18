@@ -4,7 +4,6 @@ import { cameraView } from './camera-view';
 import {
   advanceWork,
   currentTask,
-  demoCoworkers,
   nextActivity,
   peopleView,
   resolveTarget,
@@ -15,6 +14,7 @@ import {
 import type { Period } from './daylight';
 import { routeLength } from './rides';
 import { playerState, seaState } from './fun-state';
+import { reconcilePlans } from './coworker-plans';
 
 export type FeedItem = {
   id: number;
@@ -36,6 +36,7 @@ export function useCoworkers({
   position,
   showDemo,
   onLook,
+  people,
 }: {
   period: Period;
   seat: string | null;
@@ -44,15 +45,20 @@ export function useCoworkers({
   position: Point;
   showDemo: boolean;
   onLook: () => void;
+  // Who is on the island: the demo coworkers, or the real people a host supplies.
+  people: DemoCoworker[];
 }) {
   // Demo coworkers: each part of the day has a home activity plus short errands. A small planner
   // picks what's next when the current activity's time is up; the scene just walks them there.
   const seatRef = useRef(seat);
   seatRef.current = seat;
+  const peopleRef = useRef(people);
+  peopleRef.current = people;
+  const peopleKey = people.map(p => p.id).join('\u0000');
   const planHome = (period: Period) => {
     const taken = new Set(seatRef.current ? [seatRef.current] : []),
       plans: Record<string, Target | null> = {};
-    for (const person of demoCoworkers) {
+    for (const person of peopleRef.current) {
       const target = resolveTarget(person.schedule[period]?.home ?? null, taken);
       if (target?.seatId) taken.add(target.seatId);
       plans[person.id] = target;
@@ -73,8 +79,25 @@ export function useCoworkers({
       setPlans(planHome(period));
     }
   }, [period]);
+  // People come and go while the island is open (a teammate checks in): the newcomer gets a plan
+  // and a task, and nobody else is disturbed.
   useEffect(() => {
-    const timers = demoCoworkers.map(person => {
+    setPlans(all =>
+      reconcilePlans(all, peopleRef.current, planPeriod.current, new Set(seatRef.current ? [seatRef.current] : [])),
+    );
+    setWork(all => {
+      const missing = peopleRef.current.filter(p => !all[p.id]);
+      if (!missing.length) return all;
+      const next = {
+        ...all,
+        ...Object.fromEntries(missing.map(p => [p.id, { task: 0, progress: Math.random() * 0.5 }])),
+      };
+      workRef.current = next;
+      return next;
+    });
+  }, [peopleKey]);
+  useEffect(() => {
+    const timers = people.map(person => {
       const current = plans[person.id],
         block = person.schedule[planPeriod.current];
       if (!current || !block || !block.errands.length) return 0;
@@ -105,17 +128,17 @@ export function useCoworkers({
       );
     });
     return () => timers.forEach(clearTimeout);
-  }, [plans]);
+  }, [plans, peopleKey]);
   const coworkers = React.useMemo(
-    () => (showDemo ? demoCoworkers.map(person => ({ person, target: plans[person.id] ?? null })) : []),
-    [plans, showDemo],
+    () => (showDemo ? people.map(person => ({ person, target: plans[person.id] ?? null })) : []),
+    [plans, showDemo, peopleKey],
   );
   // Work: time spent at a work spot moves their current task forward; finishing posts to the feed.
   const plansRef = useRef(plans);
   plansRef.current = plans;
   const [work, setWork] = useState<Record<string, WorkState>>(() =>
     Object.fromEntries(
-      demoCoworkers.map(p => [
+      people.map(p => [
         p.id,
         { task: Math.floor(Math.random() * p.tasks.length), progress: 0.3 + Math.random() * 0.4 },
       ]),
@@ -125,7 +148,7 @@ export function useCoworkers({
   const [shipped, setShipped] = useState<Record<string, string>>({});
   const feedId = useRef(0);
   const [feed, setFeed] = useState<FeedItem[]>(() =>
-    demoCoworkers.flatMap(person => {
+    people.flatMap(person => {
       const target = plans[person.id],
         task = currentTask(person, work[person.id]);
       return target
@@ -171,12 +194,12 @@ export function useCoworkers({
     const clock = window.setInterval(() => {
       const next = { ...workRef.current };
       let changed = false;
-      for (const person of demoCoworkers) {
+      for (const person of peopleRef.current) {
         const target = plansRef.current[person.id],
           at = peopleView[person.id];
         if (!target?.activity.work || !at?.present || Math.hypot(at.x - target.point[0], at.z - target.point[1]) > 0.3)
           continue;
-        const result = advanceWork(person, next[person.id], 1);
+        const result = advanceWork(person, next[person.id] ?? { task: 0, progress: 0 }, 1);
         next[person.id] = result.state;
         changed = true;
         if (result.finished) {
@@ -208,7 +231,7 @@ export function useCoworkers({
     const before = previousPlans.current;
     previousPlans.current = plans;
     if (before === plans || !showDemo) return;
-    for (const person of demoCoworkers) {
+    for (const person of peopleRef.current) {
       const a = before[person.id],
         b = plans[person.id];
       if (a === b) continue;
@@ -218,7 +241,7 @@ export function useCoworkers({
         post(person, '💬', `joined the ${b.activity.activity.toLowerCase()}`);
       else if (b?.activity.icon === '☕') post(person, '☕', 'took a coffee break');
       else if (b?.activity.work && !a?.activity.work) {
-        const task = currentTask(person, workRef.current[person.id]);
+        const task = currentTask(person, workRef.current[person.id] ?? { task: 0, progress: 0 });
         post(person, task.icon, `is back on ${task.title}`);
       }
     }
@@ -266,9 +289,13 @@ export function useCoworkers({
   };
   const say = (personId: string, text: string) => setGreeting({ id: personId, text });
   const occupiedSeats = new Set(occupied.keys());
+  // A newcomer is drawn before their work state is stored; give them a blank one for that frame.
+  const everyone = people.every(p => work[p.id])
+    ? work
+    : { ...Object.fromEntries(people.map(p => [p.id, { task: 0, progress: 0 }])), ...work };
   return {
     coworkers,
-    work,
+    work: everyone,
     shipped,
     feed,
     greeting,

@@ -28,6 +28,7 @@ import { cameraView, type ViewMode } from './camera-view';
 import { World, SceneBoundary, MIN_ZOOM, MAX_ZOOM } from './scene';
 import { initials, readProfile, type Profile } from './profile';
 import { useCoworkers } from './use-coworkers';
+import { demoCoworkers } from './people';
 import { Sidebar, type SidebarTab } from './sidebar';
 import { Dialog, type DialogKind } from './dialogs';
 import { readAutopilot, type AutopilotSettings } from './autopilot';
@@ -98,6 +99,7 @@ export function App() {
     position,
     showDemo,
     onLook: freeLook,
+    people: demoCoworkers,
   });
   const fun = useFun({
     seat,
