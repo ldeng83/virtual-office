@@ -4,6 +4,7 @@ import { App } from './app';
 import { IslandOffice } from './island-office';
 import type { HostPerson } from './host';
 import './style.css';
+import './standalone.css';
 
 // `?hosted` shows the island the way a host app embeds it: inside a page with its own controls,
 // with a few made-up teammates. Handy for checking the seam without the host app.

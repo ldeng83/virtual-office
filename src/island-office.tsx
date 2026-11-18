@@ -257,381 +257,385 @@ export function IslandOffice({ host }: { host?: IslandHost }) {
         : b,
     );
   return (
-    <div className="island-root app">
-      <header className="header">
-        <a
-          className="brand"
-          // Inside a host app the brand is a label, not a way out of the page.
-          href={hosted ? undefined : '/'}
-          aria-label="BIsland home"
-          title="Boston Identity Island"
-        >
-          <span className="brand-icon">
-            <Waves size={23} />
-          </span>
-          <span className="brand-name">
-            <b>B</b>Island
-          </span>
-          <span className="brand-divider" />
-          <span className="workspace-name">
-            Our island office
-            <ChevronDown size={13} />
-          </span>
-        </a>
-        <div className="header-right">
-          {!hosted && <span className="prototype">LOCAL PROTOTYPE</span>}
-          <span className="weather">
-            <mood.Icon size={17} /> {mood.name}
-          </span>
-          <button className="icon-button" aria-label="Help" onClick={() => setModal('help')}>
-            <HelpCircle size={19} />
-          </button>
-          <button
-            className="profile-button"
-            aria-label="Edit profile"
-            style={{ background: profile.color }}
-            onClick={() => setModal('settings')}
+    <div className="island-root">
+      <div className="app">
+        <header className="header">
+          <a
+            className="brand"
+            // Inside a host app the brand is a label, not a way out of the page.
+            href={hosted ? undefined : '/'}
+            aria-label="BIsland home"
+            title="Boston Identity Island"
           >
-            {initials(profile.name)}
-          </button>
-        </div>
-      </header>
-      <main>
-        <Sidebar
-          onCheckIn={host?.onCheckIn}
-          profile={profile}
-          update={update}
-          setToast={setToast}
-          tab={tab}
-          setTab={setTab}
-          nearestId={nearest.id}
-          travel={travel}
-          coworkers={coworkers}
-          work={work}
-          feed={feed}
-          showDemo={showDemo}
-          unseen={unseen}
-          autopilot={autopilot.active ? (autopilot.activity?.activity ?? 'Planning') : null}
-          findPerson={findPerson}
-          openFeedItem={openFeedItem}
-        />
-        <section
-          ref={panel}
-          data-view-mode={viewMode}
-          data-mood={mood.period}
-          className="island-panel"
-          aria-label="Interactive 3D island"
-        >
-          <div className="scene-top">
-            <div className="location-chip">
-              <span className="online-dot" />
-              {mood.name}
-              <span className="chip-divider" />
-              <time
-                dateTime={mood.now.toISOString()}
-                title={`${mood.timezone}${atmosphere.mode === 'manual' ? ' · Manual atmosphere' : ' · Following real time'}`}
-              >
-                {mood.time}
-              </time>
-              {atmosphere.mode === 'manual' && <span className="manual-chip">Manual</span>}
-            </div>
-            <button className="scene-settings" aria-label="Island atmosphere" onClick={() => setModal('atmosphere')}>
-              <Settings2 size={18} />
+            <span className="brand-icon">
+              <Waves size={23} />
+            </span>
+            <span className="brand-name">
+              <b>B</b>Island
+            </span>
+            <span className="brand-divider" />
+            <span className="workspace-name">
+              Our island office
+              <ChevronDown size={13} />
+            </span>
+          </a>
+          <div className="header-right">
+            {!hosted && <span className="prototype">LOCAL PROTOTYPE</span>}
+            <span className="weather">
+              <mood.Icon size={17} /> {mood.name}
+            </span>
+            <button className="icon-button" aria-label="Help" onClick={() => setModal('help')}>
+              <HelpCircle size={19} />
             </button>
-          </div>
-          <SceneBoundary>
-            <Suspense fallback={<div className="loading">Finding your little corner of the world…</div>}>
-              <Canvas
-                shadows
-                orthographic
-                gl={{ stencil: true }}
-                camera={{ position: [21, 25, 36], zoom: 30, near: 0.1, far: 1000 }}
-                dpr={[1, 1.7]}
-                onCreated={() => setLoaded(true)}
-              >
-                <World
-                  onPerson={id => {
-                    if (host) return host.onPerson?.(id);
-                    const view = coworkers.find(c => c.person.id === id);
-                    if (view) greet(view);
-                  }}
-                  profile={profile}
-                  go={go}
-                  seat={seat}
-                  setSeat={setSeat}
-                  onPosition={setPosition}
-                  reset={reset}
-                  atmosphere={atmosphere}
-                  time={mood}
-                  viewMode={viewMode}
-                  onExplore={() => setViewMode('follow')}
-                  onFreeLook={freeLook}
-                  coworkers={coworkers}
-                  greeting={greeting}
-                  onPickSeat={pickSeat}
-                  occupied={occupiedSeats}
-                  work={work}
-                  shipped={shipped}
-                  news={news}
-                  radioOn={fun.radioOn}
-                  onRadio={fun.toggleRadio}
-                  onTelescope={fun.lookThroughTelescope}
-                  shells={fun.shells}
-                  onShell={fun.collectShell}
-                  onPetCat={fun.petCat}
-                  onPetDog={fun.petDog}
-                  emote={fun.emote}
-                  raining={raining}
-                  rainbow={fun.rainbow}
-                  onHike={trail =>
-                    setToast(
-                      `🥾 Hiking the ${trail.name} (${trail.level.toLowerCase()}). Press a movement key to stop.`,
-                    )
-                  }
-                  walkRequest={walkRequest}
-                  hikeRequest={hikeRequest}
-                  onNoRoute={() => setToast('There’s no way to walk there. Try a path or a place nearby.')}
-                  autopilot={autopilot.command}
-                  autopilotOn={autopilot.active}
-                  onAutopilotArrive={autopilot.arrive}
-                />
-              </Canvas>
-            </Suspense>
-          </SceneBoundary>
-          <MiniMap people={mapPeople} onOpen={() => setMapOpen(true)} />
-          {mapOpen && (
-            <FullMap
-              people={mapPeople}
-              trailsDone={Object.keys(fun.stats.trails)}
-              onWalk={point => {
-                setViewMode('follow');
-                setWalkRequest({ point, seq: Date.now() });
-              }}
-              onJump={travel}
-              onHike={id => setHikeRequest({ id, seq: Date.now() })}
-              onFindPerson={findPerson}
-              onClose={() => setMapOpen(false)}
-            />
-          )}
-          <div className="view-modes" role="group" aria-label="Camera mode">
-            <button aria-pressed={viewMode === 'follow'} onClick={() => setViewMode('follow')}>
-              <Navigation size={14} /> {viewMode === 'free' ? 'Back to me' : 'Follow me'}
-            </button>
-            <button aria-pressed={viewMode === 'overview'} onClick={() => setViewMode('overview')}>
-              <Compass size={14} /> Island overview
-            </button>
-          </div>
-          {loaded && viewMode === 'overview' && position[1] > -56 && (
-            <div className="island-caption">
-              <span>YOUR EVERYDAY GETAWAY</span>
-              <h2>Good work happens here.</h2>
-              <p>Find your spot. Make a connection.</p>
-            </div>
-          )}
-          <div className="map-controls">
-            <button aria-label="Zoom in" onClick={() => (cameraView.zoom = Math.min(MAX_ZOOM, cameraView.zoom + 5))}>
-              <Plus size={18} />
-            </button>
-            <button aria-label="Zoom out" onClick={() => (cameraView.zoom = Math.max(MIN_ZOOM, cameraView.zoom - 5))}>
-              <Minus size={18} />
-            </button>
-            <div />
             <button
-              aria-label="Reset view"
-              onClick={() => {
-                setReset(v => v + 1);
-                cameraView.zoom = 30;
-                setViewMode(v => (v === 'free' ? 'follow' : v));
-              }}
+              className="profile-button"
+              aria-label="Edit profile"
+              style={{ background: profile.color }}
+              onClick={() => setModal('settings')}
             >
-              <Maximize2 size={17} />
+              {initials(profile.name)}
             </button>
           </div>
-          <div className="scene-bottom">
-            <span className="current-location">
-              <MapPin size={15} />
-              {nearest.name}
-            </span>
-            <span className="movement-hint">
-              <span>W A S D</span> to move <i /> Click to walk <i /> <span>E</span> to use <i /> Hold <span>Q</span> to
-              show what you can use <i /> Drag to pan <i /> Right-drag to orbit <i /> Scroll to zoom
-            </span>
-          </div>
-          {dive.hud.under && <div className="dive-tint" />}
-          {dive.splash > 0 && <div key={dive.splash} className="dive-splash" />}
-          {seat && dive.diving && (
-            <div className="seat-message dive-hud">
-              <span aria-hidden="true">🤿</span>
-              <span
-                className="air-gauge"
-                role="meter"
-                aria-label="Air left"
-                aria-valuenow={Math.round(dive.hud.air * 100)}
+        </header>
+        <main>
+          <Sidebar
+            onCheckIn={host?.onCheckIn}
+            profile={profile}
+            update={update}
+            setToast={setToast}
+            tab={tab}
+            setTab={setTab}
+            nearestId={nearest.id}
+            travel={travel}
+            coworkers={coworkers}
+            work={work}
+            feed={feed}
+            showDemo={showDemo}
+            unseen={unseen}
+            autopilot={autopilot.active ? (autopilot.activity?.activity ?? 'Planning') : null}
+            findPerson={findPerson}
+            openFeedItem={openFeedItem}
+          />
+          <section
+            ref={panel}
+            data-view-mode={viewMode}
+            data-mood={mood.period}
+            className="island-panel"
+            aria-label="Interactive 3D island"
+          >
+            <div className="scene-top">
+              <div className="location-chip">
+                <span className="online-dot" />
+                {mood.name}
+                <span className="chip-divider" />
+                <time
+                  dateTime={mood.now.toISOString()}
+                  title={`${mood.timezone}${atmosphere.mode === 'manual' ? ' · Manual atmosphere' : ' · Following real time'}`}
+                >
+                  {mood.time}
+                </time>
+                {atmosphere.mode === 'manual' && <span className="manual-chip">Manual</span>}
+              </div>
+              <button className="scene-settings" aria-label="Island atmosphere" onClick={() => setModal('atmosphere')}>
+                <Settings2 size={18} />
+              </button>
+            </div>
+            <SceneBoundary>
+              <Suspense fallback={<div className="loading">Finding your little corner of the world…</div>}>
+                <Canvas
+                  shadows
+                  orthographic
+                  gl={{ stencil: true }}
+                  camera={{ position: [21, 25, 36], zoom: 30, near: 0.1, far: 1000 }}
+                  dpr={[1, 1.7]}
+                  onCreated={() => setLoaded(true)}
+                >
+                  <World
+                    onPerson={id => {
+                      if (host) return host.onPerson?.(id);
+                      const view = coworkers.find(c => c.person.id === id);
+                      if (view) greet(view);
+                    }}
+                    profile={profile}
+                    go={go}
+                    seat={seat}
+                    setSeat={setSeat}
+                    onPosition={setPosition}
+                    reset={reset}
+                    atmosphere={atmosphere}
+                    time={mood}
+                    viewMode={viewMode}
+                    onExplore={() => setViewMode('follow')}
+                    onFreeLook={freeLook}
+                    coworkers={coworkers}
+                    greeting={greeting}
+                    onPickSeat={pickSeat}
+                    occupied={occupiedSeats}
+                    work={work}
+                    shipped={shipped}
+                    news={news}
+                    radioOn={fun.radioOn}
+                    onRadio={fun.toggleRadio}
+                    onTelescope={fun.lookThroughTelescope}
+                    shells={fun.shells}
+                    onShell={fun.collectShell}
+                    onPetCat={fun.petCat}
+                    onPetDog={fun.petDog}
+                    emote={fun.emote}
+                    raining={raining}
+                    rainbow={fun.rainbow}
+                    onHike={trail =>
+                      setToast(
+                        `🥾 Hiking the ${trail.name} (${trail.level.toLowerCase()}). Press a movement key to stop.`,
+                      )
+                    }
+                    walkRequest={walkRequest}
+                    hikeRequest={hikeRequest}
+                    onNoRoute={() => setToast('There’s no way to walk there. Try a path or a place nearby.')}
+                    autopilot={autopilot.command}
+                    autopilotOn={autopilot.active}
+                    onAutopilotArrive={autopilot.arrive}
+                  />
+                </Canvas>
+              </Suspense>
+            </SceneBoundary>
+            <MiniMap people={mapPeople} onOpen={() => setMapOpen(true)} />
+            {mapOpen && (
+              <FullMap
+                people={mapPeople}
+                trailsDone={Object.keys(fun.stats.trails)}
+                onWalk={point => {
+                  setViewMode('follow');
+                  setWalkRequest({ point, seq: Date.now() });
+                }}
+                onJump={travel}
+                onHike={id => setHikeRequest({ id, seq: Date.now() })}
+                onFindPerson={findPerson}
+                onClose={() => setMapOpen(false)}
+              />
+            )}
+            <div className="view-modes" role="group" aria-label="Camera mode">
+              <button aria-pressed={viewMode === 'follow'} onClick={() => setViewMode('follow')}>
+                <Navigation size={14} /> {viewMode === 'free' ? 'Back to me' : 'Follow me'}
+              </button>
+              <button aria-pressed={viewMode === 'overview'} onClick={() => setViewMode('overview')}>
+                <Compass size={14} /> Island overview
+              </button>
+            </div>
+            {loaded && viewMode === 'overview' && position[1] > -56 && (
+              <div className="island-caption">
+                <span>YOUR EVERYDAY GETAWAY</span>
+                <h2>Good work happens here.</h2>
+                <p>Find your spot. Make a connection.</p>
+              </div>
+            )}
+            <div className="map-controls">
+              <button aria-label="Zoom in" onClick={() => (cameraView.zoom = Math.min(MAX_ZOOM, cameraView.zoom + 5))}>
+                <Plus size={18} />
+              </button>
+              <button aria-label="Zoom out" onClick={() => (cameraView.zoom = Math.max(MIN_ZOOM, cameraView.zoom - 5))}>
+                <Minus size={18} />
+              </button>
+              <div />
+              <button
+                aria-label="Reset view"
+                onClick={() => {
+                  setReset(v => v + 1);
+                  cameraView.zoom = 30;
+                  setViewMode(v => (v === 'free' ? 'follow' : v));
+                }}
               >
-                <i className={dive.hud.air < 1 / 6 ? 'low' : ''} style={{ width: `${dive.hud.air * 100}%` }} />
-              </span>
-              <b>
-                {Math.floor((dive.hud.air * 180) / 60)}:{String(Math.round(dive.hud.air * 180) % 60).padStart(2, '0')}
-              </b>
-              <span className="dive-hint">
-                {dive.hud.returning
-                  ? 'Heading back to the ladder'
-                  : dive.hud.free
-                    ? 'W A S D to swim'
-                    : dive.hud.under
-                      ? 'Guided tour · W A S D to swim it yourself'
-                      : 'Down the ladder…'}
-              </span>
-              <button className="dive-log-button" title="Your dive log" onClick={() => setModal('divelog')}>
-                📖 {dive.found}/{SPECIES.length}
-              </button>
-              <button onClick={dive.surface}>{dive.hud.under && !dive.hud.returning ? 'Surface' : 'Climb out'}</button>
-            </div>
-          )}
-          {seat && !dive.diving && (
-            <div className="seat-message">
-              <Armchair size={17} />
-              <span>{seatMessage(seat).text}</span>
-              <button onClick={() => setSeat(null)}>{seatMessage(seat).action}</button>
-            </div>
-          )}
-          {fun.nudge && (
-            <div className="nearby-prompt nudge">
-              <span>🌴 You’ve been at your desk a while. The hammocks are free.</span>
-              <button onClick={fun.takeBreak}>Take a break</button>
-              <button className="quiet" onClick={fun.snooze}>
-                Not now
+                <Maximize2 size={17} />
               </button>
             </div>
-          )}
-          {nearby && !greeting && !fun.nudge && (
-            <div className="nearby-prompt">
-              <span className="person-avatar" style={{ background: nearby.person.color }}>
-                {initials(nearby.person.name)}
+            <div className="scene-bottom">
+              <span className="current-location">
+                <MapPin size={15} />
+                {nearest.name}
               </span>
+              <span className="movement-hint">
+                <span>W A S D</span> to move <i /> Click to walk <i /> <span>E</span> to use <i /> Hold <span>Q</span>{' '}
+                to show what you can use <i /> Drag to pan <i /> Right-drag to orbit <i /> Scroll to zoom
+              </span>
+            </div>
+            {dive.hud.under && <div className="dive-tint" />}
+            {dive.splash > 0 && <div key={dive.splash} className="dive-splash" />}
+            {seat && dive.diving && (
+              <div className="seat-message dive-hud">
+                <span aria-hidden="true">🤿</span>
+                <span
+                  className="air-gauge"
+                  role="meter"
+                  aria-label="Air left"
+                  aria-valuenow={Math.round(dive.hud.air * 100)}
+                >
+                  <i className={dive.hud.air < 1 / 6 ? 'low' : ''} style={{ width: `${dive.hud.air * 100}%` }} />
+                </span>
+                <b>
+                  {Math.floor((dive.hud.air * 180) / 60)}:{String(Math.round(dive.hud.air * 180) % 60).padStart(2, '0')}
+                </b>
+                <span className="dive-hint">
+                  {dive.hud.returning
+                    ? 'Heading back to the ladder'
+                    : dive.hud.free
+                      ? 'W A S D to swim'
+                      : dive.hud.under
+                        ? 'Guided tour · W A S D to swim it yourself'
+                        : 'Down the ladder…'}
+                </span>
+                <button className="dive-log-button" title="Your dive log" onClick={() => setModal('divelog')}>
+                  📖 {dive.found}/{SPECIES.length}
+                </button>
+                <button onClick={dive.surface}>
+                  {dive.hud.under && !dive.hud.returning ? 'Surface' : 'Climb out'}
+                </button>
+              </div>
+            )}
+            {seat && !dive.diving && (
+              <div className="seat-message">
+                <Armchair size={17} />
+                <span>{seatMessage(seat).text}</span>
+                <button onClick={() => setSeat(null)}>{seatMessage(seat).action}</button>
+              </div>
+            )}
+            {fun.nudge && (
+              <div className="nearby-prompt nudge">
+                <span>🌴 You’ve been at your desk a while. The hammocks are free.</span>
+                <button onClick={fun.takeBreak}>Take a break</button>
+                <button className="quiet" onClick={fun.snooze}>
+                  Not now
+                </button>
+              </div>
+            )}
+            {nearby && !greeting && !fun.nudge && (
+              <div className="nearby-prompt">
+                <span className="person-avatar" style={{ background: nearby.person.color }}>
+                  {initials(nearby.person.name)}
+                </span>
+                <span>
+                  <strong>{nearby.person.name}</strong> is nearby · {nearby.target?.activity.activity}
+                </span>
+                <button onClick={() => greet(nearby)}>
+                  <Hand size={14} /> Say hi
+                </button>
+              </div>
+            )}
+            {(autopilot.active || autopilot.countdown !== null) && (
+              <div className={autopilot.active ? 'autopilot-pill' : 'autopilot-pill counting'} role="status">
+                <Bot size={16} />
+                {autopilot.active ? (
+                  <>
+                    <span>
+                      <strong>Autopilot</strong>
+                      {autopilot.activity && <> · {autopilot.activity.activity}</>}
+                      <small> · press any key to take over</small>
+                    </span>
+                    <button onClick={autopilot.takeOver}>Take over</button>
+                  </>
+                ) : (
+                  <span>Autopilot in {autopilot.countdown}…</span>
+                )}
+              </div>
+            )}
+            {toast && (
+              <div className="toast" role="status">
+                <Check size={17} />
+                {toast}
+              </div>
+            )}
+          </section>
+        </main>
+        <footer className="bottom-bar">
+          <div className="self">
+            <span className="self-avatar" style={{ background: profile.color }}>
+              {initials(profile.name)}
+            </span>
+            <div>
+              <strong>{profile.name}</strong>
               <span>
-                <strong>{nearby.person.name}</strong> is nearby · {nearby.target?.activity.activity}
+                {autopilot.active ? '🤖 On autopilot' : profile.checked ? 'Checked in' : 'Exploring the island'}
               </span>
-              <button onClick={() => greet(nearby)}>
-                <Hand size={14} /> Say hi
-              </button>
             </div>
-          )}
-          {(autopilot.active || autopilot.countdown !== null) && (
-            <div className={autopilot.active ? 'autopilot-pill' : 'autopilot-pill counting'} role="status">
-              <Bot size={16} />
-              {autopilot.active ? (
-                <>
-                  <span>
-                    <strong>Autopilot</strong>
-                    {autopilot.activity && <> · {autopilot.activity.activity}</>}
-                    <small> · press any key to take over</small>
-                  </span>
-                  <button onClick={autopilot.takeOver}>Take over</button>
-                </>
-              ) : (
-                <span>Autopilot in {autopilot.countdown}…</span>
-              )}
-            </div>
-          )}
-          {toast && (
-            <div className="toast" role="status">
-              <Check size={17} />
-              {toast}
-            </div>
-          )}
-        </section>
-      </main>
-      <footer className="bottom-bar">
-        <div className="self">
-          <span className="self-avatar" style={{ background: profile.color }}>
-            {initials(profile.name)}
-          </span>
-          <div>
-            <strong>{profile.name}</strong>
-            <span>
-              {autopilot.active ? '🤖 On autopilot' : profile.checked ? 'Checked in' : 'Exploring the island'}
-            </span>
-          </div>
-          <span className="bottom-divider" />
-          <label className="status-select">
-            <span className={profile.status === 'Available' ? 'online-dot' : 'busy-dot'} />
-            <select
-              aria-label="Your availability"
-              value={profile.status}
-              onChange={e => update({ status: e.target.value })}
-            >
-              <option>Available</option>
-              <option>Focused</option>
-              <option>In a meeting</option>
-              <option>Away</option>
-            </select>
-          </label>
-          <button
-            className="autopilot-toggle"
-            aria-pressed={autopilotSettings.enabled && !autopilotSettings.paused}
-            aria-label={autopilotSettings.paused ? 'Resume autopilot' : 'Pause autopilot'}
-            title={
-              !autopilotSettings.enabled
-                ? 'Autopilot when idle is off (turn it on in your profile)'
-                : autopilotSettings.paused
-                  ? 'Autopilot paused: your avatar stays put when you’re idle'
-                  : `Autopilot after ${autopilotSettings.delay / 1000}s idle. Click to pause.`
-            }
-            disabled={!autopilotSettings.enabled}
-            onClick={() => updateAutopilot({ paused: !autopilotSettings.paused })}
-          >
-            <Bot size={15} />
-          </button>
-        </div>
-        <div className="emotes" role="group" aria-label="Emotes">
-          {(['wave', 'dance', 'highfive', 'cheer'] as const).map(kind => (
+            <span className="bottom-divider" />
+            <label className="status-select">
+              <span className={profile.status === 'Available' ? 'online-dot' : 'busy-dot'} />
+              <select
+                aria-label="Your availability"
+                value={profile.status}
+                onChange={e => update({ status: e.target.value })}
+              >
+                <option>Available</option>
+                <option>Focused</option>
+                <option>In a meeting</option>
+                <option>Away</option>
+              </select>
+            </label>
             <button
-              key={kind}
-              onClick={() => fun.doEmote(kind)}
-              aria-label={kind === 'highfive' ? 'High five' : kind[0].toUpperCase() + kind.slice(1)}
-              title={kind === 'highfive' ? 'High five' : kind[0].toUpperCase() + kind.slice(1)}
+              className="autopilot-toggle"
+              aria-pressed={autopilotSettings.enabled && !autopilotSettings.paused}
+              aria-label={autopilotSettings.paused ? 'Resume autopilot' : 'Pause autopilot'}
+              title={
+                !autopilotSettings.enabled
+                  ? 'Autopilot when idle is off (turn it on in your profile)'
+                  : autopilotSettings.paused
+                    ? 'Autopilot paused: your avatar stays put when you’re idle'
+                    : `Autopilot after ${autopilotSettings.delay / 1000}s idle. Click to pause.`
+              }
+              disabled={!autopilotSettings.enabled}
+              onClick={() => updateAutopilot({ paused: !autopilotSettings.paused })}
             >
-              {fun.emoteIcons[kind]}
+              <Bot size={15} />
             </button>
-          ))}
-        </div>
-        <div
-          className="fun-stats"
-          title="Today’s seashells, fish caught, trails completed, summits this week and your dive log"
-        >
-          <span>🐚 {5 - fun.shells.length}/5 today</span>
-          <span>🐟 {fun.stats.fish}</span>
-          <span>🥾 {fun.trailsDone}/3</span>
-          <span>⛰️ {fun.summitsThisWeek}</span>
-          <button title="Open your dive log" onClick={() => setModal('divelog')}>
-            🤿 {dive.found}/{SPECIES.length}
+          </div>
+          <div className="emotes" role="group" aria-label="Emotes">
+            {(['wave', 'dance', 'highfive', 'cheer'] as const).map(kind => (
+              <button
+                key={kind}
+                onClick={() => fun.doEmote(kind)}
+                aria-label={kind === 'highfive' ? 'High five' : kind[0].toUpperCase() + kind.slice(1)}
+                title={kind === 'highfive' ? 'High five' : kind[0].toUpperCase() + kind.slice(1)}
+              >
+                {fun.emoteIcons[kind]}
+              </button>
+            ))}
+          </div>
+          <div
+            className="fun-stats"
+            title="Today’s seashells, fish caught, trails completed, summits this week and your dive log"
+          >
+            <span>🐚 {5 - fun.shells.length}/5 today</span>
+            <span>🐟 {fun.stats.fish}</span>
+            <span>🥾 {fun.trailsDone}/3</span>
+            <span>⛰️ {fun.summitsThisWeek}</span>
+            <button title="Open your dive log" onClick={() => setModal('divelog')}>
+              🤿 {dive.found}/{SPECIES.length}
+            </button>
+          </div>
+          <button className="help-button" onClick={() => setModal('help')}>
+            <HelpCircle size={16} /> How to explore
           </button>
-        </div>
-        <button className="help-button" onClick={() => setModal('help')}>
-          <HelpCircle size={16} /> How to explore
-        </button>
-      </footer>
-      {modal && (
-        <Dialog
-          modal={modal}
-          setModal={setModal}
-          profile={profile}
-          update={update}
-          atmosphere={atmosphere}
-          updateAtmosphere={updateAtmosphere}
-          sound={sound}
-          mood={mood}
-          showDemo={showDemo}
-          setShowDemo={setShowDemo}
-          hosted={hosted}
-          autopilot={autopilotSettings}
-          updateAutopilot={updateAutopilot}
-          diveLog={dive.log}
-          onRain={fun.startRain}
-          raining={raining}
-        />
-      )}
+        </footer>
+        {modal && (
+          <Dialog
+            modal={modal}
+            setModal={setModal}
+            profile={profile}
+            update={update}
+            atmosphere={atmosphere}
+            updateAtmosphere={updateAtmosphere}
+            sound={sound}
+            mood={mood}
+            showDemo={showDemo}
+            setShowDemo={setShowDemo}
+            hosted={hosted}
+            autopilot={autopilotSettings}
+            updateAutopilot={updateAutopilot}
+            diveLog={dive.log}
+            onRain={fun.startRain}
+            raining={raining}
+          />
+        )}
+      </div>
     </div>
   );
 }

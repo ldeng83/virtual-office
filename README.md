@@ -47,6 +47,18 @@ Open the local URL printed by Vite. Production build: `npm run build`. Preview t
 
 Check-in, name, color, status, and atmosphere preferences persist in browser localStorage. This is a local prototype, with no authentication, shared presence, attendance backend, chat, microphone capture, or voice calls. The meeting areas are scenery for this milestone.
 
+## Hosting the island
+
+Another React app can show the island with its own people. `src/island-office.tsx` exports `IslandOffice`; without props it is the standalone app above, and with a `host` (types in `src/host.ts`) it becomes that app's office:
+
+- `host.people` are the teammates on the island (only those with `present`); each gets a home work seat from their id and a day of short errands (`src/hosted-people.ts`). People who join or leave while the island is open come and go without disturbing anyone else.
+- `host.me` supplies your name, colours and whether you are checked in. The island's check-in button calls `host.onCheckIn`; clicking a teammate calls `host.onPerson`.
+- `host.hour` sets the time of day while the atmosphere follows real time, and `host.weather: 'rain'` brings the rain.
+- Every style lives under `.island-root`, which fills its container (give it at least 680px of height) and sizes itself from that box. Set `--island-font` and `--island-display` on a parent to use the host's fonts; the web fonts are loaded only by the standalone `index.html`.
+- Keys only reach the island when nothing is focused or focus is inside it, so typing elsewhere on the host page never moves your avatar.
+
+`http://127.0.0.1:5173/?hosted` shows a small made-up host page for trying this out. `src/main.tsx`, `src/app.tsx` and `src/standalone.css` belong to the standalone app only.
+
 ## Project structure
 
 - `src/main.tsx`: entry point.

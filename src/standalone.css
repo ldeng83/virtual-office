@@ -1,0 +1,8 @@
+/* Page-level styles for the island running on its own (a host app brings its own page). */
+body {
+  margin: 0;
+  background: #f5f6ef;
+}
+#root {
+  height: 100dvh;
+}
