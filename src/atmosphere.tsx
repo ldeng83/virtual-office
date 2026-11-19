@@ -159,7 +159,7 @@ export function AtmosphereScene({
       <ambientLight ref={ambient} />
       <directionalLight
         ref={sun}
-        castShadow
+        castShadow={settings.quality !== 'low'}
         shadow-mapSize={[2048, 2048]}
         shadow-camera-left={-60}
         shadow-camera-right={60}
@@ -344,6 +344,17 @@ export function AtmosphereControls({
           onChange={e => update({ motion: e.target.checked })}
         />
       </label>
+      <span className="form-label">Graphics</span>
+      <div className="quality-options" role="group" aria-label="Graphics quality">
+        <button type="button" aria-pressed={settings.quality === 'low'} onClick={() => update({ quality: 'low' })}>
+          Low
+          <small>Easier on phones and laptops</small>
+        </button>
+        <button type="button" aria-pressed={settings.quality === 'high'} onClick={() => update({ quality: 'high' })}>
+          High
+          <small>Shadows and sharper detail</small>
+        </button>
+      </div>
       <div className="sound-card">
         <div className="sound-heading">
           <Waves size={22} />

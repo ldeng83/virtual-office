@@ -22,6 +22,7 @@ import {
 import { locations, type Point } from './world';
 import type { Trail } from './highlands';
 import { readAtmosphere, useOcean, useIslandTime, type Atmosphere } from './atmosphere';
+import { renderQuality } from './daylight';
 import { type News } from './campus';
 import { FullMap, MiniMap } from './island-map';
 import { cameraView, type ViewMode } from './camera-view';
@@ -30,7 +31,8 @@ import { initials, readProfile, type Profile } from './profile';
 import { useCoworkers } from './use-coworkers';
 import { demoCoworkers } from './people';
 import { homeSeats, hostedCoworkers } from './hosted-people';
-import { hostedProfile, islandKey, takesFocus, wheelZooms } from './hosted';
+import { hostedProfile, islandKey, islandWeather, takesFocus, wheelZooms } from './hosted';
+import { TouchStick, useTouchNav } from './touch-stick';
 import type { IslandHost } from './host';
 import { Sidebar, type SidebarTab } from './sidebar';
 import { Dialog, type DialogKind } from './dialogs';
@@ -119,6 +121,7 @@ export function IslandOffice({ host }: { host?: IslandHost }) {
     onLook: freeLook,
     people,
   });
+  const weatherLocked = host?.weather !== undefined;
   const fun = useFun({
     seat,
     setSeat,
@@ -134,8 +137,12 @@ export function IslandOffice({ host }: { host?: IslandHost }) {
       cameraView.look = point;
       freeLook();
     },
+    lockWeather: weatherLocked,
   });
-  const raining = fun.raining || host?.weather === 'rain';
+  const raining = islandWeather(host?.weather, fun.raining).raining;
+  const picture = renderQuality(atmosphere.quality);
+  const canvasGl = useMemo(() => ({ stencil: true, antialias: picture.antialias }), [picture.antialias]);
+  const touchNav = useTouchNav();
   const dive = useDive({ seat, setSeat, notify: setToast });
   const news: News = useMemo(
     () => ({
@@ -269,7 +276,7 @@ export function IslandOffice({ host }: { host?: IslandHost }) {
         : b,
     );
   return (
-    <div className="island-root" data-hosted={hosted}>
+    <div className="island-root" data-hosted={hosted} data-touch-nav={touchNav ? 'true' : 'false'}>
       <div className="app">
         <header className="header">
           <a
@@ -365,11 +372,11 @@ export function IslandOffice({ host }: { host?: IslandHost }) {
             <SceneBoundary>
               <Suspense fallback={<div className="loading">Finding your little corner of the world…</div>}>
                 <Canvas
-                  shadows
+                  shadows={picture.shadows}
                   orthographic
-                  gl={{ stencil: true }}
+                  gl={canvasGl}
                   camera={{ position: [21, 25, 36], zoom: 30, near: 0.1, far: 1000 }}
-                  dpr={[1, 1.7]}
+                  dpr={picture.dpr}
                   onCreated={() => setLoaded(true)}
                 >
                   <World
@@ -437,11 +444,19 @@ export function IslandOffice({ host }: { host?: IslandHost }) {
               />
             )}
             <div className="view-modes" role="group" aria-label="Camera mode">
-              <button aria-pressed={viewMode === 'follow'} onClick={() => setViewMode('follow')}>
-                <Navigation size={14} /> {viewMode === 'free' ? 'Back to me' : 'Follow me'}
+              <button
+                aria-label={viewMode === 'free' ? 'Back to me' : 'Follow me'}
+                aria-pressed={viewMode === 'follow'}
+                onClick={() => setViewMode('follow')}
+              >
+                <Navigation size={14} /> <span>{viewMode === 'free' ? 'Back to me' : 'Follow me'}</span>
               </button>
-              <button aria-pressed={viewMode === 'overview'} onClick={() => setViewMode('overview')}>
-                <Compass size={14} /> Island overview
+              <button
+                aria-label="Island overview"
+                aria-pressed={viewMode === 'overview'}
+                onClick={() => setViewMode('overview')}
+              >
+                <Compass size={14} /> <span>Island overview</span>
               </button>
             </div>
             {loaded && viewMode === 'overview' && position[1] > -56 && (
@@ -475,12 +490,16 @@ export function IslandOffice({ host }: { host?: IslandHost }) {
                 <MapPin size={15} />
                 {nearest.name}
               </span>
-              <span className="movement-hint">
+              <span className="movement-hint keyboard-hint">
                 <span>W A S D</span> to move <i /> Click to walk <i /> <span>Space</span> or <span>E</span> to use <i />{' '}
                 Hold <span>Q</span> to show what you can use <i /> Drag to pan <i /> Right-drag to orbit <i /> Scroll to
                 zoom
               </span>
+              <span className="movement-hint touch-hint">
+                Stick to walk <i /> Drag to orbit <i /> Pinch to zoom <i /> Tap to walk or use
+              </span>
             </div>
+            <TouchStick />
             {dive.hud.under && <div className="dive-tint" />}
             {dive.splash > 0 && <div key={dive.splash} className="dive-splash" />}
             {seat && dive.diving && (
@@ -656,6 +675,8 @@ export function IslandOffice({ host }: { host?: IslandHost }) {
             diveLog={dive.log}
             onRain={fun.startRain}
             raining={raining}
+            weatherLocked={weatherLocked}
+            hostedWeather={host?.weather}
           />
         )}
       </div>

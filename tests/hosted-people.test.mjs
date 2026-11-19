@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { hostedCoworkers, WORK_SEATS } from '../src/hosted-people.ts';
+import { DEFAULT_LOOK } from '../src/hosted.ts';
 import { advanceWork, resolveTarget } from '../src/people.ts';
 import { seats } from '../src/world.ts';
 import { periods } from '../src/daylight.ts';
@@ -67,6 +68,17 @@ test('the same person keeps the same seat across periods', () => {
   const [p] = hostedCoworkers([P('a')]);
   assert.deepEqual(p.schedule.midday.home.seats, p.schedule.morning.home.seats);
   assert.equal(p.schedule.morning.home.work, true);
+});
+
+test('a partial look still fills in a whole avatar', () => {
+  const [p] = hostedCoworkers([P('a', { look: { shirt: '#abc', hairStyle: 'nope' } })]);
+  assert.equal(p.color, '#abc');
+  assert.equal(p.hair, DEFAULT_LOOK.hair);
+  assert.equal(p.hairStyle, 'short');
+  assert.equal(p.skin, DEFAULT_LOOK.skin);
+  assert.equal(p.bottoms, DEFAULT_LOOK.bottoms);
+  const [q] = hostedCoworkers([P('b', { look: null })]);
+  assert.deepEqual([q.color, q.hair, q.hairStyle, q.skin, q.bottoms], Object.values(DEFAULT_LOOK));
 });
 
 test('tasks fall back, and the look carries over', () => {

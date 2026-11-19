@@ -9,6 +9,7 @@ import { groundHeight } from './highlands';
 import { riderPose, riderSpot, startRide, stepRide } from './rides';
 import { ARRIVAL_DOCK, peopleView, type DemoCoworker, type Target } from './people';
 import { stepAlongPath, turnToward, wrapAngle } from './steering';
+import { DEFAULT_LOOK } from './hosted';
 
 // Shared avatar body so the player and coworkers always look like the same kind of person.
 // The head and torso are separate groups so coworkers can look around and breathe.
@@ -77,10 +78,10 @@ function Part({
 }
 export function AvatarBody({
   color,
-  hair = '#5b5147',
-  hairStyle = 'short',
-  skin = '#e8bc98',
-  bottoms = '#495b60',
+  hair = DEFAULT_LOOK.hair,
+  hairStyle = DEFAULT_LOOK.hairStyle,
+  skin = DEFAULT_LOOK.skin,
+  bottoms = DEFAULT_LOOK.bottoms,
   head,
   torso,
   xray = 0,

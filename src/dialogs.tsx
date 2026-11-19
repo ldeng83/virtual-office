@@ -176,6 +176,8 @@ export function Dialog({
   hosted,
   onRain,
   raining,
+  weatherLocked,
+  hostedWeather,
   autopilot,
   updateAutopilot,
   diveLog,
@@ -214,9 +216,18 @@ export function Dialog({
         ) : modal === 'atmosphere' ? (
           <>
             <AtmosphereControls settings={atmosphere} update={updateAtmosphere} sound={sound} time={mood} />
-            <button className="checked-button shower-button" disabled={raining} onClick={onRain}>
-              {raining ? '🌧️ It’s raining now' : '🌧️ Bring a passing shower'}
+            <button className="checked-button shower-button" disabled={weatherLocked || raining} onClick={onRain}>
+              {weatherLocked
+                ? hostedWeather === 'rain'
+                  ? '🌧️ Rain is coming from the office'
+                  : '🌤️ Weather is coming from the office'
+                : raining
+                  ? '🌧️ It’s raining now'
+                  : '🌧️ Bring a passing shower'}
             </button>
+            {weatherLocked && (
+              <p className="settings-note">The office sends live weather, so a manual shower stays off.</p>
+            )}
           </>
         ) : modal === 'help' ? (
           <>
@@ -226,7 +237,10 @@ export function Dialog({
                 <Navigation />
                 <div>
                   <strong>Take a walk</strong>
-                  <p>Click the ground or use WASD / arrow keys. Paths go around desks and trees.</p>
+                  <p>
+                    Click or tap the ground, or use WASD / arrow keys. On a touch screen, hold the stick at the lower
+                    left and drag to walk. Paths go around desks and trees.
+                  </p>
                 </div>
               </li>
               <li>
@@ -241,10 +255,11 @@ export function Dialog({
                 <div>
                   <strong>Look around</strong>
                   <p>
-                    Drag to pan, right-drag to orbit, and scroll or use + / − to zoom. Panning frees the camera; walk or
-                    choose Back to me to return. Follow me keeps you in view; Island overview shows every district. Use
-                    the map or sidebar to travel. Walk up to a place and buttons for what you can do there appear over
-                    its name.
+                    With a mouse, drag to pan, right-drag to orbit, and scroll or use + / − to zoom. On a touch screen,
+                    drag to orbit and pinch to zoom; a short tap still walks or uses what’s under your finger. Panning
+                    or orbiting frees the camera; walk or choose Back to me to return. Follow me keeps you in view;
+                    Island overview shows every district. Use the map or sidebar to travel. Walk up to a place and
+                    buttons for what you can do there appear over its name.
                   </p>
                 </div>
               </li>
@@ -252,7 +267,10 @@ export function Dialog({
                 <Sun />
                 <div>
                   <strong>Set the mood</strong>
-                  <p>Open the island settings to change the sky, pause gentle motion, or listen to ocean sounds.</p>
+                  <p>
+                    Open the island settings to change the sky, choose Low or High graphics, pause gentle motion, or
+                    listen to ocean sounds.
+                  </p>
                 </div>
               </li>
               <li>
@@ -301,19 +319,20 @@ export function Dialog({
                     After 90 seconds with no input while you’re checked in, your avatar carries on with a day of its
                     own: your desk in the morning, meetings at midday, coffee runs, rides and hikes. Sit down first and
                     that seat becomes home. Focused keeps you at a desk or the library, and In a meeting keeps you in a
-                    pavilion. Press any key or click to take back control; zooming, panning and orbiting the view leave
-                    it running. Change the delay or turn it off in your profile, or pause it with the robot button by
-                    your status.
+                    pavilion. Press any key, click, or use the walk stick to take back control; zooming, panning and
+                    orbiting the view leave it running. Change the delay or turn it off in your profile, or pause it
+                    with the robot button by your status.
                   </p>
                 </div>
               </li>
               <li>
                 <Users />
                 <div>
-                  <strong>A first little island</strong>
+                  <strong>{hosted ? 'This office, on the island' : 'A first little island'}</strong>
                   <p>
-                    Check-in and preferences are saved in this browser. Multiplayer, chat, and voice will arrive in
-                    later milestones.
+                    {hosted
+                      ? 'Check-in is handled by your office, and teammates who are here already walk the island with you. Your status, graphics, and autopilot preferences stay on this device.'
+                      : 'Check-in and preferences are saved in this browser. Multiplayer, chat, and voice will arrive in later milestones.'}
                   </p>
                 </div>
               </li>
@@ -400,6 +419,9 @@ export type DialogProps = {
   diveLog: DiveLog;
   onRain: () => void;
   raining: boolean;
+  // When the host sends weather, the manual shower cannot override it.
+  weatherLocked: boolean;
+  hostedWeather?: 'clear' | 'rain';
   modal: DialogKind;
   setModal: (modal: DialogKind | null) => void;
   profile: Profile;

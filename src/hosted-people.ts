@@ -2,6 +2,7 @@ import { coffee, hike, ride, spot, type Activity, type Block, type DemoCoworker 
 import { plaza, seats, type Point } from './world.ts';
 import { periods, type Period } from './daylight.ts';
 import type { HostPerson } from './host.ts';
+import { avatarLook } from './hosted.ts';
 
 // Real teammates, supplied by a host app, as island coworkers: a home seat to work at and a day of
 // short errands. Everything is derived from the person's id, so every viewer sees the same seat.
@@ -118,15 +119,16 @@ export function hostedCoworkers(
       schedule = Object.fromEntries(
         (Object.keys(periods) as Period[]).map((period, i) => [period, block(i, period === 'night')]),
       ) as Record<Period, Block | null>;
+    const look = avatarLook(person.look);
     return {
       id: person.id,
       name: person.name,
       role: person.role,
-      color: person.look.shirt,
-      hair: person.look.hair,
-      hairStyle: person.look.hairStyle,
-      skin: person.look.skin,
-      bottoms: person.look.bottoms,
+      color: look.color,
+      hair: look.hair,
+      hairStyle: look.hairStyle,
+      skin: look.skin,
+      bottoms: look.bottoms,
       greetings: [`Hi, ${first} here. Good to see you!`, 'Hey! How’s your day going?', 'Hello! Lovely out here today.'],
       focusReply: 'Heads down right now. Catch you in a bit?',
       craft: seed % 2 ? 'code' : 'design',

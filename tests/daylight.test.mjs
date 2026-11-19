@@ -1,6 +1,13 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { daylightAtHour, localHour, normalizeAtmosphere, periodAtHour, periods } from '../src/daylight.ts';
+import {
+  daylightAtHour,
+  localHour,
+  normalizeAtmosphere,
+  periodAtHour,
+  periods,
+  renderQuality,
+} from '../src/daylight.ts';
 
 test('local day periods change at the agreed boundaries', () => {
   for (const [hour, expected] of [
@@ -35,7 +42,13 @@ test('lighting stays continuous at boundaries, anchors, and midnight', () => {
   assert.deepEqual(lighting(0), lighting(24));
 });
 test('new settings follow real time and legacy presets migrate', () => {
-  assert.deepEqual(normalizeAtmosphere(null, true), { mode: 'auto', mood: 'midday', motion: false, volume: 35 });
+  assert.deepEqual(normalizeAtmosphere(null, true), {
+    mode: 'auto',
+    mood: 'midday',
+    motion: false,
+    volume: 35,
+    quality: 'high',
+  });
   assert.equal(normalizeAtmosphere({ mood: 'day' }).mood, 'midday');
   assert.equal(normalizeAtmosphere({ mood: 'sunset' }).mood, 'golden');
   assert.deepEqual(normalizeAtmosphere({ mode: 'manual', mood: 'dusk', motion: false, volume: 12 }), {
@@ -43,8 +56,26 @@ test('new settings follow real time and legacy presets migrate', () => {
     mood: 'dusk',
     motion: false,
     volume: 12,
+    quality: 'high',
   });
   assert.equal(normalizeAtmosphere({ mood: '__proto__', volume: Infinity }).mood, 'midday');
   assert.equal(normalizeAtmosphere({ volume: 110 }).volume, 100);
   assert.equal(normalizeAtmosphere({ volume: -1 }).volume, 0);
+  assert.equal(normalizeAtmosphere({ quality: 'low' }).quality, 'low');
+  assert.equal(normalizeAtmosphere({ quality: 'LOW' }).quality, 'low');
+  assert.equal(normalizeAtmosphere({ quality: 'ultra' }).quality, 'high');
+});
+
+test('low graphics drops shadows and caps the pixel ratio', () => {
+  const low = renderQuality('low');
+  const high = renderQuality('high');
+  assert.equal(low.shadows, false);
+  assert.equal(low.contactShadows, false);
+  assert.equal(low.antialias, false);
+  assert.deepEqual(low.dpr, [1, 1.25]);
+  assert.equal(high.shadows, true);
+  assert.equal(high.contactShadows, true);
+  assert.equal(high.antialias, true);
+  assert.deepEqual(high.dpr, [1, 1.7]);
+  assert.ok(low.dpr[1] < high.dpr[1]);
 });

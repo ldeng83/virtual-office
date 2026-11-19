@@ -3,6 +3,11 @@ export type Profile = {
   color: string;
   status: string;
   checked: boolean;
+  // Present when a host supplies a full avatar. Standalone play keeps the defaults.
+  hair?: string;
+  hairStyle?: 'short' | 'long';
+  skin?: string;
+  bottoms?: string;
 };
 export const DEFAULT_NAME = 'Le Deng';
 // Two-letter initials for avatar badges (Bin Yang → BY, so the two Bins differ).

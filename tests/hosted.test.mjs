@@ -1,6 +1,16 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { hostedProfile, keysAllowed, hourLabel, takesFocus, wheelZooms } from '../src/hosted.ts';
+import {
+  avatarLook,
+  checkInLabel,
+  DEFAULT_LOOK,
+  hostedProfile,
+  islandWeather,
+  keysAllowed,
+  hourLabel,
+  takesFocus,
+  wheelZooms,
+} from '../src/hosted.ts';
 
 test('a hosted profile takes name, colour and check-in from the host, and keeps your status', () => {
   const me = {
@@ -13,10 +23,60 @@ test('a hosted profile takes name, colour and check-in from the host, and keeps 
   assert.deepEqual(hostedProfile(me, stored), {
     name: 'Ada Lovelace',
     color: '#abcdef',
+    hair: '#111',
+    hairStyle: 'short',
+    skin: DEFAULT_LOOK.skin,
+    bottoms: DEFAULT_LOOK.bottoms,
     status: 'Focused',
     checked: true,
   });
   assert.equal(hostedProfile({ ...me, name: '  ' }, stored).name, 'You');
+});
+
+test('a hosted avatar wears the full look, and missing pieces fall back', () => {
+  const full = avatarLook({
+    hair: ' #222 ',
+    hairStyle: 'long',
+    shirt: '#abcdef',
+    skin: '#fedcba',
+    bottoms: '#112233',
+  });
+  assert.deepEqual(full, {
+    color: '#abcdef',
+    hair: '#222',
+    hairStyle: 'long',
+    skin: '#fedcba',
+    bottoms: '#112233',
+  });
+  assert.deepEqual(avatarLook(null), DEFAULT_LOOK);
+  assert.deepEqual(avatarLook(undefined), DEFAULT_LOOK);
+  assert.deepEqual(avatarLook({}), DEFAULT_LOOK);
+  const partial = avatarLook({ shirt: '', hair: '#abc', hairStyle: 'bob', skin: '   ' });
+  assert.equal(partial.color, DEFAULT_LOOK.color);
+  assert.equal(partial.hair, '#abc');
+  assert.equal(partial.hairStyle, 'short');
+  assert.equal(partial.skin, DEFAULT_LOOK.skin);
+  const stored = { name: 'Le Deng', color: '#d9815f', status: 'Away', checked: true };
+  const profile = hostedProfile({ id: 'u', name: 'Ada', checkedIn: false, look: null }, stored);
+  assert.equal(profile.color, DEFAULT_LOOK.color);
+  assert.equal(profile.hair, DEFAULT_LOOK.hair);
+  assert.equal(profile.status, 'Away');
+  assert.equal(profile.checked, false);
+});
+
+test('hosted weather owns the sky, and a manual shower only runs without it', () => {
+  assert.deepEqual(islandWeather('rain', false), { raining: true, manual: false });
+  assert.deepEqual(islandWeather('clear', true), { raining: false, manual: false });
+  assert.deepEqual(islandWeather('fog', true), { raining: false, manual: false });
+  assert.deepEqual(islandWeather(undefined, true), { raining: true, manual: true });
+  assert.deepEqual(islandWeather(undefined, false), { raining: false, manual: true });
+});
+
+test('the check-in label asks the host when the office owns it', () => {
+  assert.equal(checkInLabel(true, false), 'Check in');
+  assert.equal(checkInLabel(true, true), 'Edit today’s update');
+  assert.equal(checkInLabel(false, false), 'Check in to the island');
+  assert.equal(checkInLabel(false, true), 'Check out');
 });
 
 const el = (tagName, extra = {}) => ({ tagName, isContentEditable: false, ...extra });
