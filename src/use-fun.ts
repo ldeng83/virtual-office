@@ -53,6 +53,7 @@ export function useFun({
   travel,
   openTelescope,
   lookAt,
+  lockWeather = false,
 }: {
   seat: string | null;
   setSeat: (id: string | null) => void;
@@ -65,6 +66,8 @@ export function useFun({
   travel: (point: Point) => void;
   openTelescope: () => void;
   lookAt: (point: Point) => void;
+  // A host that sends weather owns the sky, so local showers stay off.
+  lockWeather?: boolean;
 }) {
   const [stats, setStats] = useState(readStats);
   useEffect(() => {
@@ -224,7 +227,7 @@ export function useFun({
     [rainbow, setRainbow] = useState(false);
   const weatherTimers = useRef<number[]>([]);
   const startRain = () => {
-    if (raining) return;
+    if (raining || lockWeather) return;
     setRaining(true);
     notify('🌧️ A passing shower. The café and the pavilions are dry.');
     weatherTimers.current.push(
@@ -237,10 +240,10 @@ export function useFun({
     );
   };
   useEffect(() => {
-    if (!motion) return;
+    if (!motion || lockWeather) return;
     const timer = window.setTimeout(startRain, (6 + Math.random() * 6) * 60000);
     return () => window.clearTimeout(timer);
-  }, [motion, raining]);
+  }, [motion, raining, lockWeather]);
   useEffect(() => () => weatherTimers.current.forEach(t => window.clearTimeout(t)), []);
 
   // Break nudge after two minutes in a row at a desk.

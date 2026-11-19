@@ -91,7 +91,20 @@ export const periods = {
   },
 } as const;
 export type Period = keyof typeof periods;
-export type Atmosphere = { mode: 'auto' | 'manual'; mood: Period; motion: boolean; volume: number };
+export type GraphicsQuality = 'low' | 'high';
+export type Atmosphere = {
+  mode: 'auto' | 'manual';
+  mood: Period;
+  motion: boolean;
+  volume: number;
+  quality: GraphicsQuality;
+};
+// Low drops the expensive passes (shadow maps, contact shadows, extra pixels) and keeps the scene readable.
+export function renderQuality(quality: GraphicsQuality = 'high') {
+  return quality === 'low'
+    ? { shadows: false, dpr: [1, 1.25] as [number, number], antialias: false, contactShadows: false }
+    : { shadows: true, dpr: [1, 1.7] as [number, number], antialias: true, contactShadows: true };
+}
 export function periodAtHour(hour: number): Period {
   const h = ((hour % 24) + 24) % 24;
   return h < 5
@@ -125,7 +138,7 @@ export function daylightAtHour(hour: number) {
   return { period: periodAtHour(hour), from, to, progress: (h - start) / (end - start) };
 }
 export function normalizeAtmosphere(value: unknown, reducedMotion = false): Atmosphere {
-  const defaults: Atmosphere = { mode: 'auto', mood: 'midday', motion: !reducedMotion, volume: 35 };
+  const defaults: Atmosphere = { mode: 'auto', mood: 'midday', motion: !reducedMotion, volume: 35, quality: 'high' };
   if (!value || typeof value !== 'object') return defaults;
   const data = value as Record<string, unknown>;
   const legacy = data.mood === 'day' ? 'midday' : data.mood === 'sunset' ? 'golden' : data.mood;
@@ -137,5 +150,6 @@ export function normalizeAtmosphere(value: unknown, reducedMotion = false): Atmo
       typeof data.volume === 'number' && Number.isFinite(data.volume)
         ? Math.max(0, Math.min(100, data.volume))
         : defaults.volume,
+    quality: String(data.quality).toLowerCase() === 'low' ? 'low' : 'high',
   };
 }

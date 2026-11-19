@@ -1,15 +1,64 @@
-import type { IslandHost } from './host.ts';
+import type { HostLook, IslandHost } from './host.ts';
 import type { Profile } from './profile.ts';
 
 // Small pure pieces of running inside a host app (see IslandOffice).
 
+// The same defaults the avatar body uses when a field is missing, so a partial host look
+// still reads as a finished person instead of a shirt floating over a blank head.
+export const DEFAULT_LOOK = {
+  color: '#d9815f',
+  hair: '#5b5147',
+  hairStyle: 'short' as const,
+  skin: '#e8bc98',
+  bottoms: '#495b60',
+};
+export type AvatarLook = {
+  color: string;
+  hair: string;
+  hairStyle: 'short' | 'long';
+  skin: string;
+  bottoms: string;
+};
+const paint = (value: unknown, fallback: string) =>
+  typeof value === 'string' && value.trim() ? value.trim() : fallback;
+
+// Shirt, hair, hairstyle, skin and bottoms, with a fallback for anything the host left out.
+export function avatarLook(look?: Partial<HostLook> | null): AvatarLook {
+  return {
+    color: paint(look?.shirt, DEFAULT_LOOK.color),
+    hair: paint(look?.hair, DEFAULT_LOOK.hair),
+    hairStyle: look?.hairStyle === 'long' || look?.hairStyle === 'short' ? look.hairStyle : DEFAULT_LOOK.hairStyle,
+    skin: paint(look?.skin, DEFAULT_LOOK.skin),
+    bottoms: paint(look?.bottoms, DEFAULT_LOOK.bottoms),
+  };
+}
+
 // Who you are comes from the host; your island status stays your own.
-export const hostedProfile = (me: IslandHost['me'], stored: Profile): Profile => ({
-  name: me.name.trim() || 'You',
-  color: me.look.shirt,
-  status: stored.status,
-  checked: me.checkedIn,
-});
+export const hostedProfile = (me: IslandHost['me'], stored: Profile): Profile => {
+  const look = avatarLook(me.look);
+  return {
+    name: (me.name ?? '').trim() || 'You',
+    color: look.color,
+    hair: look.hair,
+    hairStyle: look.hairStyle,
+    skin: look.skin,
+    bottoms: look.bottoms,
+    status: stored.status,
+    checked: !!me.checkedIn,
+  };
+};
+
+// A host that sends weather owns the sky. A manual shower only runs when it doesn't.
+export function islandWeather(hostWeather: string | undefined, localRain: boolean) {
+  if (hostWeather === undefined) return { raining: localRain, manual: true };
+  return { raining: hostWeather === 'rain', manual: false };
+}
+
+// The check-in button. A host app writes the record, so the label asks for that instead of toggling locally.
+export function checkInLabel(hosted: boolean, checked: boolean) {
+  if (hosted) return checked ? 'Edit today’s update' : 'Check in';
+  return checked ? 'Check out' : 'Check in to the island';
+}
 
 type KeyTarget = { tagName?: string; isContentEditable?: boolean };
 // Whether a key press is meant for the island: pressed with nothing focused, or with focus inside

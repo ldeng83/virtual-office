@@ -20,6 +20,7 @@ import {
 import { locations, type Point } from './world';
 import { currentTask, type WorkState } from './people';
 import { initials, type Profile } from './profile';
+import { checkInLabel } from './hosted';
 import type { CoworkerView, FeedItem } from './use-coworkers';
 
 const icons = [
@@ -56,6 +57,20 @@ export function Sidebar({
   openFeedItem,
   autopilot,
 }: SidebarProps) {
+  const checkInButton = () => (
+    <button
+      className={profile.checked ? 'checked-button' : 'primary-button'}
+      onClick={() => {
+        // A host app runs its own check-in; the island only asks for it.
+        if (onCheckIn) return onCheckIn();
+        update({ checked: !profile.checked });
+        setToast(profile.checked ? 'Checked out. See you soon!' : 'Checked in. Welcome to the island!');
+      }}
+    >
+      {profile.checked ? <Check size={16} /> : <DoorOpen size={16} />} {checkInLabel(!!onCheckIn, profile.checked)}
+      {!profile.checked && <ArrowUpRight size={16} />}
+    </button>
+  );
   return (
     <aside className="sidebar">
       <div className="intro">
@@ -76,25 +91,24 @@ export function Sidebar({
           <strong>{profile.checked ? 'You’re checked in' : 'Make yourself at home'}</strong>
         </div>
         <p>{profile.checked ? 'Enjoy your time on the island.' : 'Ready when you are. Settle in.'}</p>
-        <button
-          className={profile.checked ? 'checked-button' : 'primary-button'}
-          onClick={() => {
-            // A host app runs its own check-in; the island only asks for it.
-            if (onCheckIn) return onCheckIn();
-            update({ checked: !profile.checked });
-            setToast(profile.checked ? 'Checked out. See you soon!' : 'Checked in. Welcome to the island!');
-          }}
-        >
-          {profile.checked ? <Check size={16} /> : <DoorOpen size={16} />}{' '}
-          {onCheckIn
-            ? profile.checked
-              ? 'Edit today’s update'
-              : 'Check in'
-            : profile.checked
-              ? 'Check out'
-              : 'Check in to the island'}
-          {!profile.checked && <ArrowUpRight size={16} />}
-        </button>
+        {checkInButton()}
+      </div>
+      <div className="checkin-bar">
+        <span className={profile.checked ? 'online-dot' : 'offline-dot'} />
+        <strong>{profile.checked ? 'Checked in' : 'Not checked in'}</strong>
+        <label className="status-select">
+          <select
+            aria-label="Your availability"
+            value={profile.status}
+            onChange={e => update({ status: e.target.value })}
+          >
+            <option>Available</option>
+            <option>Focused</option>
+            <option>In a meeting</option>
+            <option>Away</option>
+          </select>
+        </label>
+        {checkInButton()}
       </div>
       <div className="tabs">
         <button className={tab === 'places' ? 'active' : ''} onClick={() => setTab('places')}>
@@ -220,7 +234,7 @@ export function Sidebar({
           <span className="tiny-island">✦</span>
           <strong>A little island. A better workday.</strong>
         </div>
-        <p>Built for a team of 8.</p>
+        <p>{hosted ? 'The whole team, on one island.' : 'A demo day with your teammates.'}</p>
       </div>
     </aside>
   );

@@ -234,6 +234,21 @@
     color: #829075;
     margin: 8px 0 16px;
   }
+  /* Narrow screens hide the full card and show this single row under the view instead. */
+  .checkin-bar {
+    display: none;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+    padding: 8px 0 2px;
+  }
+  .checkin-bar strong {
+    font-size: 12px;
+    font-weight: 600;
+  }
+  .checkin-bar .status-select {
+    margin-left: 4px;
+  }
   .primary-button,
   .checked-button {
     width: 100%;
@@ -389,6 +404,7 @@
   .island-panel canvas {
     position: absolute !important;
     inset: 0;
+    touch-action: none;
   }
   .scene-top {
     position: absolute;
@@ -522,6 +538,18 @@
     border-radius: 50%;
     background: #90a38d;
     margin: 0 3px;
+  }
+  .touch-hint {
+    display: none;
+  }
+  &[data-touch-nav='true'] .keyboard-hint {
+    display: none;
+  }
+  &[data-touch-nav='true'] .touch-hint {
+    display: flex;
+  }
+  &[data-touch-nav='true'] .view-modes {
+    left: 118px;
   }
   .zone-label {
     display: flex;
@@ -1106,7 +1134,28 @@
     .island-caption h2 {
       font-size: 17px;
     }
-    .movement-hint {
+    .movement-hint,
+    &[data-touch-nav='true'] .touch-hint {
+      display: none;
+    }
+    .checkin-bar {
+      display: flex;
+    }
+    .checkin-bar .primary-button,
+    .checkin-bar .checked-button {
+      width: auto;
+      margin-left: auto;
+      padding: 8px 10px;
+      white-space: nowrap;
+    }
+    .checkin-bar .primary-button svg:last-child {
+      margin-left: 0;
+    }
+    .self .status-select,
+    .self .bottom-divider {
+      display: none;
+    }
+    &[data-touch-nav='true'] .view-modes button span {
       display: none;
     }
     .scene-bottom {
@@ -1861,6 +1910,58 @@
   }
   .shower-button {
     margin: 4px 0 18px;
+  }
+  .quality-options {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+    margin: 8px 0 18px;
+  }
+  .quality-options button {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 4px;
+    text-align: left;
+    border: 1px solid #dce2d5;
+    border-radius: 10px;
+    padding: 12px;
+    background: #f0f3e9;
+  }
+  .quality-options button[aria-pressed='true'] {
+    background: #e3ecd8;
+    border-color: #7e9a7c;
+  }
+  .quality-options small {
+    font-size: 10px;
+    color: #7e8b78;
+  }
+  .touch-stick {
+    display: none;
+    position: absolute;
+    z-index: 28;
+    left: 14px;
+    bottom: 64px;
+    width: 92px;
+    height: 92px;
+    place-items: center;
+    border-radius: 50%;
+    background: #f8faf066;
+    border: 1px solid #ffffff99;
+    box-shadow: 0 3px 16px #1d2d2426;
+    touch-action: none;
+    user-select: none;
+  }
+  .touch-stick span {
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    background: #456952cc;
+    box-shadow: 0 2px 8px #1d2d2433;
+    pointer-events: none;
+  }
+  &[data-touch-nav='true'] .touch-stick {
+    display: grid;
   }
   .shower-button:disabled {
     opacity: 0.6;

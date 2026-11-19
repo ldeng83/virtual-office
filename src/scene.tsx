@@ -31,10 +31,11 @@ import {
 import { AtmosphereScene, type IslandTime, type Atmosphere } from './atmosphere';
 import { IslandTerrain } from './terrain';
 import { Campus, type News } from './campus';
-import { periods } from './daylight';
+import { periods, renderQuality } from './daylight';
 import { Buildings } from './buildings';
 import { cameraView, clampFocus, type ViewMode } from './camera-view';
 import { islandKey } from './hosted';
+import { movementAxes, pinchZoom, steerVector, touchSteer } from './touch';
 import { currentTask, type DemoCoworker, type Target, type WorkState } from './people';
 import { OVERVIEW_CENTER } from './shoreline';
 import { groundHeight, HIGHLANDS_OVERVIEW, inHighlands, trailById, type Trail } from './highlands';
@@ -182,10 +183,37 @@ export function World({
       return ray.ray.intersectPlane(plane, new THREE.Vector3());
     };
     let press: { x: number; y: number; id: number } | null = null;
+    const touchPoints = new Map<number, { x: number; y: number }>();
+    let pinch = 0;
+    // Two fingers zoom. Orbit stays on one finger, and a short tap is still a click.
+    const applyPinch = () => {
+      if (touchPoints.size < 2) {
+        pinch = 0;
+        if (controls.current) controls.current.enableRotate = true;
+        return;
+      }
+      const [a, b] = [...touchPoints.values()];
+      const dist = Math.hypot(a.x - b.x, a.y - b.y);
+      if (controls.current) controls.current.enableRotate = false;
+      if (pinch > 0) cameraView.zoom = pinchZoom(cameraView.zoom, pinch, dist, MIN_ZOOM, MAX_ZOOM);
+      pinch = dist;
+    };
     const down = (e: PointerEvent) => {
+      if (e.pointerType === 'touch') {
+        touchPoints.set(e.pointerId, { x: e.clientX, y: e.clientY });
+        applyPinch();
+      }
+      // Left-drag pans with a mouse. Touch drags orbit instead, so a finger isn't also panning.
       if (e.button === 0 && e.pointerType !== 'touch') press = { x: e.clientX, y: e.clientY, id: e.pointerId };
     };
     const move = (e: PointerEvent) => {
+      if (e.pointerType === 'touch' && touchPoints.has(e.pointerId)) {
+        touchPoints.set(e.pointerId, { x: e.clientX, y: e.clientY });
+        if (touchPoints.size >= 2) {
+          applyPinch();
+          return;
+        }
+      }
       if (!press || e.pointerId !== press.id) return;
       if (!dragging.current) {
         if (Math.hypot(e.clientX - press.x, e.clientY - press.y) < 6) return;
@@ -204,6 +232,7 @@ export function World({
       press.y = e.clientY;
     };
     const up = (e: PointerEvent) => {
+      if (touchPoints.delete(e.pointerId)) applyPinch();
       if (press && e.pointerId === press.id) {
         press = null;
         if (dragging.current) el.style.cursor = '';
@@ -215,6 +244,7 @@ export function World({
     window.addEventListener('pointerup', up);
     window.addEventListener('pointercancel', up);
     return () => {
+      if (controls.current) controls.current.enableRotate = true;
       el.removeEventListener('pointerdown', down);
       window.removeEventListener('pointermove', move);
       window.removeEventListener('pointerup', up);
@@ -338,16 +368,13 @@ export function World({
       dz = 0;
     const sat = seat ? sittingIn.current : null;
     const view = sat?.ride ? riders[sat.id] : undefined;
-    // Which way the movement keys point, relative to the camera.
+    // Keys and the touch stick, relative to the camera. Holding either counts, even in the dead zone.
+    const axes = movementAxes(k, touchSteer);
+    const holding = k.size > 0 || touchSteer.active;
     let steer: Point | null = null;
-    if (k.size) {
-      const horizontal = Number(k.has('d') || k.has('arrowright')) - Number(k.has('a') || k.has('arrowleft'));
-      const vertical = Number(k.has('s') || k.has('arrowdown')) - Number(k.has('w') || k.has('arrowup'));
-      const az = controls.current?.getAzimuthalAngle() ?? Math.PI / 4;
-      steer = [
-        horizontal * Math.cos(az) + vertical * Math.sin(az),
-        -horizontal * Math.sin(az) + vertical * Math.cos(az),
-      ];
+    if (holding) {
+      const ax = axes ?? { x: 0, z: 0 };
+      steer = steerVector(ax.x, ax.z, controls.current?.getAzimuthalAngle() ?? Math.PI / 4);
     }
     // Diving: the movement keys take over from the guided tour and steer you, instead of ending the ride.
     const dive = sat && view?.kind === 'scuba' ? view : undefined;
@@ -357,7 +384,7 @@ export function World({
       if (steer && viewMode !== 'follow') onExplore();
     }
     diveState.surface = false;
-    if (sat && view && (!k.size || dive)) {
+    if (sat && view && (!holding || dive)) {
       // Autopilot: follow the ride's path; the vehicle follows your entry in `riders`.
       const done = dive?.mode ? stepSwim(sat.ride!.launch, dive, steer, dt) : stepRide(sat, view, dt),
         [x, z] = riderSpot(sat, view);
@@ -737,7 +764,14 @@ export function World({
       </mesh>
       <group ref={avatar} name="player-avatar">
         <group ref={poseRef}>
-          <AvatarBody color={profile.color} xray={0.55} />
+          <AvatarBody
+            color={profile.color}
+            hair={profile.hair}
+            hairStyle={profile.hairStyle}
+            skin={profile.skin}
+            bottoms={profile.bottoms}
+            xray={0.55}
+          />
           {seats.find(s => s.id === seat)?.ride?.kind === 'scuba' && <DiveGear />}
         </group>
         <pointLight ref={torch} position={[0, 0.6, 0.4]} intensity={0} distance={11} decay={1.4} color="#fff1cf" />
@@ -753,7 +787,9 @@ export function World({
           </div>
         </Label>
       </group>
-      <ContactShadows position={[0, 0.02, 0]} opacity={0.18} scale={35} blur={2} far={8} />
+      {renderQuality(atmosphere.quality).contactShadows && (
+        <ContactShadows position={[0, 0.02, 0]} opacity={0.18} scale={35} blur={2} far={8} />
+      )}
       <OrbitControls
         ref={controls}
         makeDefault
@@ -764,6 +800,7 @@ export function World({
         maxPolarAngle={Math.PI / 2.7}
         enablePan={false}
         enableZoom={false}
+        touches={{ ONE: THREE.TOUCH.ROTATE, TWO: THREE.TOUCH.DOLLY_PAN }}
         mouseButtons={{ LEFT: undefined, MIDDLE: THREE.MOUSE.ROTATE, RIGHT: THREE.MOUSE.ROTATE }}
       />
     </>
