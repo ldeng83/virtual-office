@@ -197,6 +197,7 @@ const PLACE_ICONS: Record<string, string> = {
   firepit: '🔥',
   jetty: '🎣',
   marina: '⛵',
+  cruise: '🛳️',
   bluff: '🧗',
   highlands: '🥾',
   lake: '🏞️',

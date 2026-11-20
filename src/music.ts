@@ -166,3 +166,30 @@ export class LofiRadio {
     }
   }
 }
+
+// The Island Queen's bell: three strikes, each a few inharmonic partials ringing away.
+export function ringBell(volume: number) {
+  if (volume <= 0) return;
+  const ctx = audio(),
+    out = ctx.createGain();
+  out.gain.value = volume * 0.35;
+  out.connect(ctx.destination);
+  for (let strike = 0; strike < 3; strike++) {
+    const at = ctx.currentTime + strike * 0.55;
+    for (const [ratio, level, length] of [
+      [1, 1, 2.4],
+      [2.76, 0.45, 1.4],
+      [5.4, 0.2, 0.7],
+    ]) {
+      const osc = ctx.createOscillator(),
+        gain = ctx.createGain();
+      osc.frequency.value = 880 * ratio;
+      gain.gain.setValueAtTime(0, at);
+      gain.gain.linearRampToValueAtTime(level, at + 0.005);
+      gain.gain.exponentialRampToValueAtTime(0.0005, at + length);
+      osc.connect(gain).connect(out);
+      osc.start(at);
+      osc.stop(at + length + 0.05);
+    }
+  }
+}

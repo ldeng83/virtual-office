@@ -2,8 +2,30 @@ import { Cat, Dog, Rain, Rainbow, Shells, type Shell } from './island-extras';
 import { FunSpots } from './fun';
 import { WaterSports } from './water-sports';
 import { SkyJumps } from './sky-jumps';
+import { CruiseBoat } from './cruise-boat';
+import {
+  BERTH,
+  boardAt,
+  boatPose,
+  deckDirection,
+  deckFloor,
+  deckRoute,
+  deckSpot,
+  deckStep,
+  gangwayOpen,
+  GANGWAY,
+  GANGWAY_FOOT,
+  GANGWAY_TOP,
+  leavesDeck,
+  onDeck,
+  sailingAt,
+  toDeck,
+  toWorld,
+  type DeckSpot,
+} from './cruise';
 import { StaticBatch } from './static-batch';
 import {
+  cruiseState,
   diveState,
   EMOTE_ICONS,
   jumpState,
@@ -62,7 +84,7 @@ import { groundHeight, HIGHLANDS_OVERVIEW, inHighlands, trailById, type Trail } 
 import { HighlandsScene } from './highlands-scene';
 import { DeskScreen, Whiteboard } from './work-props';
 import { AvatarBody, Coworker, DiveGear } from './coworkers';
-import { stepAlongPath, turnToward } from './steering';
+import { stepAlongPath, turnToward, wrapAngle } from './steering';
 import { Box, Cylinder, Palm, Seat } from './scene-parts';
 import { PlaceLabels } from './place-labels';
 import type { Profile } from './profile';
@@ -72,6 +94,7 @@ const Atmosphere3D = React.memo(AtmosphereScene),
   CampusScene = React.memo(Campus),
   BuildingShells = React.memo(Buildings),
   WaterSportsScene = React.memo(WaterSports),
+  CruiseScene = React.memo(CruiseBoat),
   SkyJumpsScene = React.memo(SkyJumps),
   Terrain = React.memo(IslandTerrain),
   Highlands3D = React.memo(HighlandsScene);
@@ -289,8 +312,25 @@ export function World({
     last = useRef(0);
   const [marker, setMarker] = useState<Point | null>(null);
   const pilotGoal = useRef<Target | null>(null);
+  // Aboard the Island Queen: where you stand on deck (u, v in the boat's frame), a walk across it, the
+  // deck spot you're in, a walk down the pier that ends by going aboard (to that point on deck), what
+  // to do when a deck walk ends or you're back ashore, and an autopilot plan held till she's in.
+  const deck = useRef<Point | null>(null),
+    deckPath = useRef<Point[]>([]),
+    deckMover = useRef({ speed: 0 }),
+    deckSeat = useRef<DeckSpot | null>(null),
+    boardThen = useRef<Point | null>(null),
+    onDeckArrive = useRef<(() => void) | null>(null),
+    onAshore = useRef<(() => void) | null>(null),
+    heldCommand = useRef<AutopilotCommand | null>(null),
+    boatHeading = useRef(BERTH.heading);
+  const leaveBoat = () => {
+    deck.current = deckSeat.current = boardThen.current = onDeckArrive.current = onAshore.current = null;
+    deckPath.current = [];
+  };
   useEffect(() => {
     if (go) {
+      leaveBoat();
       setSeat(null);
       pos.current.set(...([go.point[0], 0, go.point[1]] as [number, number, number]));
       path.current = [];
@@ -321,6 +361,11 @@ export function World({
     surfaceTilt = useRef(1),
     torch = useRef<THREE.PointLight>(null);
   const standUp = () => {
+    // Off a deck spot: up and standing on deck beside it.
+    if (deckSeat.current) {
+      deck.current = deckSeat.current.step;
+      deckSeat.current = null;
+    }
     const s = sittingIn.current;
     sittingIn.current = null;
     playerState.elevated = false;
@@ -337,11 +382,28 @@ export function World({
       pos.current.set(s.approach[0], 0, s.approach[1]);
   };
   useEffect(() => {
+    const spot = deckSpot(seat);
+    if (spot) {
+      // A deck spot: sit if you're aboard; otherwise walk aboard to it (while the gangway is down) and sit then.
+      if (!deck.current) {
+        setSeat(null);
+        walkOnDeck(spot.step, () => latest.current.onPickSeat(spot.id));
+        return;
+      }
+      deckSeat.current = spot;
+      deck.current = [spot.u, spot.v];
+      deckPath.current = [];
+      path.current = [];
+      setMarker(null);
+      return;
+    }
     if (seat) {
       const s = seats.find(s => s.id === seat)!;
       // Switching straight from one ride to another leaves the first vehicle behind.
       if (sittingIn.current?.ride) delete riders[sittingIn.current.id];
       rideY.current = 0;
+      // A seat ashore takes you off the boat, as any seat you pick takes you to it.
+      leaveBoat();
       sittingIn.current = s;
       playerState.elevated = !!s.y;
       if (s.ride) riders[s.id] = startRide(s, riders, seaState.sights, Math.random(), !motionOn);
@@ -459,6 +521,8 @@ export function World({
         setSeat(null);
       }
       path.current = [];
+      deckPath.current = [];
+      boardThen.current = onDeckArrive.current = onAshore.current = null;
       setMarker(null);
       [dx, dz] = steer!;
     } else if (path.current.length) {
@@ -467,26 +531,110 @@ export function World({
         dx = step.dx;
         dz = step.dz;
       }
-      if (!path.current.length) setMarker(null);
-    } else if (pilotGoal.current && !sat) {
-      // Autopilot reached its spot: face the way the activity faces, then report back.
-      const goal = pilotGoal.current;
-      pilotGoal.current = null;
-      if (!goal.seatId) avatar.current.rotation.y = goal.angle;
-      latest.current.arrive();
+      if (!path.current.length) {
+        setMarker(null);
+        // At the foot of the gangway: aboard, if it's still down, and on across the deck.
+        const to = boardThen.current;
+        boardThen.current = null;
+        if (to && !deck.current && gangwayOpen(Date.now())) {
+          deck.current = toDeck(BERTH, pos.current.x + dx, pos.current.z + dz);
+          deckPath.current = [GANGWAY_TOP, ...deckRoute(GANGWAY_TOP, to)];
+          dx = dz = 0;
+        } else if (to) onDeckArrive.current = null;
+      }
+    } else if (pilotGoal.current && !sat && !deckSeat.current) {
+      const goal = pilotGoal.current,
+        spot = deckSpot(goal.seatId),
+        clock = Date.now();
+      // The cruise: wait on the pier for the gangway, then walk aboard to the deck spot and sit.
+      if (spot) {
+        if (!deck.current && !boardThen.current && gangwayOpen(clock) && sailingAt(clock).departsIn > 8)
+          walkOnDeck(spot.step, () => {
+            pilotGoal.current = null;
+            latest.current.arrive();
+          });
+      } else if (!deck.current) {
+        // Autopilot reached its spot: face the way the activity faces, then report back.
+        pilotGoal.current = null;
+        if (!goal.seatId) avatar.current.rotation.y = goal.angle;
+        latest.current.arrive();
+      }
     }
     if (walking) {
       const length = Math.hypot(dx, dz);
       dx = length > 0.03 ? (dx / length) * dt * 3 : 0;
       dz = length > 0.03 ? (dz / length) * dt * 3 : 0;
     }
-    const moving = Math.hypot(dx, dz) > 1e-5;
-    if (moving) {
+    // The Island Queen. Walking onto the gangway while it's down puts you aboard; aboard, you walk the
+    // deck in the boat's own frame (the rail and wheelhouse are walls) and go wherever she goes.
+    const clock = Date.now(),
+      open = gangwayOpen(clock),
+      boat = boatPose(clock, motionOn);
+    if (walking && !deck.current) {
+      const board = boardAt(pos.current.x + dx, pos.current.z + dz, clock);
+      if (board) deck.current = board;
+    }
+    if (heldCommand.current && open) {
+      const command = heldCommand.current;
+      heldCommand.current = null;
+      follow(command);
+    }
+    let deckMoving = false;
+    if (deck.current && !deckSeat.current) {
+      let [du, dv] = walking ? deckDirection(boat.heading, dx, dz) : [0, 0];
+      if (!walking && deckPath.current.length) {
+        const at = { x: deck.current[0], z: deck.current[1] },
+          step = stepAlongPath(at, deckPath.current, deckMover.current, dt, 2.4);
+        if (step) [du, dv] = [step.dx, step.dz];
+        if (!deckPath.current.length) {
+          const then = onDeckArrive.current;
+          onDeckArrive.current = null;
+          then?.();
+        }
+      }
+      const from = deck.current,
+        to = deckStep(from, [from[0] + du, from[1] + dv], open);
+      deckMoving = Math.hypot(to[0] - from[0], to[1] - from[1]) > 1e-5;
+      if (leavesDeck(to, open) && to[0] > from[0]) {
+        // Down the gangway and onto the pier.
+        const [x, z] = toWorld(BERTH, ...to),
+          then = onAshore.current;
+        leaveBoat();
+        rideY.current = 0;
+        pos.current.set(x, 0, z);
+        then?.();
+      } else {
+        deck.current = to;
+        if (deckMoving) {
+          const [wx, wz] = toWorld({ x: 0, z: 0, heading: boat.heading }, to[0] - from[0], to[1] - from[1]);
+          avatar.current.rotation.y = turnToward(avatar.current.rotation.y, Math.atan2(wx, wz), dt, 12);
+        } else avatar.current.rotation.y += wrapAngle(boat.heading - boatHeading.current);
+      }
+      dx = dz = 0;
+    }
+    boatHeading.current = boat.heading;
+    const onBoat = !!deck.current;
+    if (deckSeat.current) {
+      const spot = deckSeat.current,
+        [x, z] = toWorld(boat, spot.u, spot.v);
+      pos.current.set(x, 0, z);
+      avatar.current.rotation.y = boat.heading + spot.angle;
+      rideY.current = deckFloor(spot.u) + boat.heave;
+    } else if (deck.current) {
+      const [u, v] = deck.current,
+        [x, z] = toWorld(boat, u, v);
+      pos.current.set(x, 0, z);
+      rideY.current = deckFloor(u) + (u < GANGWAY.deck ? boat.heave : 0);
+    }
+    cruiseState.aboard = onBoat;
+    const stepping = Math.hypot(dx, dz) > 1e-5,
+      moving = stepping || deckMoving;
+    if (stepping) {
       if (walkable(pos.current.x + dx, pos.current.z)) pos.current.x += dx;
       if (walkable(pos.current.x, pos.current.z + dz)) pos.current.z += dz;
       avatar.current.rotation.y = turnToward(avatar.current.rotation.y, Math.atan2(dx, dz), dt, 12);
-      walk.current += dt * 12;
     }
+    if (moving) walk.current += dt * 12;
     if (controls.current) {
       // Zoom eases toward what the UI asks for, fitted to the view; parasailing and sky jumps pull the
       // camera back as you rise, to take in the whole island.
@@ -501,7 +649,12 @@ export function World({
         view = controls.current.object,
         // However far out you zoom, the view stops at the whole sea: there's nothing beyond it.
         widest = Math.min(size.width / 330, size.height / 200),
-        wantZoom = Math.max(widest, ((fit * cameraView.zoom) / 30) * (1 - 0.5 * lift) * (1 + 0.7 * immersion.current));
+        // Out on the Island Queen the view pulls back a little, to take in the boat.
+        cruising = onBoat && sailingAt(clock).phase !== 'boarding' ? 0.8 : 1,
+        wantZoom = Math.max(
+          widest,
+          ((fit * cameraView.zoom) / 30) * (1 - 0.5 * lift) * (1 + 0.7 * immersion.current) * cruising,
+        );
       if (Math.abs(view.zoom - wantZoom) > wantZoom * 1e-4) {
         view.zoom = snapZoom.current ? wantZoom : THREE.MathUtils.damp(view.zoom, wantZoom, lift ? 3 : 10, dt);
         view.updateProjectionMatrix();
@@ -568,11 +721,13 @@ export function World({
         ? { ...rider, y: rideY.current + rider.y }
         : sat
           ? seatPose(sat.kind, sat.y ?? 0, motionOn ? now : 0)
-          : UPRIGHT;
+          : deckSeat.current
+            ? seatPose(deckSeat.current.kind, 0, motionOn ? now : 0)
+            : UPRIGHT;
     // Emotes: a short hop, spin or cheer.
     const e = emoteState.current,
       age = now - e.start,
-      active = age < 2.4 && !sat;
+      active = age < 2.4 && !sat && !deckSeat.current;
     const lift = !active
       ? 0
       : e.kind === 'dance'
@@ -583,8 +738,9 @@ export function World({
             ? Math.max(0, Math.sin(age * 4)) * 0.25
             : Math.max(0, Math.sin(age * 6)) * 0.15 * (age < 1 ? 1 : 0);
     // Standing on the ground (hills, bridges) or riding at the ride's own height.
-    const floor = sat?.ride ? 0 : groundHeight(pos.current.x, pos.current.z);
-    avatar.current.position.y = floor + (sat ? pose.y : (moving ? Math.sin(walk.current) * 0.045 : 0) + lift);
+    const floor = onBoat ? rideY.current : sat?.ride ? 0 : groundHeight(pos.current.x, pos.current.z);
+    avatar.current.position.y =
+      floor + (sat || deckSeat.current ? pose.y : (moving ? Math.sin(walk.current) * 0.045 : 0) + lift);
     if (poseRef.current) {
       poseRef.current.rotation.x = pose.pitch;
       poseRef.current.position.z = pose.z;
@@ -633,8 +789,54 @@ export function World({
   const walkOnGround = React.useCallback((target: Point, delta: number) => {
     if (delta < 6) latest.current.walkTo(target);
   }, []);
-  const walkTo = (target: Point) => {
+  // A walk to a point on deck: across it if you're aboard, otherwise to the foot of the gangway (only
+  // while it's down) and aboard from there. `then` runs once you get there.
+  const walkOnDeck = (to: Point, then: (() => void) | null = null) => {
+    if (deck.current) {
+      deckPath.current = deckRoute(deck.current, to);
+      onDeckArrive.current = then;
+      return true;
+    }
+    if (!gangwayOpen(Date.now())) return false;
+    const foot = toWorld(BERTH, ...GANGWAY_FOOT),
+      here: Point = [pos.current.x, pos.current.z],
+      route = Math.hypot(here[0] - foot[0], here[1] - foot[1]) > 0.3 ? findPath(here, foot) : [foot];
+    if (!route.length) return false;
+    path.current = route;
+    boardThen.current = to;
+    onDeckArrive.current = then;
+    return true;
+  };
+  // Off the boat, down the gangway (only while it's down), then `then`.
+  const walkOff = (then: () => void) => {
+    if (!deck.current) return then();
+    deckPath.current = [...deckRoute(deck.current, GANGWAY_TOP), GANGWAY_FOOT];
+    onDeckArrive.current = null;
+    onAshore.current = then;
+  };
+  const walkTo = (target: Point): boolean => {
     onExplore();
+    const clock = Date.now(),
+      onBoat = toDeck(boatPose(clock), ...target);
+    // A click on the deck walks you there (aboard first, if you're on the pier).
+    if (onDeck(...onBoat, false)) {
+      if (seat) {
+        standUp();
+        setSeat(null);
+      }
+      setMarker(null);
+      return walkOnDeck(onBoat);
+    }
+    // Aboard: off down the gangway first, and only while it's down.
+    if (deck.current) {
+      if (!gangwayOpen(clock)) return false;
+      if (seat) {
+        standUp();
+        setSeat(null);
+      }
+      walkOff(() => walkTo(target));
+      return true;
+    }
     if (seat) standUp();
     const route = findPath([pos.current.x, pos.current.z], target);
     if (route.length) {
@@ -659,10 +861,34 @@ export function World({
   };
   latest.current = { walkTo, onPickSeat, hike: startHike, arrive: onAutopilotArrive };
   // Autopilot heads to its next spot: the start of a trail (then along it), or a seat's step-in point.
-  useEffect(() => {
-    if (!autopilot) return;
-    const goal = autopilot.target;
+  // Aboard the Island Queen it stays on until she's back at the pier, then walks off and carries on.
+  const follow = (command: AutopilotCommand) => {
+    const goal = command.target,
+      spot = deckSpot(goal.seatId);
     pilotGoal.current = goal;
+    if (deck.current && !spot) {
+      if (!gangwayOpen(Date.now())) {
+        heldCommand.current = command;
+        return;
+      }
+      if (seat) {
+        standUp();
+        setSeat(null);
+      }
+      walkOff(() => follow(command));
+      return;
+    }
+    if (deck.current && spot) {
+      if (seat) {
+        standUp();
+        setSeat(null);
+      }
+      walkOnDeck(spot.step, () => {
+        pilotGoal.current = null;
+        latest.current.arrive();
+      });
+      return;
+    }
     // Stand up first: routes start from the seat's step-in spot, not from inside the seat.
     if (seat) {
       standUp();
@@ -676,10 +902,15 @@ export function World({
     path.current =
       Math.hypot(here[0] - goal.approach[0], here[1] - goal.approach[1]) > 0.3 ? findPath(here, goal.approach) : [];
     setMarker(path.current.length ? goal.approach : null);
+  };
+  useEffect(() => {
+    if (autopilot) follow(autopilot);
   }, [autopilot]);
   playerControl.halt = () => {
     pilotGoal.current = null;
     path.current = [];
+    deckPath.current = [];
+    boardThen.current = onDeckArrive.current = onAshore.current = heldCommand.current = null;
     setMarker(null);
   };
   useEffect(() => {
@@ -702,6 +933,7 @@ export function World({
         motion={motionOn}
       />
       <WaterSportsScene motion={motionOn} />
+      <CruiseScene motion={motionOn} onWalk={walkOnGround} onPickSeat={pickSeat} />
       <SkyJumpsScene motion={motionOn} />
       <DiveScene motion={motionOn} night={night} />
       <InteractionHints

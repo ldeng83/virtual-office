@@ -1,7 +1,7 @@
 import { ISLAND_CENTER_Z, ISLAND_X_SCALE, shoreDistance, shorePoint } from './shoreline.ts';
 import { HIGHLANDS, highlandsDistance, highlandsPoint, WEST_JETTY } from './highlands.ts';
 import { wreck } from './dive.ts';
-import { bluff, jetty, marina, reef, type Point } from './world.ts';
+import { bluff, cruisePier, jetty, marina, pierPoint, reef, type Point } from './world.ts';
 
 // Where the boats go. Each boat has a few named trips and picks one when you board, so a ride isn't
 // the same every time; if a whale or a pod of dolphins is within reach, the trip bends out to pass it.
@@ -23,6 +23,8 @@ const obstacles = [
   { angle: coastAngle([marina.x, marina.z1]), width: 0.16, push: 6 },
   { angle: coastAngle([jetty.x0, jetty.z]), width: 0.2, push: 6.5 },
   { angle: coastAngle([bluff.x, bluff.z]), width: 0.12, push: 2.5 },
+  // The cruise pier reaches a long way out, with the Island Queen alongside its T-head.
+  { angle: coastAngle(pierPoint(cruisePier.length, 0)), width: 0.2, push: 12 },
 ];
 const swingWide = (a: number) =>
   obstacles.reduce((sum, o) => sum + o.push * Math.exp(-((wrap(a - o.angle) / o.width) ** 2)), 0);
@@ -34,8 +36,9 @@ const range = (from: number, to: number, step: number): number[] => {
   return Array.from({ length: count }, (_, i) => from + ((to - from) * i) / (count - 1));
 };
 
-// The docks boats must keep off: the fishing jetty, the water sports dock and the Highlands' jetty.
-const DOCKS: [Point, Point][] = [
+// The docks boats must keep off: the fishing jetty, the water sports dock, the Highlands' jetty, and
+// the cruise pier with the Island Queen at its berth.
+export const DOCKS: [Point, Point][] = [
   [
     [jetty.x0 - 0.5, jetty.z],
     [jetty.x1, jetty.z],
@@ -48,6 +51,9 @@ const DOCKS: [Point, Point][] = [
     [WEST_JETTY.x1 - 2, WEST_JETTY.z],
     [WEST_JETTY.x0, WEST_JETTY.z],
   ],
+  [pierPoint(1, 0), pierPoint(cruisePier.length, 0)],
+  [pierPoint(cruisePier.length - 1.2, -cruisePier.head / 2), pierPoint(cruisePier.length - 1.2, cruisePier.head / 2)],
+  [pierPoint(cruisePier.length + 2.7, -5.5), pierPoint(cruisePier.length + 2.7, 5.5)],
 ];
 const nearestOn = (p: Point, [a, b]: [Point, Point]): Point => {
   const dx = b[0] - a[0],
@@ -57,7 +63,7 @@ const nearestOn = (p: Point, [a, b]: [Point, Point]): Point => {
 };
 // Nudge a point out of the shallows and away from the docks. In the strait the two coasts push
 // against each other and the point settles between them.
-function clear(p: Point, land: number, dock: number): Point {
+export function clear(p: Point, land: number, dock: number): Point {
   let [x, z] = p;
   for (let pass = 0; pass < 14; pass++) {
     let moved = false;

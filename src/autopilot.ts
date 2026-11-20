@@ -2,7 +2,8 @@ import type { Period } from './daylight.ts';
 import { seats } from './world.ts';
 import { RIDE_SECONDS, type RideKind } from './rides.ts';
 import { trailById, type Trail } from './highlands.ts';
-import type { Activity, Block, Pose } from './people.ts';
+import { cruise as islandCruise, type Activity, type Block, type Pose } from './people.ts';
+import { TRIP_SECONDS } from './cruise.ts';
 
 // When you stop touching the controls for a while, your avatar carries on with a day of its own,
 // planned like a coworker's: a home spot for each part of the day plus short errands.
@@ -87,6 +88,11 @@ const hike = (trail: Trail['id'], activity: string, icon: string): Activity => (
   weight: 1,
   trail,
 });
+// The cruise: you stay aboard until she's back, then walk off (the scene holds the next plan till then).
+const cruise = (weight: number): Activity => ({
+  ...islandCruise(weight),
+  dwell: [TRIP_SECONDS - 20, TRIP_SECONDS - 5],
+});
 const coffee = (seatIds: string[], weight = 2) =>
   spot('Café & terrace', 'Available', 'Grabbing a coffee', '☕', 'sip', seatIds, weight);
 
@@ -102,6 +108,7 @@ export const PLAYER_SCHEDULE: Record<Period, Block> = {
       spot('Music corner', 'Available', 'Playing the piano', '🎹', 'desk', ['pn-0']),
       ride('kayak', 'Fishing jetty', 'A morning paddle', '🛶', ['ky-0', 'ky-1']),
       hike('lake', 'A lap of the lake', '🥾'),
+      cruise(0.6),
     ],
   },
   midday: {
@@ -111,6 +118,7 @@ export const PLAYER_SCHEDULE: Record<Period, Block> = {
       spot('Games lawn', 'Available', 'Ping-pong at lunch', '🏓', 'look', ['pp-0', 'pp-1'], 1, [12, 24]),
       ride('jetski', 'Water sports', 'Out on a jet ski', '🚤', ['js-0', 'js-1']),
       hike('falls', 'A walk up to the waterfall', '💧'),
+      cruise(0.8),
     ],
   },
   golden: {
@@ -133,6 +141,7 @@ export const PLAYER_SCHEDULE: Record<Period, Block> = {
       ride('parachute', 'Summit', 'A parachute jump off the summit', '🪂', ['pc-0'], 0.4),
       spot('Rooftop terrace', 'Available', 'Sunset on the roof', '☀️', 'look', ['rt-1', 'rt-2', 'rt-0']),
       coffee(['cs-1', 'cs-2', 'cs-0']),
+      cruise(1.4),
     ],
   },
   dusk: {
@@ -141,6 +150,7 @@ export const PLAYER_SCHEDULE: Record<Period, Block> = {
       ride('sailboat', 'Water sports', 'A sunset sail', '⛵', ['sb-0', 'sb-1']),
       spot('Firepit & hammocks', 'Available', 'Toasting marshmallows', '🔥', 'sip', ['fp-0', 'fp-1', 'fp-2', 'fp-3']),
       spot('Firepit & hammocks', 'Available', 'Swinging in a hammock', '🌴', 'look', ['hm-0', 'hm-1']),
+      cruise(2),
     ],
   },
   night: {

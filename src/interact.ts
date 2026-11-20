@@ -1,5 +1,6 @@
 import { groundHeight } from './highlands.ts';
 import { radio, seats, telescope, type Seat } from './world.ts';
+import { boatPose, DECK_SPOTS, DECK_Y, toWorld, type DeckSpot } from './cruise.ts';
 
 // What you can use on the island, and what using it does. The scene shows the action when you
 // point at something or walk up to it, so it's clear what can be clicked.
@@ -50,6 +51,22 @@ export const TELESCOPE_SPOT: Spot = {
   label: 'Look through the telescope',
 };
 export const SPOTS: Spot[] = [...seats.map(seatSpot), RADIO_SPOT, TELESCOPE_SPOT];
+// Aboard the Island Queen the deck spots are what's in reach, wherever she is right now.
+export const deckAction = (spot: DeckSpot) =>
+  spot.kind === 'bench'
+    ? 'Sit on the rail bench'
+    : spot.kind === 'lounger'
+      ? 'Stretch out on the sun lounger'
+      : spot.v > 3
+        ? 'Stand at the bow'
+        : 'Lean on the rail';
+export function deckSpots(now = Date.now()): Spot[] {
+  const pose = boatPose(now);
+  return DECK_SPOTS.map(spot => {
+    const [x, z] = toWorld(pose, spot.u, spot.v);
+    return { id: spot.id, x, y: DECK_Y, z, label: deckAction(spot) };
+  });
+}
 
 // The spot you'd use by pressing E: the nearest one within reach on your own level.
 export const REACH = 2.2;

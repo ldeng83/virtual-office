@@ -10,6 +10,20 @@ import { riderPose, riderSpot, startRide, stepRide } from './rides';
 import { ARRIVAL_DOCK, peopleView, type DemoCoworker, type Target } from './people';
 import { stepAlongPath, turnToward, wrapAngle } from './steering';
 import { DEFAULT_LOOK } from './hosted';
+import {
+  berthFloor,
+  boardingWalk,
+  boatPose,
+  DECK_IDLE_ICONS,
+  DECK_Y,
+  deckIdle,
+  deckSpot,
+  leavingWalk,
+  toWorld,
+  voyageStep,
+  type DeckIdle,
+  type Voyage,
+} from './cruise';
 
 // Shared avatar body so the player and coworkers always look like the same kind of person.
 // The head and torso are separate groups so coworkers can look around and breathe.
@@ -115,6 +129,15 @@ export function AvatarBody({
   );
 }
 
+// A little camera, held up to take a photo from the deck.
+export function PhotoCamera() {
+  return (
+    <mesh position={[0.08, 1.22, 0.3]} castShadow>
+      <boxGeometry args={[0.2, 0.13, 0.09]} />
+      <meshStandardMaterial color="#2e3a3d" roughness={0.5} />
+    </mesh>
+  );
+}
 // Scuba kit, worn while diving: tank, mask, regulator and fins.
 export function DiveGear() {
   const piece = (p: [number, number, number], size: [number, number, number], color: string) => (
@@ -170,7 +193,8 @@ export function Coworker({
   const group = useRef<THREE.Group>(null),
     head = useRef<THREE.Group>(null),
     torso = useRef<THREE.Group>(null),
-    gear = useRef<THREE.Group>(null);
+    gear = useRef<THREE.Group>(null),
+    camera = useRef<THREE.Group>(null);
   const pos = useRef(
     new THREE.Vector3(
       ...((target ? [target.point[0], 0, target.point[1]] : [ARRIVAL_DOCK[0], 0, ARRIVAL_DOCK[1]]) as [
@@ -193,19 +217,19 @@ export function Coworker({
   const clock = useRef(Math.random() * 10),
     near = useRef(false),
     hop = useRef(0);
+  // On the Island Queen: how far through the trip they are, and the plan waiting till they're off.
+  const voyage = useRef<Voyage | null>(null),
+    deferred = useRef<{ target: Target | null } | null>(null),
+    seed = useRef(Math.random() * 10),
+    [idle, setIdle] = useState<DeckIdle | null>(null);
   const [waving, setWaving] = useState(false),
     [close, setClose] = useState(false);
   useEffect(() => {
     if (shipped) hop.current = 1;
   }, [shipped]);
-  useEffect(() => {
-    if (first.current) {
-      // On page load coworkers are already where their routine says, not walking in.
-      first.current = false;
-      if (group.current && target) group.current.rotation.y = target.angle;
-      lastTarget.current = target;
-      return;
-    }
+  // A new plan: head off to it.
+  const goTo = (target: Target | null) => {
+    voyage.current = deckSpot(target?.seatId) ? { stage: 'pier', sailing: -1 } : null;
     // Seats are solid: get up by stepping out to the seat's free side, then walk from there.
     const previous = lastTarget.current;
     // Off a ride (out on the water or up the bluff): back to its step-in spot first.
@@ -241,6 +265,20 @@ export function Coworker({
       leaving.current = true;
       path.current = from(findPath(start, ARRIVAL_DOCK));
     }
+  };
+  useEffect(() => {
+    if (first.current) {
+      // On page load coworkers are already where their routine says, not walking in.
+      first.current = false;
+      if (group.current && target) group.current.rotation.y = target.angle;
+      lastTarget.current = target;
+      voyage.current = deckSpot(target?.seatId) ? { stage: 'pier', sailing: -1 } : null;
+      return;
+    }
+    // Aboard the boat (or walking on or off): ride the sailing out, then go.
+    const stage = voyage.current?.stage;
+    if (stage === 'boarding' || stage === 'aboard' || stage === 'leaving') deferred.current = { target };
+    else goTo(target);
   }, [target]);
   useEffect(() => {
     if (waving) {
@@ -284,6 +322,40 @@ export function Coworker({
     } else if (target)
       // Settle into the seat / spot's facing smoothly after arriving.
       g.rotation.y = turnToward(g.rotation.y, target.angle, dt, 6);
+    // The Island Queen: wait on the pier, walk aboard to the deck spot, ride one sailing, walk off.
+    const deck = voyage.current && present.current ? deckSpot(lastTarget.current?.seatId) : undefined;
+    let aboard = false,
+      onBerth = false;
+    if (deck && voyage.current) {
+      const now = Date.now(),
+        before = voyage.current,
+        after = voyageStep(before, now, path.current.length > 0);
+      voyage.current = after;
+      if (after.stage !== before.stage) {
+        if (after.stage === 'boarding') path.current = boardingWalk(deck);
+        if (after.stage === 'aboard') path.current = [];
+        if (after.stage === 'leaving') path.current = leavingWalk(deck, lastTarget.current!.point);
+        if (after.stage === 'done' && deferred.current) {
+          const next = deferred.current.target;
+          deferred.current = null;
+          goTo(next);
+        }
+      }
+      aboard = voyage.current?.stage === 'aboard';
+      onBerth = voyage.current?.stage === 'boarding' || voyage.current?.stage === 'leaving';
+      if (aboard) {
+        const pose = boatPose(now, motion),
+          [x, z] = toWorld(pose, deck.u, deck.v);
+        pos.current.set(x, 0, z);
+        g.rotation.y = pose.heading + deck.angle;
+        const doing = motion ? deckIdle(seed.current, now / 1000, deck.kind) : 'look';
+        if (doing !== idle) setIdle(doing);
+        if (doing === 'wave' && hop.current <= 0 && Math.sin(t * 2.2) > 0.98) hop.current = 1;
+      }
+    }
+    if (!aboard && idle) setIdle(null);
+    const doing = aboard ? idle : null;
+    if (camera.current) camera.current.visible = doing === 'photo';
     // Rides: once aboard, follow the ride on autopilot; afterwards wait at the launch until it's time to go.
     const rideSeat = !moving && target?.seatId ? seats.find(s => s.id === target.seatId) : undefined;
     let view = rideSeat?.ride ? riders[rideSeat.id] : undefined;
@@ -330,7 +402,9 @@ export function Coworker({
         );
       else if (!moving && motion)
         yaw = pose === 'look' ? Math.sin(t * 0.35) * 0.6 : Math.sin(t * 0.23) * Math.max(0, Math.sin(t * 0.11)) * 0.5;
-      if (!moving && motion && !isNear)
+      if (doing === 'doze') pitch = 0.45;
+      else if (doing === 'photo') pitch = -0.12;
+      else if (!moving && motion && !isNear)
         pitch =
           pose === 'desk'
             ? 0.22 + Math.sin(t * 9) * 0.02
@@ -350,12 +424,20 @@ export function Coworker({
       !moving && !!target?.seatId && Math.hypot(pos.current.x - target.point[0], pos.current.z - target.point[1]) < 0.3;
     const sitting = riding
       ? (r => ({ ...r, y: riding.y + r.y }))(riderPose(riding.kind, clock.current, -riding.y))
-      : rideSeat?.ride && seated
-        ? riderPose(rideSeat.ride.kind, 0)
-        : seated
-          ? seatPose(target!.seatKind, target!.elevation, motion ? performance.now() / 1000 : 0)
-          : UPRIGHT;
-    const floor = riding ? 0 : groundHeight(pos.current.x, pos.current.z);
+      : aboard && deck
+        ? (p => ({ ...p, pitch: p.pitch + (doing === 'lean' ? 0.16 : 0) }))(seatPose(deck.kind, 0, 0))
+        : rideSeat?.ride && seated
+          ? riderPose(rideSeat.ride.kind, 0)
+          : seated
+            ? seatPose(target!.seatKind, target!.elevation, motion ? performance.now() / 1000 : 0)
+            : UPRIGHT;
+    const floor = riding
+      ? 0
+      : aboard
+        ? DECK_Y
+        : onBerth
+          ? berthFloor(pos.current.x, pos.current.z)
+          : groundHeight(pos.current.x, pos.current.z);
     g.position.y =
       floor + (moving ? Math.sin(walk.current) * 0.045 : sitting.y + Math.sin(hop.current * Math.PI) * 0.18);
     if (poseGroup.current) {
@@ -391,6 +473,9 @@ export function Coworker({
         <group ref={gear} visible={false}>
           <DiveGear />
         </group>
+        <group ref={camera} visible={false}>
+          <PhotoCamera />
+        </group>
       </group>
       {/* At a desk the tag floats higher so it doesn't cover their glowing monitor from the default camera. */}
       <Label position={[0, target?.activity.pose === 'desk' && target.seatId ? 2.55 : 1.85, 0]} zIndex={20}>
@@ -415,7 +500,7 @@ export function Coworker({
           {person.name}
           {target && (
             <b className={waving ? 'activity-icon waving' : 'activity-icon'} title={target.activity.activity}>
-              {waving ? '👋' : target.activity.icon}
+              {waving ? '👋' : idle ? DECK_IDLE_ICONS[idle] : target.activity.icon}
             </b>
           )}
           {task?.progress !== undefined && (
