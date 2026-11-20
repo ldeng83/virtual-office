@@ -2,6 +2,7 @@ import { garden, locations, seats, WHITEBOARD, WHITEBOARD_SPOT, type Point, type
 import type { Period } from './daylight.ts';
 import { RIDE_SECONDS, type RideKind } from './rides.ts';
 import { trailById, type Trail } from './highlands.ts';
+import { BERTH, CYCLE_SECONDS, freeDeckSpot, pierWait } from './cruise.ts';
 
 // One shape for everyone on the island. Today the team's demo coworkers are driven locally by a small
 // activity planner; later the same records will arrive from the shared presence server.
@@ -26,6 +27,8 @@ export type Activity = {
   work?: boolean;
   // Or hike a trail on the Highlands, ending at its far end.
   trail?: Trail['id'];
+  // Or take the Island Queen: wait on the pier, board, ride one sailing in a free deck spot, walk off.
+  cruise?: boolean;
 };
 export type Task = { title: string; icon: string; seconds: number };
 export type WorkState = { task: number; progress: number };
@@ -115,6 +118,19 @@ export const ride = (
   dwell: [RIDE_SECONDS[kind] + 4, RIDE_SECONDS[kind] + 12],
   weight,
   seats: seatIds,
+});
+
+// The cruise: long enough to wait for the boat and ride one sailing (anyone aboard stays on until
+// she's back at the pier, whatever the plan says).
+export const cruise = (weight = 1): Activity => ({
+  place: 'Cruise pier',
+  status: 'Available',
+  activity: 'On the Island Queen',
+  icon: '🛳️',
+  pose: 'look',
+  dwell: [CYCLE_SECONDS, CYCLE_SECONDS + 40],
+  weight,
+  cruise: true,
 });
 
 // Shorthand for the newer roster entries: `home` is a block's base activity, `spot` an errand.
@@ -407,8 +423,19 @@ const daniel: DemoCoworker = {
   },
 };
 
+// Everyone takes the Island Queen now and then in the daytime, most of all for the evening sailings.
+const CRUISE_WEIGHT: Partial<Record<Period, number>> = { morning: 0.5, midday: 0.7, golden: 1.4, dusk: 2 };
+const boardsTheBoat = (person: DemoCoworker): DemoCoworker => ({
+  ...person,
+  schedule: Object.fromEntries(
+    Object.entries(person.schedule).map(([period, block]) => {
+      const weight = CRUISE_WEIGHT[period as Period];
+      return [period, block && weight ? { ...block, errands: [...block.errands, cruise(weight)] } : block];
+    }),
+  ) as Record<Period, Block | null>,
+});
 // You are Le Deng; everyone else on the team walks the island on their own routine.
-export const demoCoworkers: DemoCoworker[] = [
+const team: DemoCoworker[] = [
   {
     id: 'shuwan-yao',
     name: 'Shuwan Yao',
@@ -782,6 +809,7 @@ export const demoCoworkers: DemoCoworker[] = [
   binLin,
   daniel,
 ];
+export const demoCoworkers: DemoCoworker[] = team.map(boardsTheBoat);
 
 // Home → weighted errand → home → … Coworkers always return home between errands.
 // Errands whose seats are all `taken` are skipped, so two people never share a one-seat ride.
@@ -792,7 +820,9 @@ export function nextActivity(
   taken: ReadonlySet<string> = new Set(),
 ): Activity {
   if (!current || current !== block.home || !block.errands.length) return block.home;
-  const open = block.errands.filter(e => !e.seats || e.seats.some(id => !taken.has(id)));
+  const open = block.errands.filter(e =>
+    e.cruise ? !!freeDeckSpot(taken) : !e.seats || e.seats.some(id => !taken.has(id)),
+  );
   if (!open.length) return block.home;
   const total = open.reduce((sum, e) => sum + (e.weight ?? 1), 0);
   let roll = random() * total;
@@ -837,6 +867,21 @@ export function resolveTarget(
       activity,
       dwell,
       route: points,
+    };
+  }
+  // The cruise: a free deck spot is theirs, and they wait for the boat on the pier.
+  if (activity.cruise) {
+    const id = freeDeckSpot(taken) ?? 'iq-0',
+      wait = pierWait(id);
+    return {
+      point: wait,
+      approach: wait,
+      angle: BERTH.heading - Math.PI / 2,
+      seatId: id,
+      seatKind: 'stand',
+      elevation: 0,
+      activity,
+      dwell,
     };
   }
   // With every seat taken, an activity that also names a spot is done standing there instead.

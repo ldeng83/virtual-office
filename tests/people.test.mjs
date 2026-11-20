@@ -47,7 +47,7 @@ test('planner alternates home and weighted errands', () => {
   const block = demoCoworkers[0].schedule.morning;
   assert.equal(nextActivity(block, null), block.home);
   assert.equal(nextActivity(block, block.errands[0]), block.home);
-  // weights: coffee 3, stretch 1, piano 1, lake hike 1 (total 6) → rolls pick by cumulative weight
+  // weights: coffee 3, stretch 1, piano 1, lake hike 1, cruise 0.5 (total 6.5) → rolls pick by cumulative weight
   assert.equal(
     nextActivity(block, block.home, () => 0.1),
     block.errands[0],
@@ -61,10 +61,11 @@ test('planner alternates home and weighted errands', () => {
     block.errands[2],
   );
   assert.equal(
-    nextActivity(block, block.home, () => 0.95),
+    nextActivity(block, block.home, () => 0.9),
     block.errands[3],
   );
   assert.equal(block.errands[3].trail, 'lake');
+  assert.equal(nextActivity(block, block.home, () => 0.97).cruise, true);
 });
 
 test('working moves the task forward and finishing starts the next one', async () => {

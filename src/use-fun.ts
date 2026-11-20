@@ -9,6 +9,7 @@ import { CAVE, checkpoints, SUMMIT, TRAILS } from './highlands';
 import { LofiRadio, Piano } from './music';
 import type { CoworkerView } from './use-coworkers';
 import { locations, radio, seats, type Point } from './world';
+import { BOAT_NAME, deckSpot } from './cruise';
 
 // Fun and relaxing activities: radio and piano, fishing, the seashell hunt, emotes, passing showers,
 // and a gentle nudge to take a break after a long stretch at your desk.
@@ -327,7 +328,18 @@ const RIDE_MESSAGES: Record<RideKind, { text: string; action: string }> = {
 
 // What the seat message says for each kind of seat.
 export function seatMessage(id: string) {
-  const seat = seats.find(s => s.id === id);
+  const seat = seats.find(s => s.id === id),
+    spot = deckSpot(id);
+  if (spot)
+    return {
+      text:
+        spot.kind === 'bench'
+          ? `On a rail bench aboard the ${BOAT_NAME}`
+          : spot.kind === 'lounger'
+            ? `Stretched out on the ${BOAT_NAME}'s sun deck`
+            : `${spot.name} of the ${BOAT_NAME}`,
+      action: 'Stand up',
+    };
   if (!seat) return { text: 'Settled in', action: 'Stand up' };
   if (seat.ride) {
     const message = RIDE_MESSAGES[seat.ride.kind],

@@ -2406,6 +2406,47 @@
     background: #103f52ee;
     color: #e9fbff;
   }
+  .cruise-hud {
+    position: absolute;
+    top: 80px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 34;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    max-width: calc(100% - 32px);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    border-radius: 9px;
+    padding: 9px 14px;
+    background: #1f3b4dee;
+    color: #eef6f8;
+    box-shadow: 0 5px 20px #446b5520;
+    font-size: 12px;
+    font-variant-numeric: tabular-nums;
+    pointer-events: none;
+  }
+  .cruise-hud.below {
+    top: 132px;
+  }
+  .departure-board {
+    display: grid;
+    gap: 2px;
+    min-width: 150px;
+    padding: 7px 10px;
+    border-radius: 6px;
+    background: #1f3b4df2;
+    color: #eef6f8;
+    font-size: 11px;
+    font-variant-numeric: tabular-nums;
+    text-align: center;
+    white-space: nowrap;
+  }
+  .departure-board b {
+    color: #ffd36b;
+  }
   .dive-hud b {
     font-variant-numeric: tabular-nums;
     min-width: 2.4em;

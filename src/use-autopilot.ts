@@ -13,6 +13,7 @@ import {
   type AutopilotSettings,
 } from './autopilot';
 import { playerControl } from './fun-state';
+import { CYCLE_SECONDS } from './cruise';
 
 export type AutopilotCommand = { target: Target; seq: number };
 
@@ -77,7 +78,8 @@ export function useAutopilot({
       return;
     }
     setCommand({ target: goal, seq: Date.now() });
-    timer.current = window.setTimeout(plan, ARRIVE_TIMEOUT_MS);
+    // The cruise may mean waiting on the pier for the boat to come back in.
+    timer.current = window.setTimeout(plan, ARRIVE_TIMEOUT_MS + (next.cruise ? CYCLE_SECONDS * 1000 : 0));
   };
   // The scene calls this when the walk (or hike) to the current spot ends.
   const arrive = () => {

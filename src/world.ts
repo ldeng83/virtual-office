@@ -229,6 +229,29 @@ export const jetSkiMoorings: Point[] = [
 ];
 export const sailboatMooring: Point = [-8.6, 16.6];
 export const towBoatMooring: Point = [-10.5, 21.2];
+// The cruise pier off the south-east coast: a long walkway out to a T-head, where the Island Queen
+// berths alongside. (dx, dz) points out to sea; positions on it are measured `along` from the shore
+// end and `across` it, positive to the north-east (the way the moored boat's bow points).
+export const cruisePier = { x: 28.4, z: 3.2, dx: 0.6, dz: 0.8, length: 12, w: 1.8, head: 9, headDepth: 2.4 };
+export const pierPoint = (along: number, across: number): Point => [
+  cruisePier.x + cruisePier.dx * along + cruisePier.dz * across,
+  cruisePier.z + cruisePier.dz * along - cruisePier.dx * across,
+];
+export function onCruisePier(x: number, z: number) {
+  const { dx, dz, length, w, head, headDepth } = cruisePier,
+    ox = x - cruisePier.x,
+    oz = z - cruisePier.z,
+    along = ox * dx + oz * dz,
+    across = ox * dz - oz * dx;
+  if (along > length - 0.15) return false;
+  return (
+    (along > -1 && Math.abs(across) < w / 2 - 0.15) ||
+    (along > length - headDepth + 0.15 && Math.abs(across) < head / 2 - 0.15)
+  );
+}
+// The pier's departure board (on the shore beside it) and the bell at the end of the T-head.
+export const pierBoard = pierPoint(0.4, -1.75);
+export const pierBell = pierPoint(cruisePier.length - 0.5, cruisePier.head / 2 - 0.5);
 // The water taxi runs from the dock round the west coast to the Highlands' west jetty.
 export const ferryMoorings = {
   main: [-8.8, 20.1] as Point,
@@ -615,6 +638,13 @@ export const locations = [
     color: '#6fb2c8',
   },
   {
+    id: 'cruise',
+    name: 'Cruise pier',
+    detail: 'The Island Queen sails every few minutes',
+    point: pierPoint(cruisePier.length - 1.2, -2.6),
+    color: '#5f95b8',
+  },
+  {
     id: 'bluff',
     name: 'Climbing bluff',
     detail: 'Climb to the lookout',
@@ -714,6 +744,7 @@ export const walkways: Point[][] = [
     [26.1, -14.23],
     [31.2, -13.63],
   ],
+  [[24, 0], pierPoint(0, 0)],
   [
     [13.68, -31.75],
     [13.68, -33.91],
@@ -759,6 +790,8 @@ const blocks: Block[] = [
   { x: firepit.x, z: firepit.z, r: firepit.r + 0.25 },
   { x: piano.x, z: piano.z, hx: piano.w / 2 + 0.2, hz: piano.d / 2 + 0.2 },
   { x: telescope[0], z: telescope[1], r: 0.45 },
+  { x: pierBoard[0], z: pierBoard[1], r: 0.6 },
+  { x: pierBell[0], z: pierBell[1], r: 0.3 },
   // Highlands props.
   { x: RANGER_HUT.x, z: RANGER_HUT.z, hx: RANGER_HUT.w / 2 + 0.25, hz: RANGER_HUT.d / 2 + 0.25 },
   { x: TRAIL_BOARD[0], z: TRAIL_BOARD[1], hx: 0.9, hz: 0.35 },
@@ -871,7 +904,8 @@ for (const point of [
   if (clearForTree(point)) trees.push(point);
 export const onJetty = (x: number, z: number) =>
   (Math.abs(z - jetty.z) < jetty.w / 2 - 0.15 && x > jetty.x0 + 0.15 && x < jetty.x1) ||
-  (Math.abs(x - marina.x) < marina.w / 2 - 0.15 && z > marina.z0 && z < marina.z1 - 0.15);
+  (Math.abs(x - marina.x) < marina.w / 2 - 0.15 && z > marina.z0 && z < marina.z1 - 0.15) ||
+  onCruisePier(x, z);
 export const onBluff = (x: number, z: number) =>
   ((x - bluff.x) / (bluff.rx + 0.3)) ** 2 + ((z - bluff.z) / (bluff.rz + 0.35)) ** 2 < 1;
 // The Highlands' ground rules (slope, water, forest) are costly and never change, so each 0.1-unit

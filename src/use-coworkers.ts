@@ -240,6 +240,7 @@ export function useCoworkers({
       else if (b?.activity.place === 'Pavilion M' && a?.activity.place !== 'Pavilion M')
         post(person, '💬', `joined the ${b.activity.activity.toLowerCase()}`);
       else if (b?.activity.icon === '☕') post(person, '☕', 'took a coffee break');
+      else if (b?.activity.cruise) post(person, '🛳️', 'headed for the Island Queen');
       else if (b?.activity.work && !a?.activity.work) {
         const task = currentTask(person, workRef.current[person.id] ?? { task: 0, progress: 0 });
         post(person, task.icon, `is back on ${task.title}`);

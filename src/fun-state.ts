@@ -11,6 +11,9 @@ export const playerState = { elevated: false, x: 0, z: 0, heading: 0, route: [] 
 export type Emote = 'wave' | 'dance' | 'highfive' | 'cheer';
 export const EMOTE_ICONS: Record<Emote, string> = { wave: '👋', dance: '💃', highfive: '🙌', cheer: '🎉' };
 
+// The Island Queen: whether you're aboard (the scene writes this every frame).
+export const cruiseState = { aboard: false };
+
 // Taking back control from autopilot stops you where you are (the scene fills this in).
 export const playerControl = { halt: () => {} };
 

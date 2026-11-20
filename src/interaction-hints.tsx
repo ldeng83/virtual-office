@@ -2,8 +2,9 @@ import { islandKey } from './hosted';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
-import { diveState, playerState } from './fun-state';
-import { isUseKey, nearestSpot, pointer, SPOTS, type Spot } from './interact';
+import { cruiseState, diveState, playerState } from './fun-state';
+import { deckSpots, isUseKey, nearestSpot, pointer, SPOTS, type Spot } from './interact';
+import { DECK_Y } from './cruise';
 import { Label } from './label';
 
 // Shows what can be used: a ring and the action under the pointer, a "Space" prompt (E works too) on the nearest
@@ -53,7 +54,11 @@ export function InteractionHints({ seat, onUse }: { seat: string | null; onUse: 
   useFrame(({ clock }) => {
     const t = clock.elapsedTime,
       busy = !!seat || diveState.under;
-    near.current = busy ? null : nearestSpot(playerState.x, playerState.z);
+    near.current = busy
+      ? null
+      : cruiseState.aboard
+        ? nearestSpot(playerState.x, playerState.z, DECK_Y, deckSpots())
+        : nearestSpot(playerState.x, playerState.z);
     // The pointer wins; otherwise the prompt sits on whatever you're standing next to.
     const hovered = diveState.under ? null : pointer.spot,
       target = hovered ?? near.current,

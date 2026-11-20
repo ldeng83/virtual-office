@@ -1,5 +1,6 @@
 import { seatMessage, useFun } from './use-fun';
 import { useDive } from './use-dive';
+import { CruiseHud } from './cruise-hud';
 import { SPECIES } from './dive';
 import React, { Suspense, useEffect, useMemo, useRef, useState } from 'react';
 import { Canvas } from '@react-three/fiber';
@@ -547,6 +548,7 @@ export function IslandOffice({ host }: { host?: IslandHost }) {
                 </button>
               </div>
             )}
+            <CruiseHud notify={setToast} volume={sound.playing ? atmosphere.volume : 0} below={!!seat} />
             {seat && !dive.diving && (
               <div className="seat-message">
                 <Armchair size={17} />
