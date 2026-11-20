@@ -11,11 +11,24 @@ import {
   type Sight,
 } from './boat-trips.ts';
 import { DIVE_DEPTH, tourPose, tourSeconds } from './dive.ts';
-import { bluff, seats, type Point, type Seat } from './world.ts';
+import {
+  cutPose,
+  drawRoute,
+  GENTLE_SECONDS,
+  gentlePose,
+  jumpPose,
+  jumpSeconds,
+  JUMP_ROUTES,
+  type CutAway,
+  type JumpKind,
+  type JumpPhase,
+} from './jumps.ts';
+import { bluff, seats, walkable, type Point, type Seat } from './world.ts';
 
 // Autopilot rides: each one is a path over time, starting and ending at its launch spot.
 // The player controller follows the rider; the boats, skis and chute follow `ride` (in fun-state).
-export type RideKind = 'kayak' | 'jetski' | 'sailboat' | 'parasail' | 'climb' | 'scuba' | 'ferry';
+export type RideKind = 'kayak' | 'jetski' | 'sailboat' | 'parasail' | 'climb' | 'scuba' | 'ferry' | JumpKind;
+export const isJump = (kind: RideKind): kind is JumpKind => kind === 'wingsuit' || kind === 'parachute';
 export type RidePose = {
   x: number;
   y: number;
@@ -41,7 +54,7 @@ export const CLIMB_SECONDS = 22;
 // Where the rider is `t` seconds into the ride. Heading comes from where the ride goes next.
 // Boats follow one of their trips (boat-trips.ts), or `course` when the trip has bent out for a detour.
 export function ridePose(
-  kind: RideKind,
+  kind: Exclude<RideKind, JumpKind>,
   launch: Point,
   t: number,
   route?: Point[],
@@ -124,11 +137,20 @@ function climbPose(launch: Point, t: number): RidePose {
 
 // The dive: a guided tour of the reef and the wreck (dive.ts).
 export { DIVE_DEPTH };
+export { GENTLE_SECONDS };
 export const DIVE_SECONDS = tourSeconds(seats.find(s => s.ride?.kind === 'scuba')!.ride!.launch);
 
-// How the rider sits in each ride (in the avatar's own frame, like seatPose).
-export function riderPose(kind: RideKind, t: number, depth = 0) {
+// How the rider sits in each ride (in the avatar's own frame, like seatPose). Jumps also take the
+// phase of the jump and the bank of the wingsuit.
+export function riderPose(kind: RideKind, t: number, depth = 0, phase?: JumpPhase, roll = 0) {
   switch (kind) {
+    case 'wingsuit':
+    case 'parachute':
+      // Flat out in the wingsuit, tipped forward in free fall, hanging under the canopy, swimming.
+      if (phase === 'fly') return { y: 0.2, pitch: Math.PI / 2 - 0.12, z: 0, roll };
+      if (phase === 'fall') return { y: 0.3, pitch: 1.1, z: 0, roll: 0 };
+      if (phase === 'swim') return { y: -0.3, pitch: 1.25, z: 0, roll: Math.sin(t * 3) * 0.08 };
+      return { y: 0, pitch: 0, z: 0, roll: 0 };
     case 'kayak':
       return { y: -0.58, pitch: 0, z: 0, roll: 0 };
     case 'jetski':
@@ -165,15 +187,22 @@ export type RideView = {
   detour?: Sight['kind'];
   // Diving only: you've taken over from the guided tour, or you're on your way back up.
   mode?: 'free' | 'return';
+  // Jumps only (`trip` is the route drawn): how far through it you are, whether it's the gentle-motion
+  // version, and where you cut away.
+  phase?: JumpPhase;
+  gentle?: boolean;
+  cut?: CutAway;
 };
 const isBoat = (kind: RideKind): kind is BoatKind => kind in TRIPS;
 // Getting on. A boat picks one of its trips, and bends it if there's a whale or dolphins within
 // reach (`sights`). A second sailor joins the boat's trip already under way, so both ride together.
+// A jump draws a fresh route; `gentle` (reduced motion) floats you down at the ledge instead of flying.
 export function startRide(
   seat: Seat,
   riders: Record<string, RideView>,
   sights: Sight[] = [],
   pick = Math.random(),
+  gentle = false,
 ): RideView {
   const { kind, launch } = seat.ride!;
   const crew = Object.entries(riders).find(([id]) => id !== seat.id && id.split('-')[0] === seat.id.split('-')[0]);
@@ -188,6 +217,13 @@ export function startRide(
     boat: null,
     trip: 0,
   };
+  if (isJump(kind)) {
+    view.y = gentlePose(kind, 0).y;
+    view.trip = drawRoute(seat.id, seat.ride!.routes!.length, pick);
+    view.phase = kind === 'wingsuit' ? 'fly' : 'fall';
+    if (gentle) Object.assign(view, { gentle, phase: 'canopy' });
+    return view;
+  }
   if (kind === 'sailboat' && crew) {
     const { t, trip, course, detour } = crew[1];
     return { ...view, t, trip, course, detour };
@@ -202,10 +238,38 @@ export function startRide(
 // Move a rider along; returns true when the ride is over.
 export function stepRide(seat: Seat, view: RideView, dt: number) {
   view.t += dt;
-  const p = ridePose(view.kind, seat.ride!.launch, view.t, seat.ride!.route, view.trip, view.course);
-  if (!Number.isNaN(p.heading)) view.heading = turnToward(view.heading, p.heading, dt, view.kind === 'climb' ? 6 : 3);
+  const p: RidePose = isJump(view.kind)
+    ? stepJump(seat, view.kind, view)
+    : ridePose(view.kind, seat.ride!.launch, view.t, seat.ride!.route, view.trip, view.course);
+  if (!Number.isNaN(p.heading))
+    view.heading = turnToward(view.heading, p.heading, dt, view.kind === 'climb' || isJump(view.kind) ? 6 : 3);
   Object.assign(view, { x: p.x, y: p.y, z: p.z, roll: p.roll, boat: p.boat ?? null });
   return p.done;
+}
+function stepJump(seat: Seat, kind: JumpKind, view: RideView) {
+  const p = view.cut
+    ? cutPose(view.cut, view.heading, view.t)
+    : view.gentle
+      ? gentlePose(kind, view.t)
+      : jumpPose(kind, seat.ride!.routes![view.trip], view.t);
+  view.phase = p.phase;
+  return p;
+}
+export const jumpRoute = (seat: Seat, view?: RideView) => (view && seat.ride?.routes?.[view.trip]) || undefined;
+// Where you get off: where you cut away, the jump's landing spot, the far side of the water taxi's
+// crossing; nowhere special for the other rides (you're back at their step-in spot).
+export function rideExit(seat: Seat, view?: RideView): Point | undefined {
+  if (view?.cut) return [view.cut.x, view.cut.z];
+  const route = jumpRoute(seat, view);
+  return route ? route.exit : seat.ride?.exit;
+}
+// Cutting away from a jump (a movement key): only over land you could stand on. Out over the lake or
+// the sea the jump carries on, so it never leaves you in the water.
+export const canCutAway = (x: number, z: number) => walkable(x, z);
+export function cutAway(view: RideView) {
+  if (!isJump(view.kind) || view.cut || view.phase === 'landed' || !canCutAway(view.x, view.z)) return false;
+  view.cut = { x: view.x, y: view.y, z: view.z, t: view.t };
+  return true;
 }
 // Where the rider sits: a second seat further along the boat.
 export function riderSpot(seat: Seat, view: RideView): Point {
@@ -224,6 +288,8 @@ export const RIDE_SECONDS: Record<RideKind, number> = {
   climb: CLIMB_SECONDS + 20,
   scuba: DIVE_SECONDS,
   ferry: 60,
+  wingsuit: Math.max(GENTLE_SECONDS, ...JUMP_ROUTES.wingsuit.map(jumpSeconds)) + 1,
+  parachute: Math.max(GENTLE_SECONDS, ...JUMP_ROUTES.parachute.map(jumpSeconds)) + 1,
 };
 
 // The water taxi: along its route at a steady speed, easing away from one jetty and into the other.

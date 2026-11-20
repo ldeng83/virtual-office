@@ -3,7 +3,7 @@ import type { Period } from './daylight';
 import { EMOTE_ICONS, riders, seaState, type Emote } from './fun-state';
 import { TRIPS, type BoatKind } from './boat-trips';
 import { seaRegion } from './open-sea';
-import type { RideKind } from './rides';
+import { jumpRoute, type RideKind } from './rides';
 import { dailyShells } from './island-extras';
 import { CAVE, checkpoints, SUMMIT, TRAILS } from './highlands';
 import { LofiRadio, Piano } from './music';
@@ -130,14 +130,15 @@ export function useFun({
   }, [seat]);
 
   useEffect(() => {
-    const ride = seats.find(s => s.id === seat)?.ride?.kind;
-    // Boats pick their trip as you board (the scene does that a moment after this runs).
+    const rideSeat = seats.find(s => s.id === seat),
+      ride = rideSeat?.ride?.kind;
+    // Boats pick their trip and jumps their route as you board (the scene does that a moment after this runs).
     const timer =
       ride && seat
         ? setTimeout(() => {
             const view = riders[seat],
               trip = view && ride in TRIPS ? TRIPS[ride as BoatKind][view.trip] : null;
-            notify(trip?.start ?? RIDE_STARTS[ride]);
+            notify(trip?.start ?? jumpRoute(rideSeat, view)?.start ?? RIDE_STARTS[ride]);
             if (view?.detour) setTimeout(() => notify(DETOURS[view.detour as 'whale' | 'dolphins']), 4500);
           }, 60)
         : undefined;
@@ -304,6 +305,8 @@ const RIDE_STARTS: Record<RideKind, string> = {
   climb: '🧗 Climbing the bluff. There’s a lookout at the top.',
   scuba: '🤿 Down the ladder for a guided dive: the reef first, then the shipwreck.',
   ferry: '⛴️ All aboard the water taxi. Sit back for the trip round the coast.',
+  wingsuit: '🦅 Off the summit in a wingsuit.',
+  parachute: '🪂 Off the summit with a parachute.',
 };
 const DETOURS = {
   whale: '🐋 There’s a whale out that way. Bending the trip to pass it.',
@@ -317,6 +320,9 @@ const RIDE_MESSAGES: Record<RideKind, { text: string; action: string }> = {
   climb: { text: 'On the climbing bluff', action: 'Climb down' },
   scuba: { text: 'Scuba diving on the reef', action: 'Surface' },
   ferry: { text: 'On the water taxi', action: 'Get off' },
+  // A movement key (or the button) cuts away: you float straight down, if there's land below.
+  wingsuit: { text: 'Wingsuit', action: 'Cut away' },
+  parachute: { text: 'Parachute', action: 'Cut away' },
 };
 
 // What the seat message says for each kind of seat.
@@ -326,7 +332,9 @@ export function seatMessage(id: string) {
   if (seat.ride) {
     const message = RIDE_MESSAGES[seat.ride.kind],
       trips = TRIPS[seat.ride.kind as BoatKind],
-      view = riders[id];
+      view = riders[id],
+      route = jumpRoute(seat, view);
+    if (route) return { ...message, text: `${message.text} · ${route.name}` };
     return trips && view ? { ...message, text: trips[view.trip].doing } : message;
   }
   if (seat.kind === 'hammock') return { text: 'Swinging in the hammock', action: 'Get up' };

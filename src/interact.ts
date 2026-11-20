@@ -11,6 +11,8 @@ const RIDES = {
   climb: 'Climb the bluff',
   scuba: 'Go diving',
   ferry: 'Take the water taxi',
+  wingsuit: 'Jump in a wingsuit',
+  parachute: 'Jump with a parachute',
 };
 const BY_PREFIX: Record<string, string> = {
   desk: 'Work at this desk',

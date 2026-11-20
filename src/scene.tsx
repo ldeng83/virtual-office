@@ -1,13 +1,33 @@
 import { Cat, Dog, Rain, Rainbow, Shells, type Shell } from './island-extras';
 import { FunSpots } from './fun';
 import { WaterSports } from './water-sports';
+import { SkyJumps } from './sky-jumps';
 import { StaticBatch } from './static-batch';
-import { diveState, EMOTE_ICONS, playerControl, playerState, riders, seaState, type Emote } from './fun-state';
+import {
+  diveState,
+  EMOTE_ICONS,
+  jumpState,
+  playerControl,
+  playerState,
+  riders,
+  seaState,
+  type Emote,
+} from './fun-state';
 import { airLeft, stepSwim } from './dive';
 import { DiveScene } from './dive-scene';
 import { InteractionHints } from './interaction-hints';
 import type { AutopilotCommand } from './use-autopilot';
-import { PARASAIL_HEIGHT, riderPose, riderSpot, startRide, stepRide } from './rides';
+import {
+  cutAway,
+  isJump,
+  GENTLE_SECONDS,
+  PARASAIL_HEIGHT,
+  rideExit,
+  riderPose,
+  riderSpot,
+  startRide,
+  stepRide,
+} from './rides';
 import { seatPose, UPRIGHT } from './poses';
 import React, { useEffect, useRef, useState } from 'react';
 import { useFrame, useThree } from '@react-three/fiber';
@@ -52,6 +72,7 @@ const Atmosphere3D = React.memo(AtmosphereScene),
   CampusScene = React.memo(Campus),
   BuildingShells = React.memo(Buildings),
   WaterSportsScene = React.memo(WaterSports),
+  SkyJumpsScene = React.memo(SkyJumps),
   Terrain = React.memo(IslandTerrain),
   Highlands3D = React.memo(HighlandsScene);
 // The low end takes in the whole sea, both islands and every boat trip.
@@ -292,6 +313,7 @@ export function World({
   const arrived = useRef<Point | null>(null);
   const rideY = useRef(0),
     snapZoom = useRef(true),
+    snapFocus = useRef(false),
     reported = useRef<Point>([Infinity, Infinity]);
   // Diving: how far the camera has settled into its underwater framing, and the tilt to go back to.
   const immersion = useRef(0),
@@ -302,11 +324,13 @@ export function World({
     const s = sittingIn.current;
     sittingIn.current = null;
     playerState.elevated = false;
+    // Rides (out on the water or up the bluff) and rooftop seats always return you to their step-in spot.
+    // The water taxi drops you on the far side when it arrives; a jump always ends at its landing spot.
+    const exit = arrived.current ?? (s?.ride && isJump(s.ride.kind) ? rideExit(s, riders[s.id]) : null);
+    // The gentle-motion jump moves you behind a fade: the camera cuts there rather than sweeping across.
+    if (s && riders[s.id]?.gentle) snapFocus.current = true;
     if (s?.ride) delete riders[s.id];
     rideY.current = 0;
-    // Rides (out on the water or up the bluff) and rooftop seats always return you to their step-in spot.
-    // The water taxi drops you on the far side when it arrives.
-    const exit = arrived.current;
     arrived.current = null;
     if (exit) pos.current.set(exit[0], 0, exit[1]);
     else if (s && (s.ride || s.y || Math.hypot(pos.current.x - s.point[0], pos.current.z - s.point[1]) < 0.3))
@@ -320,7 +344,7 @@ export function World({
       rideY.current = 0;
       sittingIn.current = s;
       playerState.elevated = !!s.y;
-      if (s.ride) riders[s.id] = startRide(s, riders, seaState.sights);
+      if (s.ride) riders[s.id] = startRide(s, riders, seaState.sights, Math.random(), !motionOn);
       if (s.ride?.kind === 'scuba') {
         diveState.seen.clear();
         diveState.surface = false;
@@ -384,7 +408,17 @@ export function World({
       if (steer && viewMode !== 'follow') onExplore();
     }
     diveState.surface = false;
-    if (sat && view && (!holding || dive)) {
+    // Jumping: the movement keys (or the Cut away button) end the route and float you straight down,
+    // but only over land you can stand on. Over water they do nothing and the jump carries on.
+    const jump = sat && view && isJump(view.kind) ? view : undefined;
+    if (jump && (steer || jumpState.cutAway)) {
+      if (steer && viewMode !== 'follow') onExplore();
+      cutAway(jump);
+    }
+    jumpState.cutAway = false;
+    // The gentle jump's fade peaks just as it moves you to the landing spot.
+    if (jump?.gentle && jump.t < GENTLE_SECONDS - 0.5 && jump.t + dt >= GENTLE_SECONDS - 0.5) jumpState.onFade();
+    if (sat && view && (!holding || dive || jump)) {
       // Autopilot: follow the ride's path; the vehicle follows your entry in `riders`.
       const done = dive?.mode ? stepSwim(sat.ride!.launch, dive, steer, dt) : stepRide(sat, view, dt),
         [x, z] = riderSpot(sat, view);
@@ -392,7 +426,7 @@ export function World({
       rideY.current = view.y;
       avatar.current.rotation.y = view.heading;
       if (done) {
-        arrived.current = sat.ride?.exit ?? null;
+        arrived.current = rideExit(sat, view) ?? null;
         setSeat(null);
       }
     }
@@ -417,7 +451,7 @@ export function World({
       });
     immersion.current = THREE.MathUtils.damp(immersion.current, diveState.under ? 1 : 0, 3, dt);
     if (torch.current) torch.current.intensity = diveState.under ? 1 + night * 7 : 0;
-    const walking = steer && !dive;
+    const walking = steer && !dive && !jump;
     if (walking) {
       if (viewMode !== 'follow') onExplore();
       if (seat) {
@@ -454,13 +488,16 @@ export function World({
       walk.current += dt * 12;
     }
     if (controls.current) {
-      // Zoom eases toward what the UI asks for, fitted to the view; parasailing pulls the camera
-      // back as you rise, to take in the whole island.
+      // Zoom eases toward what the UI asks for, fitted to the view; parasailing and sky jumps pull the
+      // camera back as you rise, to take in the whole island.
       const fit =
           fitMode === 'overview'
             ? Math.min(16, size.width / 104, size.height / 80)
             : Math.min(36, size.width / 20, size.height / 17),
-        lift = sat?.ride?.kind === 'parasail' ? Math.min(1, rideY.current / PARASAIL_HEIGHT) : 0,
+        lift =
+          sat?.ride?.kind === 'parasail' || (sat?.ride && isJump(sat.ride.kind))
+            ? Math.min(1, rideY.current / PARASAIL_HEIGHT)
+            : 0,
         view = controls.current.object,
         // However far out you zoom, the view stops at the whole sea: there's nothing beyond it.
         widest = Math.min(size.width / 330, size.height / 200),
@@ -490,7 +527,8 @@ export function World({
       cameraDelta.current
         .copy(desiredFocus.current)
         .sub(target)
-        .multiplyScalar(1 - Math.exp(-dt * (dragging.current ? 30 : 5)));
+        .multiplyScalar(snapFocus.current ? 1 : 1 - Math.exp(-dt * (dragging.current ? 30 : 5)));
+      snapFocus.current = false;
       target.add(cameraDelta.current);
       controls.current.object.position.add(cameraDelta.current);
       // Orthographic rays must start above all visible ground, including tall portrait views and zoomed-out follow views.
@@ -525,7 +563,7 @@ export function World({
       route: path.current,
     });
     const now = performance.now() / 1000,
-      rider = sat?.ride && riderPose(sat.ride.kind, now, -rideY.current),
+      rider = sat?.ride && riderPose(sat.ride.kind, now, -rideY.current, view?.phase, view?.roll),
       pose = rider
         ? { ...rider, y: rideY.current + rider.y }
         : sat
@@ -664,6 +702,7 @@ export function World({
         motion={motionOn}
       />
       <WaterSportsScene motion={motionOn} />
+      <SkyJumpsScene motion={motionOn} />
       <DiveScene motion={motionOn} night={night} />
       <InteractionHints
         seat={seat}
