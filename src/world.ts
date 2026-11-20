@@ -9,6 +9,7 @@ import {
   HUB,
   highlandsWalkable,
   inHighlands,
+  JUMP_LEDGES,
   LAKE,
   POOL,
   RANGER_HUT,
@@ -21,6 +22,7 @@ import {
   treeAt,
   WEST_JETTY,
 } from './highlands.ts';
+import { JUMP_ROUTES, type JumpRoute } from './jumps.ts';
 export type Point = [number, number];
 // ---- Campus layout (world units: x east, z south; the arrival pier is on the south shore) ----
 // Building pads: floors now, walls and roofs later. `glass` pads become see-through pavilions.
@@ -162,8 +164,9 @@ export type Seat = {
   y?: number;
   // Autopilot rides (kayaks, jet skis, boats, the climb, the dive) start from `launch`;
   // `deck` places a second rider along the boat.
-  // The water taxi follows `route` and drops you at `exit` on the far side.
-  ride?: { kind: RideKind; launch: Point; deck?: number; route?: Point[]; exit?: Point };
+  // The water taxi follows `route` and drops you at `exit` on the far side. A jump flies one of its
+  // `routes`, drawn at random, and lands at that route's exit.
+  ride?: { kind: RideKind; launch: Point; deck?: number; route?: Point[]; exit?: Point; routes?: JumpRoute[] };
   // Set for seats reached in a special way (rooftop stairs, rides off the docks).
   fixedApproach?: boolean;
   // Where people step in and out of the seat; the seat itself is solid.
@@ -487,6 +490,17 @@ export const seats = [
     angle: -Math.PI / 2,
     kind: 'bench' as const,
   },
+  // Jump ledges on the summit's lip: a wingsuit and a parachute (jumps.ts).
+  ...(['wingsuit', 'parachute'] as const).map(kind => ({
+    id: kind === 'wingsuit' ? 'ws-0' : 'pc-0',
+    name: kind === 'wingsuit' ? 'Wingsuit ledge' : 'Parachute ledge',
+    point: JUMP_LEDGES[kind].point,
+    angle: JUMP_LEDGES[kind].angle,
+    kind: 'ride' as const,
+    ride: { kind, launch: JUMP_LEDGES[kind].point, routes: JUMP_ROUTES[kind] },
+    approach: JUMP_LEDGES[kind].approach,
+    fixedApproach: true,
+  })),
   {
     id: 'pn-0',
     name: 'Piano bench',

@@ -19,7 +19,9 @@ import {
   Hand,
   Bot,
 } from 'lucide-react';
-import { locations, type Point } from './world';
+import { locations, seats, type Point } from './world';
+import { jumpState } from './fun-state';
+import { isJump } from './rides';
 import type { Trail } from './highlands';
 import { readAtmosphere, useOcean, useIslandTime, type Atmosphere } from './atmosphere';
 import { renderQuality } from './daylight';
@@ -144,6 +146,17 @@ export function IslandOffice({ host }: { host?: IslandHost }) {
   const canvasGl = useMemo(() => ({ stencil: true, antialias: picture.antialias }), [picture.antialias]);
   const touchNav = useTouchNav();
   const dive = useDive({ seat, setSeat, notify: setToast });
+  // Sky jumps: the button cuts away (like a movement key) rather than leaving the ride, and the
+  // gentle-motion jump fades the view as it lands you.
+  const jumpKind = seats.find(s => s.id === seat)?.ride?.kind,
+    jumping = !!jumpKind && isJump(jumpKind),
+    [jumpFade, setJumpFade] = useState(0);
+  useEffect(() => {
+    jumpState.onFade = () => setJumpFade(n => n + 1);
+    return () => {
+      jumpState.onFade = () => {};
+    };
+  }, []);
   const news: News = useMemo(
     () => ({
       time: mood.time,
@@ -502,6 +515,7 @@ export function IslandOffice({ host }: { host?: IslandHost }) {
             <TouchStick />
             {dive.hud.under && <div className="dive-tint" />}
             {dive.splash > 0 && <div key={dive.splash} className="dive-splash" />}
+            {jumpFade > 0 && <div key={jumpFade} className="jump-fade" />}
             {seat && dive.diving && (
               <div className="seat-message dive-hud">
                 <span aria-hidden="true">🤿</span>
@@ -537,7 +551,9 @@ export function IslandOffice({ host }: { host?: IslandHost }) {
               <div className="seat-message">
                 <Armchair size={17} />
                 <span>{seatMessage(seat).text}</span>
-                <button onClick={() => setSeat(null)}>{seatMessage(seat).action}</button>
+                <button onClick={() => (jumping ? (jumpState.cutAway = true) : setSeat(null))}>
+                  {seatMessage(seat).action}
+                </button>
               </div>
             )}
             {fun.nudge && (

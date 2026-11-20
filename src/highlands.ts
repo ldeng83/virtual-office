@@ -306,6 +306,12 @@ const lakeRing = Array.from({ length: 14 }, (_, i) => {
 });
 // Summit Ridge zigzags up the mountain's south face in switchbacks, so the climb stays gentle.
 export const SUMMIT: Point = [PEAK.x, PEAK.z + 0.6];
+// Jump ledges on the summit's south lip (jumps.ts), above the switchbacks, where the slope below is
+// clear of trees. You step onto each from `approach`, on the summit.
+export const JUMP_LEDGES = {
+  wingsuit: { point: [15, -94.75] as Point, approach: [15, -95.5] as Point, angle: 0 },
+  parachute: { point: [18, -94.75] as Point, approach: [18, -95.5] as Point, angle: 0 },
+};
 const switchbacks: Point[] = [[22, -86.5], [12, -87.6], [21, -91], [13, -92.2], [20, -94.6], [14.4, -96.2], SUMMIT];
 export const TRAILS: Trail[] = [
   {

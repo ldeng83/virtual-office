@@ -14,6 +14,10 @@ export const EMOTE_ICONS: Record<Emote, string> = { wave: '👋', dance: '💃',
 // Taking back control from autopilot stops you where you are (the scene fills this in).
 export const playerControl = { halt: () => {} };
 
+// Sky jumps: the HUD's Cut away button asks the scene to cut away, and the gentle-motion jump fades the
+// view as it moves you to the landing spot (the island panel fills `onFade` in).
+export const jumpState = { cutAway: false, onFade: () => {} };
+
 // Life out at sea (open-sea.tsx writes these every frame). The telescope and the activity feed read them.
 // `ahead` says where it will be in a while, so a boat setting off can aim to meet it.
 export type SeaSight = {

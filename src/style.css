@@ -2464,6 +2464,16 @@
       100% 100%;
     animation: dive-splash 1.7s ease-out forwards;
   }
+  /* The gentle-motion sky jump: a soft fade to sky while you move to the landing spot. */
+  .jump-fade {
+    position: absolute;
+    inset: 0;
+    z-index: 30;
+    pointer-events: none;
+    opacity: 0;
+    background: #eef6f8;
+    animation: jump-fade 1.4s ease-in-out forwards;
+  }
   .dive-log p {
     margin: 14px 0;
     font-size: 12px;
@@ -2585,6 +2595,16 @@
   }
 }
 
+@keyframes jump-fade {
+  0%,
+  100% {
+    opacity: 0;
+  }
+  35%,
+  55% {
+    opacity: 1;
+  }
+}
 @keyframes dive-splash {
   0% {
     opacity: 0;

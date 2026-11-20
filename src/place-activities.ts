@@ -40,6 +40,8 @@ const GROUPS: Record<string, { place: string; icon: string; label: string }> = {
   wf: { place: 'falls', icon: '🪑', label: 'Bench' },
   rv: { place: 'summit', icon: '🌄', label: 'Ridge view' },
   sm: { place: 'summit', icon: '🪑', label: 'Summit bench' },
+  ws: { place: 'summit', icon: '🦅', label: 'Wingsuit' },
+  pc: { place: 'summit', icon: '🪂', label: 'Parachute' },
 };
 // The water taxi has a stop at each end: the dock on the office island, the jetty by the campsite.
 const TAXI = { icon: '⛴️', label: 'Water taxi' };

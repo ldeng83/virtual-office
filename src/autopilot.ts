@@ -128,6 +128,9 @@ export const PLAYER_SCHEDULE: Record<Period, Block> = {
       ride('climb', 'Climbing bluff', 'Climbing the bluff', '🧗', ['cl-0']),
       ride('scuba', 'Fishing jetty', 'Diving on the reef', '🤿', ['dv-0']),
       hike('summit', 'Hiking up to the summit', '⛰️'),
+      // Now and then, up to the summit and off it; the walk carries on from wherever you land.
+      ride('wingsuit', 'Summit', 'A wingsuit jump off the summit', '🦅', ['ws-0'], 0.4),
+      ride('parachute', 'Summit', 'A parachute jump off the summit', '🪂', ['pc-0'], 0.4),
       spot('Rooftop terrace', 'Available', 'Sunset on the roof', '☀️', 'look', ['rt-1', 'rt-2', 'rt-0']),
       coffee(['cs-1', 'cs-2', 'cs-0']),
     ],
