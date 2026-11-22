@@ -10,7 +10,9 @@ import {
   Compass,
   HelpCircle,
   MapPin,
+  LocateFixed,
   Maximize2,
+  Minimize2,
   Minus,
   Plus,
   Settings2,
@@ -56,6 +58,8 @@ export function IslandOffice({ host }: { host?: IslandHost }) {
     return next;
   }, [hostPeople]);
   const [viewMode, setViewMode] = useState<ViewMode>('follow');
+  // The scene alone, filling the whole browser window.
+  const [expanded, setExpanded] = useState(false);
   const freeLook = React.useCallback(() => setViewMode('free'), []);
   const [atmosphere, setAtmosphere] = useState(readAtmosphere);
   const sound = useOcean(atmosphere.volume);
@@ -235,6 +239,13 @@ export function IslandOffice({ host }: { host?: IslandHost }) {
   useEffect(() => {
     if (tab === 'activity' && feed[0]) setSeenFeed(feed[0].id);
   }, [tab, feed]);
+  // Escape leaves the expanded view, once any dialog or the map on top of it has closed.
+  useEffect(() => {
+    if (!expanded || modal || mapOpen) return;
+    const handle = (e: KeyboardEvent) => e.key === 'Escape' && islandKey(e) && setExpanded(false);
+    window.addEventListener('keydown', handle);
+    return () => window.removeEventListener('keydown', handle);
+  }, [expanded, modal, mapOpen]);
   useEffect(() => {
     if (!modal) return;
     const handle = (e: KeyboardEvent) => {
@@ -290,7 +301,11 @@ export function IslandOffice({ host }: { host?: IslandHost }) {
         : b,
     );
   return (
-    <div className="island-root" data-hosted={hosted} data-touch-nav={touchNav ? 'true' : 'false'}>
+    <div
+      className={expanded ? 'island-root expanded' : 'island-root'}
+      data-hosted={hosted}
+      data-touch-nav={touchNav ? 'true' : 'false'}
+    >
       <div className="app">
         <header className="header">
           <a
@@ -489,14 +504,23 @@ export function IslandOffice({ host }: { host?: IslandHost }) {
               </button>
               <div />
               <button
-                aria-label="Reset view"
+                aria-label="Find me"
+                title="Find me"
                 onClick={() => {
                   setReset(v => v + 1);
                   cameraView.zoom = 30;
-                  setViewMode(v => (v === 'free' ? 'follow' : v));
+                  setViewMode('follow');
                 }}
               >
-                <Maximize2 size={17} />
+                <LocateFixed size={17} />
+              </button>
+              <button
+                aria-label={expanded ? 'Exit full window' : 'Expand to full window'}
+                title={expanded ? 'Exit full window (Esc)' : 'Expand to full window'}
+                aria-pressed={expanded}
+                onClick={() => setExpanded(v => !v)}
+              >
+                {expanded ? <Minimize2 size={17} /> : <Maximize2 size={17} />}
               </button>
             </div>
             <div className="scene-bottom">

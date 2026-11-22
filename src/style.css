@@ -471,6 +471,23 @@
     color: #65887b;
     margin: 0;
   }
+  /* Expanded: the island takes the whole browser window and the scene takes the whole island.
+     Dialogs (z-index 100) still open above it. */
+  &.expanded {
+    position: fixed;
+    inset: 0;
+    z-index: 1000;
+    height: auto;
+    overflow: hidden;
+  }
+  &.expanded .island-panel {
+    position: fixed;
+    inset: 0;
+    z-index: 90;
+    border: 0;
+    border-radius: 0;
+    min-height: 0;
+  }
   .map-controls {
     position: absolute;
     right: 22px;
